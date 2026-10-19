@@ -1,0 +1,107 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: Project metadata, dependencies, extras and Flet app identity.
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "blockprobe"
+version = "1.0.0"
+description = "Local-first tool that verifies whether gambling sites remain reachable after installing a blocker."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [{ name = "Christian", email = "tursi.christian9@gmail.com" }]
+keywords = [
+    "betblocker",
+    "dns-filter",
+    "gambling",
+    "local-first",
+    "privacy",
+    "self-exclusion",
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Environment :: Console",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
+    "Operating System :: Android",
+    "Operating System :: MacOS",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+]
+dependencies = [
+    "diskcache>=5.6",
+    "dnspython>=2.6",
+    # flet-web 1.0.x still passes openapi_prefix to FastAPI.
+    "fastapi>=0.100,<0.116",
+    "flet>=1.0,<2",
+    "httpx>=0.27",
+    "platformdirs>=4.2",
+    "tldextract>=5.1",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+redis = ["redis>=5.0"]
+mongo = ["pymongo>=4.7"]
+desktop = ["flet[all]>=1.0,<2"]
+dev = [
+    "hypothesis>=6.100",
+    "mypy>=1.10",
+    "pip-audit>=2.7",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "pytest-cov>=5.0",
+    "respx>=0.21",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+blockprobe = "blockprobe.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/ctterrlt/BlockProbe"
+Repository = "https://github.com/ctterrlt/BlockProbe"
+Issues = "https://github.com/ctterrlt/BlockProbe/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/blockprobe"]
+exclude = ["**/.gitkeep", "**/__pycache__", "**/*.pyc"]
+
+[tool.flet]
+org = "io.github.ctterrlt"
+product = "BlockProbe"
+company = "BlockProbe contributors"
+copyright = "Copyright (C) 2026 Christian"
+build_number = 1
+bundle_id = "io.github.ctterrlt.blockprobe"
+icon_background = "#0B1220"
+
+[tool.flet.app]
+path = "src"
+module = "main"
+
+[tool.flet.splash]
+color = "#0B1220"
+dark_color = "#0B1220"
+
+[tool.flet.android]
+split_per_abi = true
+
+[tool.flet.windows]
+artifact = "BlockProbe"
+
+[tool.flet.macos]
+artifact = "BlockProbe"
+
+[tool.flet.linux]
+artifact = "blockprobe"

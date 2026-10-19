@@ -1,3 +1,30 @@
+BlockProbe -- licensed under the GNU Affero General Public License,
+version 3 or (at your option) any later version.
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+Copyright (C) 2026  Christian
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License as published by
+the Free Software Foundation, either version 3 of the License, or (at
+your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Affero General Public
+License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+The notice above is the license notice applied to the BlockProbe software
+in this repository and is what makes the "version 3 or any later version"
+option effective.  The complete license document follows verbatim.  The
+license document itself must not be altered; only the notice above grants
+rights under later versions.
+
+----------------------------------------------------------------------
+
                     GNU AFFERO GENERAL PUBLIC LICENSE
                        Version 3, 19 November 2007
 

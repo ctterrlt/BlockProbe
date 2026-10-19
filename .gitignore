@@ -1,220 +1,285 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: Repository ignore rules for Python, packaging, runtime state and signing material.
+
+# .gitkeep
+!**/**/.gitkeep
+
 # Byte-compiled / optimized / DLL files
-__pycache__/
-*.py[codz]
-*$py.class
+**/__pycache__/**/*
+**/**/*.py[codz]
+**/**/*$py.class
 
 # C extensions
-*.so
+**/**/*.so
 
 # Distribution / packaging
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-share/python-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
+**/**/.Python
+**/build/**/*
+**/develop-eggs/**/*
+**/dist/**/*
+**/downloads/**/*
+**/eggs/**/*
+**/.eggs/**/*
+**/lib/**/*
+**/lib64/**/*
+**/parts/**/*
+**/sdist/**/*
+**/var/**/*
+**/wheels/**/*
+**/share/python-wheels/**/*
+**/*.egg-info/**/*
+**/**/.installed.cfg
+**/**/*.egg
+**/**/MANIFEST
 
 # PyInstaller
 #   Usually these files are written by a python script from a template
 #   before PyInstaller builds the exe, so as to inject date/other infos into it.
-*.manifest
-*.spec
+**/**/*.manifest
+**/**/*.spec
 
 # Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+**/**/pip-log.txt
+**/**/pip-delete-this-directory.txt
 
 # Unit test / coverage reports
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-*.py.cover
-*.lcov
-.hypothesis/
-.pytest_cache/
-cover/
+**/htmlcov/**/*
+**/.tox/**/*
+**/.nox/**/*
+**/**/.coverage
+**/**/.coverage.*
+**/.cache/**/*
+**/**/nosetests.xml
+**/**/coverage.xml
+**/**/*.cover
+**/**/*.py.cover
+**/**/*.lcov
+**/.hypothesis/**/*
+**/.pytest_cache/**/*
+**/cover/**/*
 
 # Translations
-*.mo
-*.pot
+**/**/*.mo
+**/**/*.pot
 
 # Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
+**/**/*.log
+**/**/local_settings.py
+**/**/db.sqlite3
+**/**/db.sqlite3-journal
 
 # Flask stuff:
-instance/
-.webassets-cache
+**/instance/**/*
+**/.webassets-cache/**/*
 
 # Scrapy stuff:
-.scrapy
+**/.scrapy/**/*
 
 # Sphinx documentation
-docs/_build/
+**/docs/_build/**/*
 
 # PyBuilder
-.pybuilder/
-target/
+**/.pybuilder/**/*
+**/target/**/*
 
 # Jupyter Notebook
-.ipynb_checkpoints
+**/.ipynb_checkpoints/**/*
 
 # IPython
-profile_default/
-ipython_config.py
+**/profile_default/**/*
+**/**/ipython_config.py
 
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
-# .python-version
+# **/**/.python-version
 
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
 #   However, in case of collaboration, if having platform-specific dependencies or dependencies
 #   having no cross-platform support, pipenv may install dependencies that don't work, or not
 #   install all needed dependencies.
-# Pipfile.lock
+# **/**/Pipfile.lock
 
 # uv
 #   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
-# uv.lock
+# **/**/uv.lock
 
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
 #   commonly ignored for libraries.
 #   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-# poetry.lock
-# poetry.toml
+# **/**/poetry.lock
+# **/**/poetry.toml
 
 # pdm
 #   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
 #   pdm recommends including project-wide configuration in pdm.toml, but excluding .pdm-python.
 #   https://pdm-project.org/en/latest/usage/project/#working-with-version-control
-# pdm.lock
-# pdm.toml
-.pdm-python
-.pdm-build/
+# **/**/pdm.lock
+# **/**/pdm.toml
+**/**/.pdm-python
+**/.pdm-build/**/*
 
 # pixi
 #   Similar to Pipfile.lock, it is generally recommended to include pixi.lock in version control.
-# pixi.lock
+# **/**/pixi.lock
 #   Pixi creates a virtual environment in the .pixi directory, just like venv module creates one
 #   in the .venv directory. It is recommended not to include this directory in version control.
-.pixi/*
-!.pixi/config.toml
+**/.pixi/**/*
+!**/.pixi/config.toml
 
 # PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
+**/__pypackages__/**/*
 
 # Celery stuff
-celerybeat-schedule*
-celerybeat.pid
+**/**/celerybeat-schedule*
+**/**/celerybeat.pid
 
 # Redis
-*.rdb
-*.aof
-*.pid
+**/**/*.rdb
+**/**/*.aof
+**/**/*.pid
 
 # RabbitMQ
-mnesia/
-rabbitmq/
-rabbitmq-data/
+**/mnesia/**/*
+**/rabbitmq/**/*
+**/rabbitmq-data/**/*
 
 # ActiveMQ
-activemq-data/
+**/activemq-data/**/*
 
 # SageMath parsed files
-*.sage.py
+**/**/*.sage.py
 
 # Environments
-.env
-.envrc
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
+**/**/.env
+**/**/.envrc
+**/.venv/**/*
+**/env/**/*
+**/venv/**/*
+**/ENV/**/*
+**/env.bak/**/*
+**/venv.bak/**/*
 
 # Spyder project settings
-.spyderproject
-.spyproject
+**/**/.spyderproject
+**/**/.spyproject
 
 # Rope project settings
-.ropeproject
+**/**/.ropeproject
 
 # mkdocs/Zensical documentation
-/site
+**/site/**/*
 
 # mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+**/.mypy_cache/**/*
+**/**/.dmypy.json
+**/**/dmypy.json
 
 # Pyre type checker
-.pyre/
+**/.pyre/**/*
 
 # pytype static type analyzer
-.pytype/
+**/.pytype/**/*
 
 # Cython debug symbols
-cython_debug/
+**/cython_debug/**/*
 
 # PyCharm
 #   JetBrains specific template is maintained in a separate JetBrains.gitignore that can
 #   be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
 #   and can be added to the global gitignore or merged into this file.  For a more nuclear
 #   option (not recommended) you can uncomment the following to ignore the entire idea folder.
-# .idea/
+**/.idea/**/*
 
 # Abstra
 #   Abstra is an AI-powered process automation framework.
 #   Ignore directories containing user credentials, local state, and settings.
 #   Learn more at https://abstra.io/docs
-.abstra/
+**/.abstra/**/*
 
 # Visual Studio Code
 #   Visual Studio Code specific template is maintained in a separate VisualStudioCode.gitignore that
 #   can be found at https://github.com/github/gitignore/blob/main/Global/VisualStudioCode.gitignore
 #   and can be added to the global gitignore or merged into this file. However, if you prefer, you
 #   could uncomment the following to ignore the entire vscode folder
-# .vscode/
+**/.vscode/**/*
 # Temporary file for partial code execution
-tempCodeRunnerFile.py
+**/**/tempCodeRunnerFile.py
 
 # Ruff stuff:
-.ruff_cache/
+**/.ruff_cache/**/*
 
 # PyPI configuration file
-.pypirc
+**/**/.pypirc
 
 # Marimo
-marimo/_static/
-marimo/_lsp/
-__marimo__/
+**/marimo/_static/**/*
+**/marimo/_lsp/**/*
+**/__marimo__/**/*
 
 # Streamlit
-.streamlit/secrets.toml
+**/**/.streamlit/secrets.toml
+
+# AI agent instruction files
+**/**/AGENTS.md
+**/**/Agents.md
+**/**/agents.md
+
+# Operating system junk
+**/**/.DS_Store
+**/**/Thumbs.db
+**/**/desktop.ini
+
+# Editor swap / backup files
+**/**/*.swp
+**/**/*.swo
+**/**/*~
+
+# BlockProbe additions (Agents.md section 3)
+**/**/*.db
+**/**/*.sqlite
+**/**/*.sqlite3
+**/**/*.sqlite3-journal
+**/**/*.bak
+**/.flet/**/*
+**/.briefcase/**/*
+**/**/*.apk
+**/**/*.aab
+**/**/*.ipa
+
+# Runtime state directories (root only: never ignore src/blockprobe/cache)
+/data/**/*
+/logs/**/*
+/backups/**/*
+/cache/**/*
+
+# Installer and bundle artifacts
+**/**/*.msi
+**/**/*.msix
+**/**/*.dmg
+**/**/*.pkg
+**/**/*.AppImage
+**/**/*.flatpak
+**/**/*.deb
+**/**/*.rpm
+**/**/*.snap
+**/**/*.exe
+
+# Signing material (never commit)
+**/**/*.p12
+**/**/*.pfx
+**/**/*.jks
+**/**/*.keystore
+**/**/*.mobileprovision
+**/**/*.provisionprofile
+**/**/*.pem
+**/**/*.key
+**/**/*.cer
+
+# Keep the PyInstaller specification under version control
+!**/packaging/**/*.spec
