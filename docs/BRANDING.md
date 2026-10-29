@@ -16,9 +16,15 @@
 
 | Role | Hex |
 | --- | --- |
-| App background | `#0B1220` |
-| Mark | `#F8FAFC` |
-| Accent | `#38BDF8` |
+| App background | `#0B1115` |
+| Surface | `#111A1F` |
+| Card | `#141F25` |
+| Primary text | `#E9F1F0` |
+| Muted text | `#9BAEAA` |
+| Accent | `#76D6C1` |
+
+The splash and generated icon background use a separate `#0B1220` value in
+`pyproject.toml`. The current app interface uses the dark palette above.
 
 ## App icon
 

@@ -1,16 +1,37 @@
 <!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
-<!-- Purpose: Per-platform packaging matrix and build entry points. -->
+<!-- Purpose: Packaging build entry points and platform requirements. -->
 
 # Packaging
 
-| Target | Artifact | Tooling |
-| --- | --- | --- |
-| Windows 10+ | `.exe` or `.msi` installer | `flet build windows`, Inno Setup, WiX |
-| macOS | signed and notarized `.dmg` | `flet build macos`, `packaging/macos/` |
-| Linux | AppImage and Flatpak | `flet build linux`, AppImageBuilder, Flatpak |
-| Android 8+ | `.apk` or `.aab` | `flet build apk` / `flet build aab` |
-| iOS 15+ | `.ipa` (best effort) | `flet build ipa` |
-| Python and FreeBSD | wheel and sdist | hatchling, pip or pipx |
-| Containers | OCI image | `packaging/Dockerfile` |
+Build entry point: `python scripts/build.py TARGET` from the repository root.
+Install Python 3.14+ and `python -m pip install -e ".[packaging]"` first.
+Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
 
-`scripts/build.py` is the single entry point for release builds. Docker is optional and is not required for desktop or mobile installation.
+| Target | Artifact | Host/tooling |
+| --- | --- | --- |
+| `python` | wheel and sdist | Python/pip; Hatchling build backend |
+| `windows` | portable ZIP; `--installer` adds per-user Setup EXE | Windows; Inno Setup for installer |
+| `macos` | app ZIP; `--installer` adds unsigned DMG | macOS; Xcode/Flutter toolchain |
+| `linux` | portable tar.gz; `--installer` also creates Arch `.pkg.tar.zst` on Arch | Linux; Flutter toolchain; `makepkg` for Arch package |
+| `apk`, `aab` | Android APK or App Bundle | Flet-managed Android toolchain; local APK uses debug certificate; release key supplied separately |
+| `web` | static web bundle ZIP | Flet-managed Flutter toolchain |
+| `ios-simulator` | simulator app ZIP | macOS and Xcode |
+| Container | headless local web UI | Docker; see `Dockerfile` |
+
+`packaging/windows/installer.iss` and `packaging/macos/build_dmg.sh` wrap the
+Flet outputs. They do not sign or notarize. The locally built Linux x86_64
+tarball and universal Android APK were smoke-checked; the APK uses a debug
+certificate and was not installed on physical hardware. Windows/macOS builds
+and CI release artifacts remain unverified. AppImage/Flatpak, Linux arm64,
+physical-device iOS IPA, store submission and production signing remain
+unimplemented. Android background scheduling is not implemented. See
+[`../docs/PACKAGING.md`](../docs/PACKAGING.md) for install instructions and
+milestone status.
+
+The Linux portable archive is distribution-independent at the installer level:
+`install.sh` copies the app and license into the current user's XDG directories
+and registers a desktop launcher. It does not call a distro package manager or
+install system packages. On Arch Linux, `python scripts/build.py linux
+--installer` also creates a package that can be installed through `pacman -U`,
+`yay -U` or a graphical local-package installer. Debian `.deb` and Fedora
+`.rpm` packages are not built.

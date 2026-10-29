@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Bundled copy of the repository's verified BetBlocker rules. Keep in sync with
+# signatures/betblocker.toml; package installs read this copy through resources.
+
+[[rules]]
+id = "betblocker-blocked-by"
+kind = "block"
+hint = "betblocker"
+confidence = "high"
+note = "Live BetBlocker title and heading, verified 2026-10-29."
+title = ["^\\s*Blocked by BetBlocker\\s*$"]
+body = ["Blocked\\s+by\\s+BetBlocker"]
+
+[[rules]]
+id = "betblocker-domain-blocked"
+kind = "block"
+hint = "betblocker"
+confidence = "high"
+note = "Live BetBlocker sentence: 'This domain was blocked by BetBlocker application.'"
+body = [
+  "This\\s+domain\\s+was\\s+blocked\\s+by\\s+BetBlocker(?:\\s+application)?",
+  "This\\s+[^.\\n]{1,160}?\\s+was\\s+blocked\\s+by\\s+BetBlocker",
+]

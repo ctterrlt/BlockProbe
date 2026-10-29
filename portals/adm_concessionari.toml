@@ -1,2 +1,22 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Purpose: ADM Concessionari gioco a distanza portal definition (Italy).
+#
+# The Agenzia delle Dogane e dei Monopoli publishes the official list of
+# licensed remote gambling operators. The table is rendered by an asynchronous
+# Liferay portlet; BlockProbe discovers the fragment URL from the page itself
+# (never hard-coded) and follows the ``pager`` links.
+
+uuid = "44d93121-094d-4b4c-9e87-1c59380ec20f"
+name = "ADM - Concessionari gioco a distanza"
+enabled = true
+default = true
+
+[source]
+country = "IT"
+start_url = "https://www.adm.gov.it/portale/monopoli/giochi/gioco_distanza/gioco_dist_concessionari"
+strategy = "auto"
+max_pages = 50
+rate_limit_per_sec = 1.0
+respect_robots = true
+exclude_domains = ["adm.gov.it", "mef.gov.it", "sogei.it", "aaws-aanalytics.sogei.it"]
+include_regex = []

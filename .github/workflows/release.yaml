@@ -1,0 +1,96 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: Build Python and unsigned native distribution artifacts for tags.
+
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  python-package:
+    name: Python wheel and sdist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Build package
+        run: |
+          python -m pip install -e ".[packaging]"
+          python scripts/build.py python
+      - name: Smoke-test wheel
+        run: |
+          python -m venv /tmp/blockprobe-wheel
+          /tmp/blockprobe-wheel/bin/python -m pip install dist/packages/python/*.whl
+          /tmp/blockprobe-wheel/bin/blockprobe version
+          /tmp/blockprobe-wheel/bin/blockprobe self-check
+        env:
+          BLOCKPROBE_DATA_DIR: /tmp/blockprobe-wheel-data
+          BLOCKPROBE_CONFIG: /tmp/blockprobe-wheel-data/config.toml
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/packages/python/*
+
+  native-package:
+    name: ${{ matrix.target }} package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: windows
+            runner: windows-latest
+            installer: "--installer"
+          - target: macos
+            runner: macos-latest
+            installer: "--installer"
+          - target: linux
+            runner: ubuntu-latest
+            installer: ""
+          - target: apk
+            runner: ubuntu-latest
+            installer: ""
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - if: matrix.target == 'apk'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - if: matrix.target == 'windows'
+        run: choco install innosetup --yes --no-progress
+      - name: Install build tooling
+        run: python -m pip install -e ".[packaging]"
+      - if: matrix.target == 'linux'
+        name: Install Flet Linux build dependencies
+        run: python scripts/install-linux-build-deps.py
+      - name: Build native package
+        run: python scripts/build.py ${{ matrix.target }} ${{ matrix.installer }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.target }}
+          path: dist/packages/${{ matrix.target }}/*
+          if-no-files-found: error
+
+  publish:
+    name: Attach artifacts to GitHub release
+    needs: [python-package, native-package]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/**
+          generate_release_notes: true

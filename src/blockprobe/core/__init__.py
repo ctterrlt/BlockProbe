@@ -1,2 +1,2 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Core domain layer: models, enums, errors, config and events."""
+"""Core domain layer: models, enums, errors and config."""

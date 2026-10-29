@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+pkgname=blockprobe
+pkgver=1.0.0
+pkgrel=1
+pkgdesc='Local-first gambling blocker reachability checker'
+arch=('x86_64')
+url='https://github.com/ctterrlt/BlockProbe'
+license=('AGPL-3.0-or-later')
+depends=('gtk3' 'libepoxy' 'libxkbcommon')
+options=('!strip')
+
+package() {
+    install -d "$pkgdir/opt/blockprobe"
+    cp -R "$startdir/BlockProbe/." "$pkgdir/opt/blockprobe/"
+
+    install -Dm755 /dev/stdin "$pkgdir/usr/bin/blockprobe-desktop" <<'EOF'
+#!/bin/sh
+exec /opt/blockprobe/blockprobe "$@"
+EOF
+
+    install -Dm644 "$startdir/BlockProbe/LICENSE" \
+        "$pkgdir/usr/share/licenses/blockprobe/LICENSE"
+    local desktop="$pkgdir/usr/share/applications/io.github.ctterrlt.blockprobe.desktop"
+    install -Dm644 "$startdir/BlockProbe/share/applications/io.github.ctterrlt.blockprobe.desktop" "$desktop"
+    sed -i 's|^Exec=.*|Exec=/usr/bin/blockprobe-desktop %U|' "$desktop"
+
+    if [[ -d "$startdir/BlockProbe/share/icons" ]]; then
+        cp -R "$startdir/BlockProbe/share/icons/." "$pkgdir/usr/share/icons/"
+    fi
+}

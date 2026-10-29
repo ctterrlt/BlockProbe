@@ -1,2 +1,21 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Purpose: Italian ISP / ADM blackout page signatures.
+#
+# THIS FILE INTENTIONALLY CONTAINS NO ACTIVE RULES.
+#
+# A DNS blackout is already direct evidence: BlockProbe detects sinkhole
+# answers (0.0.0.0, ::, loopback, private, link-local, reserved) and a redirect
+# chain that ends on adm.gov.it or mef.gov.it without any rule file. Rules
+# here are only for HTML block pages served by an ISP after the connection
+# succeeds; they must come from a real captured response, never from memory.
+#
+# Add verified rules in the same format as signatures/betblocker.toml:
+#
+# [[rules]]
+# id = "isp-blockpage-2026-01"
+# kind = "block"
+# hint = "isp_adm"
+# confidence = "high"
+# note = "Reproduced on TIM FTTH, 2026-01."
+# title = ["accesso negato"]
+# body = ["sito non raggiungibile"]

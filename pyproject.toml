@@ -10,7 +10,7 @@ name = "blockprobe"
 version = "1.0.0"
 description = "Local-first tool that verifies whether gambling sites remain reachable after installing a blocker."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Christian", email = "tursi.christian9@gmail.com" }]
@@ -32,9 +32,6 @@ classifiers = [
     "Operating System :: Microsoft :: Windows",
     "Operating System :: POSIX :: Linux",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
     "Topic :: Security",
 ]
@@ -51,9 +48,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-redis = ["redis>=5.0"]
-mongo = ["pymongo>=4.7"]
 desktop = ["flet[all]>=1.0,<2"]
+packaging = ["build>=1.2", "flet[all]>=1.0,<2"]
 dev = [
     "hypothesis>=6.100",
     "mypy>=1.10",
@@ -72,6 +68,35 @@ blockprobe = "blockprobe.cli:main"
 Homepage = "https://github.com/ctterrlt/BlockProbe"
 Repository = "https://github.com/ctterrlt/BlockProbe"
 Issues = "https://github.com/ctterrlt/BlockProbe/issues"
+
+[tool.ruff]
+line-length = 110
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    "SIM105", # try/except/pass around optional UI and probe calls is intentional
+    "B008",   # Typer options use function calls in defaults by design
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/conftest.py" = ["E402"] # sys.path setup must run before app imports
+"src/blockprobe/i18n.py" = ["E501"] # one translation per line; long sentences are data, not code
+
+[tool.mypy]
+python_version = "3.14"
+mypy_path = "src"
+strict = true
+files = ["src/blockprobe/core"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q"
+filterwarnings = ["ignore::DeprecationWarning:diskcache.*"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/blockprobe"]
@@ -95,7 +120,13 @@ color = "#0B1220"
 dark_color = "#0B1220"
 
 [tool.flet.android]
-split_per_abi = true
+split_per_abi = false
+
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
+
+[tool.flet.android.manifest_application]
+allowBackup = false
 
 [tool.flet.windows]
 artifact = "BlockProbe"
@@ -105,3 +136,14 @@ artifact = "BlockProbe"
 
 [tool.flet.linux]
 artifact = "blockprobe"
+
+[tool.flet.boot_screen]
+name = "flet"
+
+[tool.flet.boot_screen.flet]
+theme_mode = "dark"
+bgcolor_dark = "#0B1115"
+spinner_color_dark = "#76D6C1"
+spinner_size = 28
+prepare_message = "Preparing BlockProbe…"
+startup_message = "Starting BlockProbe…"

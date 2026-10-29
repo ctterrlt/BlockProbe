@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: AGPL-3.0-or-later -->
+<!-- Purpose: synthetic portal page with a deliberately different layout from
+     the ADM table. Used to prove extraction is layout-independent: no <table>,
+     plain-text hostnames, a JSON array in a script, and JS property chains
+     that must never become candidates. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Licensed operators (different layout)</title>
+  <script>
+    // JS property chains: must NOT be extracted.
+    Liferay.Data = Liferay.Data || {};
+    event.page = 3;
+    window.analytics = true;
+    anchor.search = "/operators?page=2";
+    var navigationUrl = "/operators?page=2";
+    // A JSON array of domains: the quoted values ARE valid candidates.
+    var featured = ["pokerzone.it", "https://www.slotvillage.it/promo"];
+    // Quoted non-hostnames must be ignored.
+    var contacts = ["help@regulator.example", "frontend-js-spa-web@3.0.35/liferay/init.es"];
+  </script>
+</head>
+<body>
+  <h1>Licensed operators</h1>
+  <div class="cards">
+    <section class="card">
+      <h2>Alpha Casino</h2>
+      <a href="https://www.alphacasino.it/">Official site</a>
+    </section>
+    <section class="card">
+      <h2>Bet Maestro</h2>
+      <p>Play at online.betmaestro.it today.</p>
+    </section>
+    <section class="card">
+      <h2>Poker Zone</h2>
+      <p>Poker and tournaments.</p>
+    </section>
+    <section class="card">
+      <h2>Slot Village</h2>
+      <p>Promotions every week.</p>
+    </section>
+    <section class="card">
+      <h2>Not a candidate</h2>
+      <p>See https://matomo.org/ and https://www.facebook.com/regulator for details.</p>
+      <a href="mailto:help@regulator.example">Email us</a>
+      <a href="javascript:void(0)">Toggle</a>
+      <a href="?page=2">Next &gt;</a>
+    </section>
+  </div>
+</body>
+</html>

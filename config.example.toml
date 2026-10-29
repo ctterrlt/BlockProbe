@@ -1,2 +1,92 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Purpose: Example configuration; copy to config.toml and adjust.
+#
+# BlockProbe reads config.toml from the per-user config directory:
+#   Linux:   ~/.config/BlockProbe/config.toml
+#   macOS:   ~/Library/Application Support/BlockProbe/config.toml
+#   Windows: %LOCALAPPDATA%\BlockProbe\config.toml
+#   Android/iOS: the app-private configuration directory
+#
+# The in-app Settings screen writes the same keys. Environment overrides:
+#   BLOCKPROBE_CONFIG     path to this file
+#   BLOCKPROBE_DATA_DIR   database, cache, logs, reports and backups
+#   BLOCKPROBE_DEBUG=1    debug logging (legacy GS_DEBUG=1 also works)
+
+[app]
+# Debug logging of DNS answers, redirects, timings, matched rules and cache
+# decisions. Reports never include raw response bodies.
+debug = false
+# Interface language: "it" (default), "en", "fr", "es" or "pt".
+# The window follows the system light/dark theme automatically.
+language = "it"
+
+[storage]
+# Only "sqlite" is available: everything is stored in one local database file.
+backend = "sqlite"
+# "auto" uses the platform data directory; set an absolute path to move the
+# database, cache, logs, reports and backups elsewhere.
+path = "auto"
+
+[cache]
+# Only "embedded" is available: an in-process TTL cache, no server required.
+backend = "embedded"
+ttl_seconds = 300
+size_limit_mb = 128
+
+[portals]
+# Refresh stale portal lists before a scan.
+auto_refresh_on_run = true
+# A portal older than this is refreshed before a run.
+refresh_ttl_hours = 24
+# After a failed or empty update, wait this long before trying again.
+refresh_retry_cooldown_minutes = 60
+# Maximum requests per second per host. 1.0 means one request per second.
+rate_limit_per_sec = 1.0
+# Safety ceiling for pages read per portal update.
+max_pages = 50
+
+[safety]
+# Type the first word to clear the website list.
+reset_confirm_word = "RESET"
+# Type the second word to also clear the custom list.
+reset_all_confirm_word = "RESET ALL"
+# Wait after opening the reset dialog before the confirmation button enables.
+reset_cooldown_seconds = 10
+# Write a database and domain-list backup before a reset.
+reset_backup_required = true
+
+[probe]
+# Parallel domains. Mobile builds clamp this to 8.
+concurrency = 20
+timeout_seconds = 10
+connect_timeout_seconds = 6
+# Retries per host and scheme.
+retries = 2
+max_redirects = 5
+# Response bodies are only used for classification and evidence hashes; this
+# caps how much is read.
+body_cap_bytes = 262144
+# Which hostnames to try: the host as listed, the apex and www.
+variants = ["as_listed", "apex", "www"]
+# Neutral, non-gambling controls requested before and during a run. They rotate
+# in this order so a false positive can be spotted in the report. The run pauses
+# after two consecutive control failures instead of reporting every domain as
+# unreachable.
+control_urls = [
+  "https://www.google.com/generate_204",
+  "https://www.wikipedia.org/",
+  "https://www.cloudflare.com/",
+  "https://example.com/",
+]
+# Request a neutral control after this many websites.
+control_every = 10
+# Legacy single-control key. Ignored when control_urls is present.
+control_url = "https://example.com"
+# Each scan also fetches https://betblocker.org/blocked/ with the same bounded,
+# cookie-free path. New block-page sentences are appended to the local
+# append-only pattern table; normal runs never remove old patterns. Inspect them
+# with: blockprobe signature list
+# Opt-in: resolve failed names with the DoH endpoint below to distinguish a DNS
+# filter from a genuinely dead domain.
+use_control_resolver = false
+control_resolver_url = "https://cloudflare-dns.com/dns-query"

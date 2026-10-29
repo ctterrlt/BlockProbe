@@ -1,2 +1,37 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Purpose: BetBlocker block-page signatures.
+# Purpose: Verified BetBlocker block-page signatures.
+#
+# The owner supplied the two strings that the live page serves. They were
+# checked against https://betblocker.org/blocked/ on 2026-10-29 and are kept as
+# ordinary, reviewable rules so they still work when the live page is offline.
+#
+# A scan also fetches that page (bounded, no JavaScript, no cookies) and appends
+# any new block-specific sentence to the local append-only dynamic signature
+# table. Patterns are never removed automatically: only the explicit privacy
+# wipe removes them. Inspect them with:
+#
+#   blockprobe signature list
+#   blockprobe signature refresh
+#
+# Every rule remains human-reviewable. Add new static rules only after checking
+# a real response; do not infer wording from memory or from a screenshot.
+
+[[rules]]
+id = "betblocker-blocked-by"
+kind = "block"
+hint = "betblocker"
+confidence = "high"
+note = "Live BetBlocker title and heading, verified 2026-10-29."
+title = ["^\\s*Blocked by BetBlocker\\s*$"]
+body = ["Blocked\\s+by\\s+BetBlocker"]
+
+[[rules]]
+id = "betblocker-domain-blocked"
+kind = "block"
+hint = "betblocker"
+confidence = "high"
+note = "Live BetBlocker sentence: 'This domain was blocked by BetBlocker application.'"
+body = [
+  "This\\s+domain\\s+was\\s+blocked\\s+by\\s+BetBlocker(?:\\s+application)?",
+  "This\\s+[^.\\n]{1,160}?\\s+was\\s+blocked\\s+by\\s+BetBlocker",
+]

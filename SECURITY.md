@@ -2,3 +2,69 @@
 <!-- Purpose: Security policy and vulnerability disclosure contact. -->
 
 # Security Policy
+
+BlockProbe treats fetched web content as hostile input, stores everything
+locally and never executes JavaScript from scanned pages. Security reports are
+welcome, and private disclosure is strongly preferred.
+
+## Supported versions
+
+| Version | Supported |
+| --- | --- |
+| 1.0.x (source and wheel) | Yes |
+| Older revisions | No |
+
+M6 packaging is in progress. A local Android APK signed with the default debug
+certificate and a Linux x86_64 portable archive have been built; neither is a
+production release, and the APK has not been installed on a physical device.
+There is no production-signed packaged release. Reports about source installs,
+Python packages and local artifacts follow the same policy. See
+[docs/PACKAGING.md](docs/PACKAGING.md) for verified artifacts and remaining work.
+
+## How to report
+
+Use GitHub's private vulnerability reporting on the repository
+(**Security → Report a vulnerability**). Do not open a public issue for an
+undisclosed problem, and do not include third-party personal data.
+
+Please include:
+
+- affected version (`blockprobe version`) and platform;
+- a minimal reproduction: command, URL or fixture, and observed behaviour;
+- the impact you believe it has (for example: code execution, local file
+  access, data exfiltration, false verdicts);
+- any suggested fix, if you have one.
+
+## What to expect
+
+- Acknowledgement within about a week, best effort (this is a volunteer,
+  non-commercial project; there is no bug bounty).
+- A fix or a documented decision, credited in the changelog if you want.
+- Please give us reasonable time to release a fix before publishing details.
+
+## Scope
+
+In scope:
+
+- remote code execution, path traversal or unsafe deserialization triggered by
+  fetched pages, portal files, signature files or imported data;
+- anything that causes data to leave the device without the user's action, or
+  that contradicts `docs/PRIVACY.md`;
+- storage corruption, migration failures or bypasses of the append-only and
+  guarded-reset protections;
+- classifier logic that can produce a "blocked" verdict without real evidence
+  (a safety property of the tool, not just a bug).
+
+Out of scope:
+
+- help or advice to bypass blockers, filters or the law;
+- the accuracy of a blocker's own claims or of regulator lists;
+- findings that require a modified build, developer mode, or a compromised
+  local account;
+- denial of service against a third-party site from your own device.
+
+## Safe harbor
+
+Good-faith research on your own devices, following this policy, will not be
+pursued or reported by the maintainers. Do not test against systems you do not
+own or lack permission to test.
