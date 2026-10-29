@@ -9,10 +9,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased] — 2026-10-29
 
-First complete implementation, targeting 1.1.1.
+First complete implementation. The current application version is maintained
+in `src/blockprobe/VERSION`; package and runtime version strings are generated
+from it.
 
 ### Added
 
+- **Source management.** The Sources screen has distinct flows for adding a
+  regulator feed and a single custom website; scans retain their separate
+  provenance and selection behavior.
+- **Single version source.** Flet builds now receive the display version from
+  `src/blockprobe/VERSION`, with an Android build code derived from the same
+  value.
 - **Portal engine.** ADM Concessionari definition, layout-independent generic
   extractor (table/text/script passes, denylist, JavaScript-escape decoding),
   Liferay AJAX fragment discovery, pagination with query merging, `robots.txt`
@@ -52,9 +60,9 @@ First complete implementation, targeting 1.1.1.
   `language` metadata, the internal event bus and two dead UI buttons were
   deleted instead of left as stubs. A config file that still selects a removed
   backend fails to load with an error naming the replacement.
-- **Language selection and dark theme.** The interface ships in Italian
+- **Language selection and light theme.** The interface ships in Italian
   (default), English, French, Spanish and Portuguese, switchable in Settings
-  and applied instantly to every screen, with a consistent dark theme and
+  and applied instantly to every screen, with a consistent light theme and
   responsive phone layouts. Technical logs, diagnostics and exported reports
   stay in English. Translated consent text is a draft pending human legal
   review; English prevails and is not legal advice.
@@ -63,6 +71,9 @@ First complete implementation, targeting 1.1.1.
 
 - Fetched pages are treated as hostile: no JavaScript execution, size-capped
   bodies, no stored response bodies, no link rendering for gambling domains.
+- HTTPS certificates and hostnames are verified. The cache is now in-memory
+  JSON with bounded LRU/TTL behavior; it no longer stores pickle-backed entries
+  on disk.
 - Consent is required before any network activity; the consent version is
   stored locally and re-asked when the wording changes.
 

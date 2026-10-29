@@ -97,14 +97,35 @@ class LogsScreen:
         entries = get_logs(level=level, search=search, limit=300)
         self.log_view.controls = []
         for entry in entries:
-            line = (
-                f"{entry.get('timestamp', '')} [{entry.get('level', '')}] "
-                f"{entry.get('logger', '')}: {entry.get('message', '')}"
+            event = str(entry.get("event") or "")
+            level_name = str(entry.get("level") or "INFO")
+            message_key = {
+                "runtime_ready": "Application ready",
+                "run_started": "Scan started",
+                "run_finished": "Scan completed",
+                "progress": "Scan progress updated",
+                "network_guard": "Connection check failed; scan results may be incomplete.",
+                "network_control": "Connection check failed; scan results may be incomplete.",
+                "initial_control_failed": "Connection check failed; scan results may be incomplete.",
+                "portal_saved": "Portal definition saved",
+                "portal_skip": "Portal definition skipped",
+            }.get(event)
+            if message_key is None:
+                message_key = (
+                    "An error was recorded. Export diagnostics for technical details."
+                    if level_name == "ERROR"
+                    else "Activity recorded"
+                )
+            color = BAD if level_name == "ERROR" else MUTED
+            line = f"{entry.get('timestamp', '')} · {t(level_name.title())} · {t(message_key)}"
+            self.log_view.controls.append(
+                ft.Container(
+                    content=text(line, 12, color),
+                    padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+                    bgcolor="#FFFFFF",
+                    border_radius=8,
+                )
             )
-            if entry.get("event"):
-                line += f"  event={entry['event']}"
-            color = BAD if entry.get("level") == "ERROR" else MUTED
-            self.log_view.controls.append(text(line, 11, color, mono=True))
         try:
             self.page.update()
         except Exception:

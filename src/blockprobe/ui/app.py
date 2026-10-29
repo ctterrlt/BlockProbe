@@ -154,6 +154,8 @@ class BlockProbeUi(
 
     def _show_screen(self, index: int) -> None:
         self.current_screen = index
+        if index == 0:
+            self._build_source_checkboxes()
         self.nav.selected_index = index if 0 <= index < len(self.views) else 0
         self.mobile_nav.selected_index = index if 0 <= index < 4 else 4
         content = self.more_view if index == 6 else self.views[index]
@@ -172,12 +174,13 @@ class BlockProbeUi(
         ]
         self.screen_title.value = labels[index] if index < 6 else t("More")
         self.screen_description.value = descriptions[index]
+        if index == 1:
+            self.refresh_portal_texts()
+            self._reload_custom()
         if index == 2:
             self.refresh_results()
         if index == 3:
             self.refresh_logs()
-        if index == 4:
-            self.refresh_portal_texts()
         self.page.update()
 
     def _more_view(self) -> ft.Control:
@@ -312,15 +315,14 @@ class BlockProbeUi(
     def _sync_responsive_layout(self) -> None:
         width = getattr(self.page, "width", None) or 1024
         compact = width < 760
-        if compact == self._compact_layout and self.views:
-            return
         self._compact_layout = compact
         self.nav.visible = not compact
         self.nav_divider.visible = not compact
         self.mobile_nav.visible = compact
-        self.content_area.padding = 16 if compact else 28
+        self.content_area.padding = 12 if compact else 28
         self.screen_title.size = 22 if compact else 28
         self.screen_description.visible = not compact
+        self.status_bar.visible = not compact
         self.status_title.size = 15 if compact else 20
         if hasattr(self, "control_url_field"):
             self.control_url_field.width = min(340, max(220, width - 64)) if compact else 340
@@ -384,7 +386,7 @@ class BlockProbeUi(
         self.summary_text.value = t(
             "{status}: {total} websites — {opened} opened, {blocked} blocked, "
             "{unreachable} unreachable, {needs_review} need review.",
-            status=summary.status.value,
+            status=t(summary.status.value.title()),
             total=summary.total,
             opened=summary.opened,
             blocked=summary.blocked,
@@ -402,7 +404,7 @@ class BlockProbeUi(
             )
             self.progress_bar.value = 0
         else:
-            self.progress_text.value = t("Run {status}.", status=summary.status.value)
+            self.progress_text.value = t("Run {status}.", status=t(summary.status.value.title()))
             self.progress_bar.value = 1
 
 
@@ -432,8 +434,7 @@ def main(page: ft.Page) -> None:
     """Build the BlockProbe window and connect its controls to actions."""
     page.title = f"{APP_NAME} {__version__}"
     page.theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
-    page.dark_theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
-    page.theme_mode = ft.ThemeMode.DARK
+    page.theme_mode = ft.ThemeMode.LIGHT
     page.bgcolor = BACKGROUND
     page.padding = 0
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER

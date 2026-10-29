@@ -3,8 +3,9 @@
 
 Security rules: http/https only, no cookies, no Referer, a maximum body size,
 five redirects, no JavaScript and no downloads. The page is decoded as text and
-never rendered. TLS verification is disabled because a block page often has an
-invalid certificate; the TLS error is still recorded by the connect probe.
+never rendered. HTTPS certificates and hostnames are verified against the
+platform trust store; invalid or intercepted certificates are reported as TLS
+failures instead of fetching untrusted response bodies.
 """
 
 from __future__ import annotations
@@ -214,7 +215,7 @@ async def fetch(
     truncated = False
 
     client = httpx.AsyncClient(
-        verify=False,
+        verify=True,
         follow_redirects=False,
         timeout=httpx.Timeout(timeout, connect=min(timeout, 6.0)),
         trust_env=True,

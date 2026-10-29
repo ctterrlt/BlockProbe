@@ -19,6 +19,9 @@ class SourcesScreen:
     portals_text: ft.Text
     custom_input: ft.TextField
     custom_list: ft.Column
+    portal_name_input: ft.TextField
+    portal_url_input: ft.TextField
+    portal_country_input: ft.TextField
 
     def _wrap(self, action):  # type: ignore[no-untyped-def]
         raise NotImplementedError
@@ -27,10 +30,20 @@ class SourcesScreen:
         raise NotImplementedError
 
     def _setup_sources(self) -> None:
+        self.portal_name_input = ft.TextField(label=t("Portal name"), text_size=14)
+        self.portal_url_input = ft.TextField(
+            label=t("Public regulator list URL"),
+            hint_text=t("Paste the regulator's public list URL."),
+            keyboard_type=ft.KeyboardType.URL,
+            text_size=14,
+        )
+        self.portal_country_input = ft.TextField(
+            label=t("Country code"), value="IT", max_length=2, width=116, text_size=14
+        )
         self.portals_text = text(t("Portals not loaded yet."), 12)
         self.custom_input = ft.TextField(
             label=t("Add websites"),
-            hint_text=t("one domain per line, for example example.it or https://www.example.it"),
+            hint_text=t("Paste at least one domain, one per line."),
             multiline=True,
             min_lines=3,
             max_lines=6,
@@ -66,6 +79,30 @@ class SourcesScreen:
                                 ],
                                 wrap=True,
                                 spacing=12,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                ),
+                card(
+                    t("Add a regulator portal feed"),
+                    ft.Column(
+                        [
+                            text(
+                                t(
+                                    "A portal imports a published list. "
+                                    "A custom website adds one domain only."
+                                ),
+                                13,
+                            ),
+                            self.portal_name_input,
+                            self.portal_url_input,
+                            self.portal_country_input,
+                            button(
+                                t("Add portal feed"),
+                                ft.Icons.ADD_LINK,
+                                self._wrap(self._add_portal),
+                                primary=True,
                             ),
                         ],
                         spacing=10,
@@ -109,6 +146,18 @@ class SourcesScreen:
         if result.ok:
             self.custom_input.value = ""
         self._reload_custom()
+        return result
+
+    def _add_portal(self) -> actions.ActionResult:
+        result = actions.add_portal_definition(
+            self.portal_name_input.value or "",
+            self.portal_url_input.value or "",
+            self.portal_country_input.value or "",
+        )
+        if result.ok:
+            self.portal_name_input.value = ""
+            self.portal_url_input.value = ""
+            self.refresh_portal_texts()
         return result
 
     def _reload_custom(self) -> actions.ActionResult:

@@ -1,56 +1,63 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Embedded TTL cache backed by diskcache.
+"""Small in-process JSON TTL cache.
 
-This is the default on every platform, including mobile: diskcache is pure
-Python and SQLite-backed. Corrupt or expired entries are treated as a miss and
-the caller reads the database instead.
+Values are serialized as JSON and held only in memory. This avoids executing
+pickle data from a cache file and keeps cached views transient between runs.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import time
+from collections import OrderedDict
+from dataclasses import dataclass
 from pathlib import Path
+from threading import RLock
 from typing import Any
 
 from blockprobe.cache.base import Cache
-from blockprobe.cache.keys import tag_index_key
-from blockprobe.core.errors import CacheError
 
 _LOGGER = logging.getLogger("blockprobe.cache.embedded")
 
 
+@dataclass(frozen=True)
+class _Entry:
+    payload: str
+    expires_at: float | None
+    tags: frozenset[str]
+
+
 class EmbeddedTTLCache(Cache):
+    """Thread-safe least-recently-used cache with optional entry expiry."""
+
     def __init__(self, directory: Path, size_limit_bytes: int = 128 * 1024 * 1024) -> None:
+        # Keep the path for config/API compatibility; no cache files are written.
         self.directory = Path(directory)
-        self.directory.mkdir(parents=True, exist_ok=True)
-        try:
-            import diskcache
-        except ImportError as exc:  # pragma: no cover - dependency is in pyproject
-            raise CacheError("The embedded cache requires the diskcache package") from exc
-        self._cache = diskcache.Cache(
-            str(self.directory),
-            size_limit=size_limit_bytes,
-            eviction_policy="least-recently-used",
-        )
+        self._size_limit = max(1, size_limit_bytes)
+        self._entries: OrderedDict[str, _Entry] = OrderedDict()
+        self._tag_keys: dict[str, set[str]] = {}
+        self._size_bytes = 0
         self._available = True
+        self._lock = RLock()
 
     @property
     def enabled(self) -> bool:
         return self._available
 
     def get(self, key: str, default: Any = None) -> Any:
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                return default
+            if entry.expires_at is not None and entry.expires_at <= time.monotonic():
+                self._remove(key)
+                return default
+            self._entries.move_to_end(key)
         try:
-            raw = self._cache.get(key, default=None)
-        except Exception as exc:  # pragma: no cover - disk failure fallback
-            _LOGGER.debug("cache get failed: %s", exc)
-            self._available = False
-            return default
-        if raw is None:
-            return default
-        try:
-            return json.loads(raw)
-        except (TypeError, ValueError):
+            return json.loads(entry.payload)
+        except (TypeError, ValueError):  # defensive if memory is corrupted
+            _LOGGER.debug("discarding invalid in-memory cache entry")
             self.delete(key)
             return default
 
@@ -63,59 +70,61 @@ class EmbeddedTTLCache(Cache):
     ) -> None:
         try:
             payload = json.dumps(value, default=str, ensure_ascii=False)
-            self._cache.set(key, payload, expire=ttl_seconds)
-            for tag in tags:
-                index_key = tag_index_key(tag)
-                raw = self._cache.get(index_key, default=None)
-                try:
-                    keys = set(json.loads(raw)) if raw else set()
-                except (TypeError, ValueError):
-                    keys = set()
-                keys.add(key)
-                self._cache.set(index_key, json.dumps(sorted(keys)), expire=None)
-        except Exception as exc:  # pragma: no cover
-            _LOGGER.debug("cache set failed: %s", exc)
-            self._available = False
+            payload_size = len(payload.encode("utf-8"))
+        except (TypeError, ValueError, UnicodeError) as exc:
+            _LOGGER.debug("cache serialization failed: %s", exc)
+            return
+        if payload_size > self._size_limit:
+            self.delete(key)
+            return
+        normalized_tags = frozenset(tags)
+        expires_at = None if ttl_seconds is None else time.monotonic() + max(0, ttl_seconds)
+        with self._lock:
+            self._remove(key)
+            self._entries[key] = _Entry(payload, expires_at, normalized_tags)
+            self._size_bytes += payload_size
+            for tag in normalized_tags:
+                self._tag_keys.setdefault(tag, set()).add(key)
+            while self._size_bytes > self._size_limit and self._entries:
+                self._remove(next(iter(self._entries)))
 
     def delete(self, key: str) -> None:
-        try:
-            self._cache.delete(key)
-        except Exception:  # pragma: no cover
-            pass
+        with self._lock:
+            self._remove(key)
 
     def delete_tag(self, tag: str) -> None:
-        index_key = tag_index_key(tag)
-        try:
-            raw = self._cache.get(index_key, default=None)
-            keys = json.loads(raw) if raw else []
-        except (TypeError, ValueError):
-            keys = []
-        except Exception:  # pragma: no cover
-            keys = []
-        for key in keys:
-            self.delete(str(key))
-        self.delete(index_key)
+        with self._lock:
+            for key in tuple(self._tag_keys.get(tag, ())):
+                self._remove(key)
 
     def clear(self) -> None:
-        try:
-            self._cache.clear()
-        except Exception:  # pragma: no cover
-            pass
+        with self._lock:
+            self._entries.clear()
+            self._tag_keys.clear()
+            self._size_bytes = 0
 
     def close(self) -> None:
-        try:
-            self._cache.close()
-        except Exception:  # pragma: no cover
-            pass
+        self.clear()
+        self._available = False
 
     def stats(self) -> dict[str, Any]:
-        try:
+        with self._lock:
             return {
                 "backend": "embedded",
-                "directory": str(self.directory),
-                "size_bytes": int(self._cache.volume()),
-                "items": len(self._cache),
+                "size_bytes": self._size_bytes,
+                "size_limit_bytes": self._size_limit,
+                "items": len(self._entries),
                 "enabled": self._available,
             }
-        except Exception:  # pragma: no cover
-            return {"backend": "embedded", "directory": str(self.directory), "enabled": False}
+
+    def _remove(self, key: str) -> None:
+        entry = self._entries.pop(key, None)
+        if entry is None:
+            return
+        self._size_bytes -= len(entry.payload.encode("utf-8"))
+        for tag in entry.tags:
+            keys = self._tag_keys.get(tag)
+            if keys is not None:
+                keys.discard(key)
+                if not keys:
+                    del self._tag_keys[tag]

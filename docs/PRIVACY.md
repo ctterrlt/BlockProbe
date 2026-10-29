@@ -36,7 +36,7 @@ directory, overridable with `BLOCKPROBE_DATA_DIR`; config with
 | Reports | `reports/` when you export | Markdown/CSV/JSON/text you chose to write |
 | Captured fingerprints | `signatures/<domain>.toml` | Only when you run `signature capture`; hash and key phrases, no body |
 | Backups | `backups/` | Written before a guarded reset |
-| Cache | memory and `cache/` (embedded, in-process) | List views only; probe verdicts are never cached |
+| Cache | process memory only (embedded, in-process) | JSON list views only; probe verdicts are never cached; cleared on exit; no cache directory is created |
 | Scheduled job files | platform user directory | Only when you install a schedule; written, never enabled silently |
 
 The diagnostics screen reads system configuration (resolvers, resolver labels,
@@ -44,6 +44,10 @@ The diagnostics screen reads system configuration (resolvers, resolver labels,
 interfaces and provider hints, IPv6 availability). It does not upload it: it is
 shown locally and included in reports you export. Resolver and VPN names are
 inferred only from local configuration.
+
+HTTPS connections use the platform trust store and verify certificate hostnames.
+An invalid or intercepted certificate is recorded as a TLS failure; BlockProbe
+does not fetch that unverified response body.
 
 ## Privacy and legal scope
 
@@ -70,8 +74,8 @@ Only requests you start:
   asynchronous table fragment, and `robots.txt` when respected;
 - the domains being probed — as listed, plus their apex and `www` variants,
   over HTTPS/HTTP, through the system resolver;
-- the neutral control sites during a scan (Google, Wikipedia, Cloudflare and
-  `example.com` by default; configurable in Settings) to detect a dead
+- the neutral control sites during a scan (Google, Wikipedia and Cloudflare
+  by default; configurable in Settings) to detect a dead
   connection or a filtering network and pause instead of producing fake results;
 - `https://betblocker.org/blocked/` on every user-started scan, so the shipped
   BetBlocker wording does not silently go stale;

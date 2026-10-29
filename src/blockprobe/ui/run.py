@@ -66,6 +66,23 @@ class RunScreen:
                                 wrap=True,
                                 spacing=12,
                             ),
+                            ft.Row(
+                                [
+                                    text(
+                            t(
+                                "Add a portal feed or a single website in Sources; scans keep them separate."
+                            ),
+                                        12,
+                                    ),
+                                    button(
+                                        t("Manage websites"),
+                                        ft.Icons.EDIT_LOCATION_ALT,
+                                        lambda _event: self._show_screen(1),
+                                    ),
+                                ],
+                                wrap=True,
+                                spacing=10,
+                            ),
                         ],
                         spacing=10,
                     ),
@@ -145,6 +162,8 @@ class RunScreen:
                     WARN,
                 ),
             )
+        preview = actions.preview_scan(self._request())
+        self.preview_text.value = preview.detail
 
     def _on_source_change(self, event: ft.ControlEvent) -> None:
         changed = str(event.control.data or "")
@@ -187,9 +206,18 @@ class RunScreen:
         )
 
     def _start_scan(self) -> actions.ActionResult:
+        self.progress_text.value = t("Preparing scan and updating source lists if needed…")
+        self.progress_bar.value = None
+        try:
+            self.page.update()
+        except Exception:
+            pass
         request = self._request()
         result = actions.start_scan(request)
         if result.ok:
             self.progress_text.value = t("Scan started. Progress follows automatically.")
             self.progress_bar.value = None
+        else:
+            self.progress_text.value = result.detail
+            self.progress_bar.value = 0
         return result

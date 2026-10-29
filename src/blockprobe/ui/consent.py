@@ -14,9 +14,11 @@ from typing import Any
 import flet as ft
 
 from blockprobe import APP_NAME, __version__
-from blockprobe.i18n import t
+from blockprobe.i18n import available_languages, t
 from blockprobe.ui import actions
 from blockprobe.ui.components import BACKGROUND, MUTED, TEXT, button, text
+
+_LANGUAGE_FLAGS = {"it": "🇮🇹", "en": "🇬🇧", "fr": "🇫🇷", "es": "🇪🇸", "pt": "🇵🇹"}
 
 
 def consent_texts() -> tuple[tuple[str, str], ...]:
@@ -41,6 +43,26 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
                 spacing=4,
             )
         )
+
+    language = ft.Dropdown(
+        label=t("Language"),
+        value=actions.runtime().settings.config.app.language,
+        width=220,
+        options=[
+            ft.DropdownOption(key=code, text=f"{_LANGUAGE_FLAGS[code]} {name}")
+            for code, name in available_languages().items()
+        ],
+    )
+
+    def change_language(_event: Any) -> None:
+        result = actions.save_settings(language=str(language.value or "en"))
+        if not result.ok:
+            return
+        page.clean()
+        page.add(ft.SafeArea(content=consent_view(page, on_accepted), expand=True))
+        page.update()
+
+    language.on_change = change_language
 
     def accept(_event: Any) -> None:
         result = actions.accept_consent()
@@ -68,6 +90,7 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
         content=ft.Column(
             [
                 text(f"{APP_NAME} {__version__}", 30, TEXT, weight=ft.FontWeight.BOLD),
+                language,
                 text(t("Before the first network request"), 16, MUTED),
                 *blocks,
                 ft.Row(

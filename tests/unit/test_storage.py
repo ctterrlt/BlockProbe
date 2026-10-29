@@ -7,6 +7,7 @@ import sqlite3
 
 import pytest
 
+from blockprobe import __version__
 from blockprobe.core.config import Settings
 from blockprobe.core.enums import Confidence, Origin, RunStatus, Verdict
 from blockprobe.core.models import (
@@ -170,7 +171,7 @@ def test_run_results_and_summary(storage) -> None:
     run = storage.create_run(
         selection=selection,
         total=3,
-        app_version="1.0.0",
+        app_version=__version__,
         os_name="Linux",
         network_context={"resolvers": ["127.0.0.53"]},
         debug=False,
@@ -252,7 +253,7 @@ def test_delete_all_data_wipes_runs_and_sites(storage) -> None:
     storage.create_run(
         selection=ScanSelection(all_sources=False),
         total=1,
-        app_version="1.0.0",
+        app_version=__version__,
         os_name="Linux",
         network_context={},
         debug=False,

@@ -36,7 +36,7 @@ def test_cli_defers_actions_import_on_python_315_plus() -> None:
 @pytest.fixture()
 def cli_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     config_path = tmp_path / "config.toml"
-    # The CLI tests assert the English source strings; the Italian default is
+    # The CLI tests assert the English source strings; the selected language is
     # covered by test_i18n.py and test_config.py.
     config_path.write_text('[app]\nlanguage = "en"\n', encoding="utf-8")
     monkeypatch.setenv("BLOCKPROBE_CONFIG", str(config_path))

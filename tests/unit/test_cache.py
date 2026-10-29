@@ -76,3 +76,24 @@ def test_build_cache_returns_the_embedded_cache(temp_settings: Settings) -> None
     stats = cache.stats()
     assert stats
     cache.close()
+
+
+def test_embedded_cache_is_memory_only(tmp_path) -> None:
+    directory = tmp_path / "cache"
+    cache = EmbeddedTTLCache(directory)
+    cache.set("view", {"domains": ["safe.test"]})
+    assert cache.get("view") == {"domains": ["safe.test"]}
+    assert not directory.exists()
+    cache.close()
+
+
+def test_embedded_cache_evicts_least_recently_used_entry(tmp_path) -> None:
+    cache = EmbeddedTTLCache(tmp_path / "cache", size_limit_bytes=20)
+    cache.set("old", "a" * 6)
+    cache.set("new", "b" * 6)
+    assert cache.get("old") == "a" * 6
+    cache.set("last", "c" * 6)
+    assert cache.get("new") is None
+    assert cache.get("old") == "a" * 6
+    assert cache.get("last") == "c" * 6
+    cache.close()

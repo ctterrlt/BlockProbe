@@ -5,9 +5,8 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version 1.1.1 source](https://img.shields.io/badge/version-1.1.1%20source-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-from%20VERSION-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
-[![Status](https://img.shields.io/badge/status-1.1.1%20source-orange?style=flat-square)](#status)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
 BlockProbe is an open-source, local-first tool that verifies whether gambling websites remain reachable from a device after a blocker such as BetBlocker, Gamban, or a DNS filter has been installed. It collects domains from public regulator portals, probes each domain through the device's own network path, and classifies the outcome as **blocked**, **unreachable**, or **open**.
@@ -16,18 +15,19 @@ The project is intended for people who need evidence about whether a blocker is 
 
 ## Status
 
-BlockProbe is usable **from source**: the ADM portal refresh, live
+The app version is maintained in [`src/blockprobe/VERSION`](src/blockprobe/VERSION) and is used
+by the package metadata, runtime display and native installer builds. Change this file to
+update the version throughout the project. BlockProbe
+is usable **from source**: the ADM portal refresh, live
 probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
 local web UI all work, and the test suite covers the portal, classifier,
 storage, cache, UI and CLI paths. No signed desktop or mobile release has been
 produced yet (milestone M6 is in progress). The Python wheel and source archive
 build successfully. A universal Android APK and Linux portable tarball build
 locally; the Linux per-user installer and a headless Linux app launch were
-smoke-checked. The APK has an Android debug certificate and has not been
-installed on a physical device. The latest tag run built Windows, macOS and
-Linux packages, but failed while downloading the Android Python runtime; the
-latest macOS CI run failed a platform-sensitive socket test. Those issues have
-local fixes and need a new CI run. See [docs/PACKAGING.md](docs/PACKAGING.md).
+smoke-checked. The project owner has installed the Android debug APK on a
+phone. It is not production-signed. Check the current workflow runs for CI
+status and see [docs/PACKAGING.md](docs/PACKAGING.md) for packaging limits.
 
 The classifier ships two verified BetBlocker rules and refreshes
 `https://betblocker.org/blocked/` on every run. New visible block-page sentences
@@ -43,12 +43,12 @@ silently doing nothing.
 - **Local probing.** Resolves each domain through the system resolver, checks TCP/TLS connectivity, and fetches a bounded HTTP response. Tests the host as listed plus its apex and `www` variants.
 - **Redirect and new-window evidence.** Records 302/307/308 chains, static `<meta refresh>`, `window.open`, `location` targets and reopen-on-return hints without executing JavaScript or downloading assets. A target on a known blocker landing page is blocked from the URL alone.
 - **Evidence-based classification.** Applies ordered signature rules to page content, headers, and redirect chains. Verdicts carry a reason code, confidence, and evidence; no verdict is inferred from an HTTP status code alone.
-- **Neutral controls and interference risk.** Requests Google, Wikipedia, Cloudflare and `example.com` before and between probes, reports the first control failure and the domains to recheck, and raises a transparent VPN/DNS interference percentage. A locally detected content-filtering resolver raises the risk substantially.
+- **Neutral controls and interference risk.** Requests Google, Wikipedia and Cloudflare before and between probes, reports the first control failure and the domains to recheck, and raises a transparent VPN/DNS interference percentage. A locally detected content-filtering resolver raises the risk substantially.
 - **Privacy and legal scope.** Every report states that BlockProbe asks for no age verification, sets or stores no cookies, uploads nothing, accepts no website terms, downloads no images or files, and claims no GDPR/US privacy-law compliance.
 - **Local storage.** SQLite only, in one local database file. Probe verdicts are never cached; cached portal lists and views are invalidated through a database generation counter. Dynamic BetBlocker patterns live in an append-only table.
 - **Diagnostics.** Reports system DNS configuration, resolver and VPN hints, VPN/proxy usage, hosts-file sinkholes, Private DNS and IPv6 availability, and optionally compares results with a user-configured control resolver.
 - **Cross-platform interfaces.** A Flet desktop and mobile UI, a Typer-based CLI, and a local web UI bound to `127.0.0.1`.
-- **Five languages, dark theme.** The interface ships in Italian (default), English, French, Spanish and Portuguese, switchable in Settings, with a consistent dark theme and layouts that adapt to narrow phone screens. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
+- **Five languages, light theme.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings; the choice is saved locally. The interface uses a high-contrast Material 3 theme and adapts to narrow phone screens. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
 - **Scheduled scans.** Off by default, user-level only (systemd user timer, launchd agent, Task Scheduler XML), with leak-only notifications when a notifier is available.
 - **Privacy by design.** No accounts, telemetry, analytics, or crash reporting. Network traffic is limited to selected portals, probe targets, neutral controls, the BetBlocker block page and opt-in checks.
 
@@ -83,10 +83,12 @@ Other native targets await CI/toolchain verification:
 
 - **From this repository (supported).** A Python 3.14+ environment with the `desktop` extra installs the declared dependencies and runs the full app and CLI.
 - **Python package.** A locally built wheel or sdist provide the CLI, library, local web UI and FreeBSD support, with optional extras (`desktop`, `dev`).
-- **Packaged applications (M6 in progress).** Linux, Windows and macOS package jobs passed in the latest tag run. The APK still builds locally, but its CI job failed while downloading an Android Python runtime archive; the workflow now retries those downloads. The latest macOS CI failure was a socket-test assumption and is fixed locally. AppImage/Flatpak, Linux arm64, physical-device installation checks, production signing and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
+- **Packaged applications (M6 in progress).** Linux, Windows, macOS and Android build paths are documented. The project owner has installed the Android debug APK on a phone; production signing, Linux arm64, AppImage/Flatpak, iOS device packaging and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
 - **Container image (optional).** `packaging/Dockerfile` builds a headless web UI image. Docker is not a prerequisite for normal installation; the container's network route may differ from the device's VPN/DNS route.
 
-The previous Windows CI and release failures came from commit `c499847`: a Windows-only connection-test assumption, Linux installer permission checks running on Windows, and Flet/Rich writing a checkmark through CP1252. Windows CI and release packaging now pass. The latest macOS CI test failure and Android runtime-download failure have local fixes pending a rerun. The application identity is `BlockProbe`, with the package and CLI name `blockprobe` and the bundle ID `io.github.ctterrlt.blockprobe`. Icon and splash requirements are documented in [docs/BRANDING.md](docs/BRANDING.md).
+The application identity is `BlockProbe`, with the package and CLI name
+`blockprobe` and bundle ID `io.github.ctterrlt.blockprobe`. Icon and splash
+requirements are documented in [docs/BRANDING.md](docs/BRANDING.md).
 
 The Linux download is a distribution-independent `tar.gz`, not a package for
 APT, DNF or Pacman. Extract it and run `./install.sh`; the helper installs the
@@ -121,14 +123,15 @@ blockprobe serve --headless
 
 `blockprobe serve --headless` binds the web UI to `127.0.0.1:8550` without opening a browser. On a headless Linux host, the native window can be started with `xvfb-run -a python src/main.py`.
 
-Dependencies are declared in `pyproject.toml`. The Flet web runtime currently requires FastAPI below 0.116; the pin is documented in the project notes and must not be removed until Flet fixes its web server.
+Dependencies are declared in `pyproject.toml`. FastAPI is constrained to a release line compatible with Starlette 1.x; the resolver selects current compatible security fixes.
 
 ## Usage
 
 The native Flet app is the primary interface. The first launch shows the
 consent notice; nothing touches the network until it is accepted. The main
 window then offers six screens: **Run** (source selection, preview, start,
-pause, resume, cancel), **Sources** (portal lists and custom websites),
+pause, resume, cancel), **Sources** (add a regulator feed or individual
+custom websites in separate forms; scan selections keep them separate),
 **Results** (filters, comparison, exports), **Logs**, **Settings** and **Help**.
 
 The CLI provides the same use cases. A typical session:
@@ -154,7 +157,7 @@ blockprobe scan --notify           # desktop notification about new leaks
 blockprobe report -f json --leaks-only
 blockprobe pause | resume | cancel
 blockprobe signature list          # review stored dynamic patterns
-blockprobe signature capture example.com
+blockprobe signature capture casino.example
 blockprobe schedule install --frequency weekly --time 20:00
 blockprobe schedule status
 ```
@@ -180,7 +183,7 @@ src/
 ├── assets/                 # icon.png, icon_windows.ico, splash.png and overrides
 └── blockprobe/
     ├── core/               # models, enums, errors, config
-    ├── i18n.py             # translations: Italian (default), English, French, Spanish, Portuguese
+    ├── i18n.py             # translations: English (default), Italian, French, Spanish, Portuguese
     ├── portals/            # portal loading, extraction, pagination, normalisation
     ├── probe/              # DNS, TCP/TLS, HTTP, classification, variants
     ├── storage/            # backend interface, SQLite, migrations
@@ -225,7 +228,7 @@ Results are indicative. They reflect the network path and resolver of the device
 - **M3** — cache, 24-hour list refresh, append-only lists, guarded reset. **Done.**
 - **M4** — Flet UI: consent, source selection, custom websites, run, results, logs. **Done.**
 - **M5** — diagnostics and scheduling. **Done** (user-level jobs; no elevation).
-- **M6** — packaging for desktop, mobile, and containers. **In progress**: Python packages, Linux x86_64 bundle and Android debug APK have been built locally. Linux, Windows and macOS CI package jobs passed, but the latest Android package job failed on its runtime download and awaits a rerun. AppImage/Flatpak, Linux arm64, physical-device checks, production signing and store publication remain.
+- **M6** — packaging for desktop, mobile, and containers. **In progress**: Python packages, Linux x86_64 bundle and Android debug APK have been built; the project owner has installed the APK on a phone. AppImage/Flatpak, Linux arm64, production signing and store publication remain.
 - **M7** — documentation and the first usable release. **Docs updated**; the release waits for M6 and native artifact review.
 
 ## Contributing

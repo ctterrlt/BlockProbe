@@ -26,6 +26,13 @@ The dependency direction is one-way: interfaces → services → engines → cor
 can reuse the exact same use cases; `blockprobe.ui.app` and the `ui/` screens
 only build widgets and route events.
 
+The app version is read from `src/blockprobe/VERSION`. Hatchling uses that same
+file for wheel metadata, native installer builds read it when generating their
+version fields, and `scripts/build.py` passes it to Flet as the display version
+and derives the Android build code from it. The Flet UI uses a responsive Material 3 light theme;
+the scan source picker includes every enabled portal definition and the
+user-maintained custom domain list.
+
 ```text
 src/
 ├── main.py                       # desktop entry point: ft.run(ui.app.main)
@@ -126,7 +133,8 @@ explicit confirmation and unlocks deletion only for that operation.
 The cache is keyed by **content generation and schema version**, not by time
 alone. A refresh bumps the generation and invalidates list-derived views, while
 probe verdicts are never cached. The backend is embedded and in-process: there
-is no server to run, and nothing outside the app reads or writes it.
+is no server to run, no cache file is written, and cache entries are cleared
+when the process exits. Values are serialized as JSON, not Python pickle data.
 
 ## Threading model
 

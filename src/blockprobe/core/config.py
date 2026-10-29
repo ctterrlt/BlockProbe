@@ -23,12 +23,11 @@ from blockprobe import APP_NAME, __version__
 from blockprobe.core.errors import ConfigError
 from blockprobe.i18n import DEFAULT_LANGUAGE, LANGUAGES
 
-DEFAULT_CONTROL_URL = "https://example.com"
+DEFAULT_CONTROL_URL = "https://www.google.com/generate_204"
 DEFAULT_CONTROL_URLS = [
     "https://www.google.com/generate_204",
     "https://www.wikipedia.org/",
     "https://www.cloudflare.com/",
-    "https://example.com/",
 ]
 
 
@@ -213,7 +212,6 @@ class Settings:
     def ensure_directories(self) -> None:
         for path in (
             self.data_dir,
-            self.cache_dir,
             self.logs_dir,
             self.backups_dir,
             self.reports_dir,

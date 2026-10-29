@@ -8,17 +8,17 @@ from typing import Any
 
 import flet as ft
 
-ACCENT = "#76D6C1"
-BACKGROUND = "#0B1115"
-SURFACE = "#111A1F"
-CARD = "#141F25"
-BORDER = "#26363D"
-TEXT = "#EDF4F3"
-MUTED = "#9AAEB0"
-OK = "#79D6A6"
-WARN = "#E8BC75"
-BAD = "#F08C8C"
-ACCENT_DIM = "#1B3937"
+ACCENT = "#176B5B"
+BACKGROUND = "#F4F7F6"
+SURFACE = "#FFFFFF"
+CARD = "#FFFFFF"
+BORDER = "#DCE5E2"
+TEXT = "#172522"
+MUTED = "#53635F"
+OK = "#23754F"
+WARN = "#8A5B0A"
+BAD = "#A33B36"
+ACCENT_DIM = "#DCEDE8"
 
 
 def text(
@@ -46,10 +46,10 @@ def card(title: str, body: ft.Control, *, expand: bool = False) -> ft.Container:
             [text(title, 12, MUTED, weight=ft.FontWeight.W_600), body],
             spacing=14,
         ),
-        padding=ft.Padding.symmetric(horizontal=20, vertical=18),
+        padding=ft.Padding.symmetric(horizontal=16, vertical=14),
         bgcolor=CARD,
         border=ft.Border.all(1, BORDER),
-        border_radius=14,
+        border_radius=12,
         expand=expand,
     )
 
@@ -69,8 +69,8 @@ def hero(title: str, description: str, *, icon: ft.IconData) -> ft.Container:
                 ),
                 ft.Column(
                     [
-                        text(title, 24, TEXT, weight=ft.FontWeight.BOLD),
-                        text(description, 13, MUTED),
+                        text(title, 22, TEXT, weight=ft.FontWeight.BOLD),
+                        text(description, 14, MUTED),
                     ],
                     spacing=4,
                     expand=True,

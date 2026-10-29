@@ -21,17 +21,18 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 
 
 @pytest.fixture(autouse=True)
-def italian_default() -> None:
+def reset_language_to_italian() -> None:
     i18n.set_language("it")
     yield
     i18n.set_language("it")
 
 
-def test_default_language_is_italian() -> None:
-    assert i18n.DEFAULT_LANGUAGE == "it"
+def test_default_language_is_english() -> None:
+    i18n.set_language(i18n.DEFAULT_LANGUAGE)
+    assert i18n.DEFAULT_LANGUAGE == "en"
     assert list(i18n.LANGUAGES) == ["it", "en", "fr", "es", "pt"]
-    assert i18n.get_language() == "it"
-    assert i18n.available_languages()["it"] == "Italiano"
+    assert i18n.get_language() == "en"
+    assert i18n.available_languages()["en"] == "English"
 
 
 def test_language_codes_are_normalized() -> None:

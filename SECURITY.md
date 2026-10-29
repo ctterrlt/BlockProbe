@@ -7,17 +7,21 @@ BlockProbe treats fetched web content as hostile input, stores everything
 locally and never executes JavaScript from scanned pages. Security reports are
 welcome, and private disclosure is strongly preferred.
 
+HTTPS requests verify certificate chains and hostnames. The transient view
+cache stores JSON in process memory and does not deserialize cache files. The
+current locked dependencies passed `pip-audit` on 2026-10-29; this checks known
+dependency advisories only and is not a security certification of the app.
+
 ## Supported versions
 
 | Version | Supported |
 | --- | --- |
-| 1.0.x (source and wheel) | Yes |
+| Version recorded in `src/blockprobe/VERSION` (source and wheel) | Yes |
 | Older revisions | No |
 
 M6 packaging is in progress. A local Android APK signed with the default debug
-certificate and a Linux x86_64 portable archive have been built; neither is a
-production release, and the APK has not been installed on a physical device.
-There is no production-signed packaged release. Reports about source installs,
+certificate and a Linux x86_64 portable archive have been built. The project
+owner installed the APK on a phone; it is not a production release. Reports about source installs,
 Python packages and local artifacts follow the same policy. See
 [docs/PACKAGING.md](docs/PACKAGING.md) for verified artifacts and remaining work.
 

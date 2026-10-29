@@ -12,6 +12,8 @@ from blockprobe.i18n import DEFAULT_LANGUAGE, available_languages, t
 from blockprobe.ui import actions
 from blockprobe.ui.components import BACKGROUND, BAD, TEXT, button, card, hero, text
 
+_LANGUAGE_FLAGS = {"it": "🇮🇹", "en": "🇬🇧", "fr": "🇫🇷", "es": "🇪🇸", "pt": "🇵🇹"}
+
 
 class SettingsScreen:
     """Mixin with the settings screen and the confirmation dialogs."""
@@ -44,7 +46,7 @@ class SettingsScreen:
             width=170,
             dense=True,
             options=[
-                ft.DropdownOption(key=code, text=name)
+                ft.DropdownOption(key=code, text=f"{_LANGUAGE_FLAGS[code]} {name}")
                 for code, name in available_languages().items()
             ],
         )

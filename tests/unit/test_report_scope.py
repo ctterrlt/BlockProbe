@@ -7,6 +7,7 @@ import json
 
 import pytest
 
+from blockprobe import __version__
 from blockprobe.core.config import Settings
 from blockprobe.core.enums import Confidence, RunStatus, Verdict
 from blockprobe.core.models import ResultRow, ScanSelection, utc_now
@@ -55,7 +56,7 @@ def test_reports_include_scope_controls_risk_and_interception(
     run = storage.create_run(
         selection=ScanSelection(all_sources=True),
         total=2,
-        app_version="1.0.0",
+        app_version=__version__,
         os_name="Linux",
         network_context={
             "resolvers": ["208.67.222.123"],

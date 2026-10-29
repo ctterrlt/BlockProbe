@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 pkgname=blockprobe
-pkgver=1.1.1
+pkgver=@VERSION@
 pkgrel=1
 pkgdesc='Local-first gambling blocker reachability checker'
 arch=('x86_64')

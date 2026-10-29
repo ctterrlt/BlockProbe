@@ -8,9 +8,9 @@ Android artifacts through Flet. The Python wheel and source archive, a Linux
 portable tarball and a universal Android APK were built locally. The Linux
 installer helper and a headless Linux app launch were smoke-checked. The APK
 was verified with Android's APK signer and uses the default Android debug
-certificate; it has not been installed on a physical device. The latest tag
-run built Windows, macOS and Linux packages, while Android failed during its
-runtime archive download. M6 remains open.
+certificate; the project owner has installed it on a physical phone. It is not
+production-signed. M6 remains open until the remaining platform and signing
+work is complete.
 
 ## Install from source or Python package
 
@@ -117,11 +117,11 @@ linux --installer` also creates a native `.pkg.tar.zst` with package metadata,
 GTK dependencies and the AGPL license. Install it from the repository root with:
 
 ```console
-sudo pacman -U dist/packages/linux/blockprobe-1.1.1-1-x86_64.pkg.tar.zst
+sudo pacman -U dist/packages/linux/blockprobe-*-1-x86_64.pkg.tar.zst
 ```
 
 A graphical package manager that supports local Arch packages can open this
-file; `yay -U dist/packages/linux/blockprobe-1.1.1-1-x86_64.pkg.tar.zst` also
+file; `yay -U dist/packages/linux/blockprobe-*-1-x86_64.pkg.tar.zst` also
 works. Pacman resolves the declared dependencies and keeps the license with the
 installed package. Debian `.deb` and Fedora `.rpm` packages are not built. The
 portable bundle must remain together because

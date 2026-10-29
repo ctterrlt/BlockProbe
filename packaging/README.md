@@ -6,6 +6,9 @@
 Build entry point: `python scripts/build.py TARGET` from the repository root.
 Install Python 3.14+ and `python -m pip install -e ".[packaging]"` first.
 Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
+`src/blockprobe/VERSION` is the single version source for Python metadata,
+runtime display, Flet build version/build code, Windows installer and Arch
+package artifact.
 
 | Target | Artifact | Host/tooling |
 | --- | --- | --- |
@@ -21,11 +24,8 @@ Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
 `packaging/windows/installer.iss` and `packaging/macos/build_dmg.sh` wrap the
 Flet outputs. They do not sign or notarize. The locally built Linux x86_64
 tarball and universal Android APK were smoke-checked; the APK uses a debug
-certificate and was not installed on physical hardware. The latest CI package
-jobs passed for Linux, Windows and macOS; Android failed while downloading the
-embedded Python runtime. The release workflow caches runtime archives and
-retries the APK build once after clearing the affected archive. The
-latest macOS CI failure was a socket-test assumption and is fixed locally.
+certificate and the project owner installed it on a phone. This is not a
+production-signed release. Consult the current workflow run for CI status.
 AppImage/Flatpak, Linux arm64,
 physical-device iOS IPA, store submission and production signing remain
 unimplemented. Android background scheduling is not implemented. See

@@ -17,6 +17,10 @@ and honesty matter more than features: a wrong verdict is worse than a
   process in `docs/SIGNATURES.md`; unverified data is not merged.
 - Security problems go to the private channel in `SECURITY.md`, not to a public
   issue.
+- `src/blockprobe/VERSION` is the only application-version source. Do not copy
+  its value into code, package metadata, installer templates or documentation.
+- Keep every visible interface string in `blockprobe.i18n`; add and verify it
+  in all supported language catalogs when changing a screen.
 
 ## Development setup
 

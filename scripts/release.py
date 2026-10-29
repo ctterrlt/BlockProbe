@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Bump the version, create the tag and assemble release artifacts.
+"""Print the manual release checklist without changing the repository.
 
-Not implemented. Versions are edited in ``pyproject.toml`` and tags are
-created by the maintainer on purpose, so this script refuses to do anything
-and prints the manual checklist instead of committing, tagging or pushing.
+Versions are edited only in ``src/blockprobe/VERSION``. Tags and publishing
+remain maintainer actions, so this script never commits, tags or pushes.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ BlockProbe never commits, tags or pushes on its own; the maintainer does that
 manually after reviewing the changes.
 
 Manual checklist:
-  1. Update the version in pyproject.toml and CHANGELOG.md.
+  1. Update src/blockprobe/VERSION and the Unreleased changelog entry.
   2. Run: python -m ruff check src tests && python -m mypy && python -m pytest
   3. Build the wheel: python -m build
   4. Smoke-test the wheel (see .github/workflows/release.yaml).

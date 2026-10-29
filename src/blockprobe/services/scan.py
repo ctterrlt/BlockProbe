@@ -350,20 +350,12 @@ class ScanService:
         )
         controls.append(initial)
         if not initial.ok:
-            # The run ends before any target is probed; this is the final
-            # snapshot for this aborted attempt.
-            health = self._persist_health(run, controls, refresh)
-            storage.update_run_status(run.id, RunStatus.PAUSED)
-            return ScanOutcome(
-                run_id=run.id,
-                status=RunStatus.PAUSED,
-                total=run_total,
-                completed=storage.count_results(run.id),
-                message=(
-                    "Network connectivity guard failed before the run started: "
-                    f"{initial.url} did not answer ({initial.error or 'no status'})."
-                ),
-                health=health.to_dict(),
+            # A failed neutral control is evidence, not a command to abandon
+            # the user's scan. Probe selected sites and let the report explain
+            # whether the target network path also failed.
+            _LOGGER.warning(
+                "initial neutral control failed; continuing selected-site checks",
+                extra={"event": "initial_control_failed", "run_id": run.id, "domain": initial.url},
             )
         next_sequence += 1
 

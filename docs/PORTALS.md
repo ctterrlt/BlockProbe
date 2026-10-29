@@ -8,6 +8,11 @@ blocked gambling websites. BlockProbe ships with one portal definition, Italy's
 ADM Concessionari list; every portal is a TOML file that the generic engine can
 run without new code.
 
+The app currently bundles ADM as its only official regulator feed. Other
+regulator feeds appear in source selection only after a reviewed TOML
+definition is installed. “Custom websites” are user-entered domains, not
+official portal feeds. The Sources screen is where users add those domains.
+
 ## Where definitions live
 
 - Built-in definitions: the repository's `portals/` directory.
@@ -15,6 +20,9 @@ run without new code.
   directory (`BLOCKPROBE_DATA_DIR`, or the platform data directory).
 - Both directories are loaded at startup and merged into the `portals` table in
   SQLite. The database keeps refresh state; the TOML file keeps the definition.
+- Every loaded, enabled definition is listed in the scan source picker. A new
+  portal needs a validated source URL and extraction behavior; adding a custom
+  domain does not create a regulator feed.
 
 ## TOML format
 
@@ -106,6 +114,9 @@ so the site can change its portlet id without breaking BlockProbe.
 3. Check the extracted hosts with `blockprobe portals list` and by running a
    scan; report ambiguous pages as an issue instead of adding guessed rules.
 
-The UI's **Sources** screen manages the user's own website list (custom
-domains), which is separate from portals: custom domains are never fetched and
-never touched by a portal update.
+The UI's **Sources** screen has separate forms for adding a public regulator
+feed and for adding custom websites. A portal feed imports a published list
+when the user updates it; each custom website is added directly and is never
+fetched as a source or removed by a portal update. The scan source picker keeps
+portal-derived and custom domains distinct, and users can select either or
+both.

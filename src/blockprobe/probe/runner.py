@@ -49,13 +49,12 @@ class EngineConfig:
     max_redirects: int = 5
     body_cap_bytes: int = 262_144
     variants: list[str] = field(default_factory=lambda: ["as_listed", "apex", "www"])
-    control_url: str = "https://example.com"
+    control_url: str = "https://www.google.com/generate_204"
     control_urls: list[str] = field(
         default_factory=lambda: [
             "https://www.google.com/generate_204",
             "https://www.wikipedia.org/",
             "https://www.cloudflare.com/",
-            "https://example.com/",
         ]
     )
     control_every: int = 10

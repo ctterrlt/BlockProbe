@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -18,6 +19,29 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist" / "packages"
 TARGETS = ("python", "windows", "macos", "linux", "apk", "aab", "web", "ios-simulator")
+
+
+def project_version() -> str:
+    """Read the one user-editable application version value."""
+    value = (ROOT / "src" / "blockprobe" / "VERSION").read_text(encoding="utf-8").strip()
+    if not value or any(char.isspace() for char in value):
+        raise SystemExit("VERSION must contain one non-empty version string.")
+    return value
+
+
+def project_build_number() -> int:
+    """Encode a three-part version as a monotonically increasing mobile code."""
+    version = project_version()
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
+    if not match:
+        raise SystemExit("Flet builds require VERSION in major.minor.patch form.")
+    parts = tuple(map(int, match.groups()))
+    if any(part >= 1000 for part in parts):
+        raise SystemExit("Each VERSION component must be less than 1000 for mobile builds.")
+    build_number = parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
+    if build_number <= 0 or build_number > 2_100_000_000:
+        raise SystemExit("VERSION produces an invalid Android build number.")
+    return build_number
 
 
 def _subprocess_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -62,7 +86,21 @@ def find_executable(name: str) -> str:
 def build_python() -> list[Path]:
     output = DIST / "python"
     output.mkdir(parents=True, exist_ok=True)
-    run([sys.executable, "-m", "build", "--wheel", "--sdist", "--outdir", str(output)])
+    # Run outside ROOT: the generated ROOT/build directory is a namespace
+    # package that otherwise shadows the installed ``build`` frontend.
+    run(
+        [
+            sys.executable,
+            "-m",
+            "build",
+            "--wheel",
+            "--sdist",
+            "--outdir",
+            str(output),
+            str(ROOT),
+        ],
+        cwd=Path(tempfile.gettempdir()),
+    )
     return sorted(output.iterdir())
 
 
@@ -82,6 +120,8 @@ def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path
     command = [
             find_executable("flet"), "build", flet_target,
             "--python-version", "3.14",
+            "--build-version", project_version(),
+            "--build-number", str(project_build_number()),
             "-o", str(output),
             "--yes",
         ]
@@ -119,6 +159,7 @@ def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path
             env = os.environ | {
                 "BLOCKPROBE_BUILD_DIR": str(output),
                 "BLOCKPROBE_OUTPUT_DIR": str(artifact_dir),
+                "BLOCKPROBE_VERSION": project_version(),
             }
             run([iscc, str(ROOT / "packaging" / "windows" / "installer.iss")], cwd=ROOT, env=env)
             artifacts.extend(sorted(artifact_dir.glob("*.exe")))
@@ -174,7 +215,10 @@ def build_arch_package(output: Path, artifact_dir: Path) -> Path:
         package_root = Path(temp_name)
         shutil.copytree(output, package_root / "BlockProbe")
         shutil.copy2(ROOT / "LICENSE", package_root / "BlockProbe" / "LICENSE")
-        shutil.copy2(ROOT / "packaging" / "linux" / "arch" / "PKGBUILD", package_root / "PKGBUILD")
+        pkgbuild = (ROOT / "packaging" / "linux" / "arch" / "PKGBUILD").read_text(encoding="utf-8")
+        (package_root / "PKGBUILD").write_text(
+            pkgbuild.replace("@VERSION@", project_version()), encoding="utf-8"
+        )
         run([makepkg, "--force", "--nodeps", "--noconfirm"], cwd=package_root)
         built_packages = sorted(package_root.glob("*.pkg.tar.zst"))
         if len(built_packages) != 1:

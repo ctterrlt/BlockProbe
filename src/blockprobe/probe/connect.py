@@ -15,14 +15,8 @@ _LOGGER = logging.getLogger("blockprobe.probe.connect")
 
 
 def _ssl_context() -> ssl.SSLContext:
-    # Verification is intentionally disabled: a block page or a misconfigured
-    # site may present a certificate that does not match. The app only reads
-    # content, never submits credentials, so it can record the TLS failure and
-    # still fetch the page in a second request.
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
-    return context
+    """Use the platform CA store and verify both the chain and hostname."""
+    return ssl.create_default_context()
 
 
 def _classify_error(exc: BaseException) -> str:

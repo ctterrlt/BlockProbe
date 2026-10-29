@@ -9,6 +9,7 @@ implementation say so explicitly; they never invent scan results.
 from __future__ import annotations
 
 import asyncio
+import logging
 import platform
 import time
 from collections.abc import Callable
@@ -23,13 +24,16 @@ from blockprobe import APP_NAME, __version__
 from blockprobe.core.compliance import SCOPE_FACTS, scope_summary
 from blockprobe.core.enums import RunStatus
 from blockprobe.core.errors import BlockProbeError
-from blockprobe.core.models import ResultRow, RunComparison, RunSummary, ScanSelection
+from blockprobe.core.models import Portal, ResultRow, RunComparison, RunSummary, ScanSelection
 from blockprobe.i18n import LANGUAGES, set_language, t
 from blockprobe.logging_setup import export_logs_zip
 from blockprobe.portals.domain_normalizer import parse_domain_input
+from blockprobe.portals.loader import ensure_portal_uuid, save_portal
 from blockprobe.probe.health import ProbeHealth, assess_probe_health
 from blockprobe.services import Runtime, get_runtime
 from blockprobe.storage.base import ResultFilter
+
+_LOGGER = logging.getLogger("blockprobe.ui.actions")
 
 
 @dataclass(frozen=True)
@@ -307,6 +311,44 @@ def refresh_portals(portal_id: str | None = None) -> ActionResult:
     return ActionResult(title, "\n".join(lines) or t("No portals to update."), ok=not failed)
 
 
+def add_portal_definition(name: str, start_url: str, country: str = "") -> ActionResult:
+    """Save a public regulator feed definition, separately from custom sites."""
+    clean_name = name.strip()
+    clean_url = start_url.strip()
+    clean_country = country.strip().upper() or "ZZ"
+    if not clean_name or not clean_url.startswith(("http://", "https://")):
+        return ActionResult(
+            t("Portal not added"),
+            t("Enter a portal name and a public http(s) list URL."),
+            ok=False,
+        )
+    if len(clean_country) != 2 or not clean_country.isascii() or not clean_country.isalpha():
+        return ActionResult(t("Portal not added"), t("Use a two-letter country code."), ok=False)
+    app_runtime = runtime()
+    portal = Portal(
+        uuid=ensure_portal_uuid(),
+        name=clean_name,
+        start_url=clean_url,
+        country=clean_country,
+        enabled=True,
+        default=False,
+    )
+    try:
+        save_portal(portal, app_runtime.settings.user_portals_dir)
+        app_runtime.portals = app_runtime.refresh.sync_portals()
+    except Exception:
+        _LOGGER.exception("portal definition could not be saved")
+        return ActionResult(
+            t("Portal not added"),
+            t("Could not save this portal. Check the URL and try again."),
+            ok=False,
+        )
+    return ActionResult(
+        t("Portal feed added"),
+        t("The feed is available as a scan source. Update it to import its domains."),
+    )
+
+
 # ------------------------------------------------------------------- scan (FR-6)
 
 
@@ -348,9 +390,27 @@ def start_scan(request: ScanRequest) -> ActionResult:
             request.to_selection(), auto_refresh=request.auto_refresh
         )
     except BlockProbeError as exc:
-        return ActionResult(t("Scan not started"), str(exc), ok=False)
-    except Exception as exc:
-        return _failure(t("Scan not started"), exc)
+        _LOGGER.info("scan request rejected: %s", exc)
+        detail = (
+            t(
+                "No websites are selected. Refresh a portal or add a custom website, "
+                "then start the scan again."
+            )
+            if "No websites are selected." in str(exc)
+            else t("Could not start the scan. Check the selected sources and try again.")
+        )
+        return ActionResult(
+            t("Scan not started"),
+            detail,
+            ok=False,
+        )
+    except Exception:
+        _LOGGER.exception("scan request failed")
+        return ActionResult(
+            t("Scan not started"),
+            t("Could not start the scan. Check the selected sources and try again."),
+            ok=False,
+        )
     return ActionResult(
         t("Scan started"),
         t(

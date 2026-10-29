@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+from scripts import build
 from scripts.build import _subprocess_env
 
 
@@ -27,3 +28,22 @@ def test_build_subprocess_env_preserves_extra_variables() -> None:
 
     assert env["BLOCKPROBE_OUTPUT_DIR"] == "artifacts"
     assert env["PYTHONIOENCODING"] == "utf-8"
+
+
+def test_build_number_tracks_the_canonical_version() -> None:
+    version = build.project_version()
+    parts = tuple(map(int, version.split(".")))
+    assert len(parts) == 3
+    assert build.project_build_number() == (
+        parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
+    )
+
+
+def test_build_number_rejects_unsupported_version_shape(monkeypatch) -> None:
+    monkeypatch.setattr(build, "project_version", lambda: "1.1")
+    try:
+        build.project_build_number()
+    except SystemExit as exc:
+        assert "major.minor.patch" in str(exc)
+    else:
+        raise AssertionError("invalid Flet version was accepted")

@@ -17,14 +17,15 @@ from blockprobe.core.config import (
 def test_missing_file_produces_documented_defaults(tmp_path: Path) -> None:
     settings = load_config(tmp_path / "missing" / "config.toml")
     assert settings.config.app.debug is False
-    assert settings.config.app.language == "it"
+    assert settings.config.app.language == "en"
     assert settings.config.storage.backend == "sqlite"
     assert settings.config.cache.backend == "embedded"
     assert settings.config.portals.refresh_ttl_hours == 24
     assert settings.config.portals.auto_refresh_on_run is True
     assert settings.config.safety.reset_confirm_word == "RESET"
     assert settings.config.probe.concurrency >= 1
-    assert len(settings.config.probe.control_urls) >= 4
+    assert len(settings.config.probe.control_urls) >= 3
+    assert all("example.com" not in url for url in settings.config.probe.control_urls)
     assert settings.config.probe.control_every == 10
     assert settings.db_path == settings.data_dir / "blockprobe.sqlite3"
 
@@ -131,7 +132,7 @@ def test_render_config_contains_every_section() -> None:
     text = render_config(settings.config)
     for section in ("[app]", "[storage]", "[cache]", "[portals]", "[safety]", "[probe]"):
         assert section in text
-    assert "language = 'it'" in text
+    assert "language = 'en'" in text
     assert "theme" not in text
     assert "privacy" not in text
 

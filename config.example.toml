@@ -16,9 +16,9 @@
 # Debug logging of DNS answers, redirects, timings, matched rules and cache
 # decisions. Reports never include raw response bodies.
 debug = false
-# Interface language: "it" (default), "en", "fr", "es" or "pt".
+# Interface language: "en" (default), "it", "fr", "es" or "pt".
 # The window follows the system light/dark theme automatically.
-language = "it"
+language = "en"
 
 [storage]
 # Only "sqlite" is available: everything is stored in one local database file.
@@ -69,19 +69,18 @@ body_cap_bytes = 262144
 # Which hostnames to try: the host as listed, the apex and www.
 variants = ["as_listed", "apex", "www"]
 # Neutral, non-gambling controls requested before and during a run. They rotate
-# in this order so a false positive can be spotted in the report. The run pauses
-# after two consecutive control failures instead of reporting every domain as
-# unreachable.
+# in this order so a false positive can be spotted in the report. A failed
+# neutral check is recorded as possible network interference; selected-site
+# checks still run and the report explains possible incomplete results.
 control_urls = [
   "https://www.google.com/generate_204",
   "https://www.wikipedia.org/",
   "https://www.cloudflare.com/",
-  "https://example.com/",
 ]
 # Request a neutral control after this many websites.
 control_every = 10
 # Legacy single-control key. Ignored when control_urls is present.
-control_url = "https://example.com"
+control_url = "https://www.google.com/generate_204"
 # Each scan also fetches https://betblocker.org/blocked/ with the same bounded,
 # cookie-free path. New block-page sentences are appended to the local
 # append-only pattern table; normal runs never remove old patterns. Inspect them

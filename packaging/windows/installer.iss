@@ -2,7 +2,9 @@
 ; Purpose: Build an unsigned per-user Windows installer from the Flet bundle.
 
 #define AppName "BlockProbe"
-#define AppVersion "1.1.1"
+#ifndef AppVersion
+  #define AppVersion GetEnv("BLOCKPROBE_VERSION")
+#endif
 #define AppPublisher "BlockProbe contributors"
 #define AppExeName "BlockProbe.exe"
 #ifndef BuildDir

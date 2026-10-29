@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Cache construction.
 
-BlockProbe ships exactly one cache: a small in-process TTL cache backed by the
-local disk. It must work on every target, including phones, with no external
-service, so there is no Redis or network backend. Probe verdicts are never
-cached; cached views are invalidated through the database generation counter
-(see ``cache/keys.py`` and ``docs/ARCHITECTURE.md``).
+BlockProbe ships one small in-process JSON TTL cache. Values are transient and
+never written to disk; probe verdicts are never cached. Cached views are
+invalidated through the database generation counter (see ``cache/keys.py``).
 """
 
 from __future__ import annotations

@@ -64,7 +64,7 @@ learned patterns remain active. Normal runs never remove or rewrite a pattern.
 
 ```console
 blockprobe consent accept          # first run only
-blockprobe signature capture example.com
+blockprobe signature capture casino.example
 ```
 
 Capture performs a single HTTPS request (one HTTP retry if HTTPS never gets a

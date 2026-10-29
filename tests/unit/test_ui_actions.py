@@ -102,6 +102,23 @@ def test_custom_domains_flow(action_env: Path) -> None:
     assert "one-casino.it" not in actions.list_custom_domains().detail
 
 
+def test_custom_website_and_portal_feed_are_separate_sources(action_env: Path) -> None:
+    custom = actions.add_custom_domains("single-site.it")
+    assert custom.ok is True
+    portal = actions.add_portal_definition(
+        "Example Regulator",
+        "https://regulator.gov.it/blocked-sites",
+        "IT",
+    )
+    assert portal.ok is True
+
+    app_runtime = actions.runtime()
+    choices = app_runtime.portal_choices()
+    assert any(label == "Example Regulator" for _, label in choices)
+    assert [site.domain for site in app_runtime.storage.list_custom_sites()] == ["single-site.it"]
+    assert app_runtime.storage.list_portals()
+
+
 def test_rejected_input_never_silently_passes(action_env: Path) -> None:
     result = actions.add_custom_domains("localhost\n192.168.1.1\n")
     assert result.ok is False
