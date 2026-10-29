@@ -21,8 +21,12 @@ Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
 `packaging/windows/installer.iss` and `packaging/macos/build_dmg.sh` wrap the
 Flet outputs. They do not sign or notarize. The locally built Linux x86_64
 tarball and universal Android APK were smoke-checked; the APK uses a debug
-certificate and was not installed on physical hardware. Windows/macOS builds
-and CI release artifacts remain unverified. AppImage/Flatpak, Linux arm64,
+certificate and was not installed on physical hardware. The latest CI package
+jobs passed for Linux, Windows and macOS; Android failed while downloading the
+embedded Python runtime. The release workflow caches runtime archives and
+retries the APK build once after clearing the affected archive. The
+latest macOS CI failure was a socket-test assumption and is fixed locally.
+AppImage/Flatpak, Linux arm64,
 physical-device iOS IPA, store submission and production signing remain
 unimplemented. Android background scheduling is not implemented. See
 [`../docs/PACKAGING.md`](../docs/PACKAGING.md) for install instructions and

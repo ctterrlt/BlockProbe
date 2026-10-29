@@ -5,9 +5,9 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version 1.0.0 source](https://img.shields.io/badge/version-1.0.0%20source-blue?style=flat-square)](#status)
+[![Version 1.1.1 source](https://img.shields.io/badge/version-1.1.1%20source-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
-[![Status](https://img.shields.io/badge/status-1.0.0%20source-orange?style=flat-square)](#status)
+[![Status](https://img.shields.io/badge/status-1.1.1%20source-orange?style=flat-square)](#status)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
 BlockProbe is an open-source, local-first tool that verifies whether gambling websites remain reachable from a device after a blocker such as BetBlocker, Gamban, or a DNS filter has been installed. It collects domains from public regulator portals, probes each domain through the device's own network path, and classifies the outcome as **blocked**, **unreachable**, or **open**.
@@ -21,11 +21,13 @@ probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
 local web UI all work, and the test suite covers the portal, classifier,
 storage, cache, UI and CLI paths. No signed desktop or mobile release has been
 produced yet (milestone M6 is in progress). The Python wheel and source archive
-build successfully. A universal Android APK and Linux portable tarball now
-build locally; the Linux per-user installer and a headless Linux app launch were
+build successfully. A universal Android APK and Linux portable tarball build
+locally; the Linux per-user installer and a headless Linux app launch were
 smoke-checked. The APK has an Android debug certificate and has not been
-installed on a physical device. Other native targets still need CI/toolchain
-verification before they can be treated as releases.
+installed on a physical device. The latest tag run built Windows, macOS and
+Linux packages, but failed while downloading the Android Python runtime; the
+latest macOS CI run failed a platform-sensitive socket test. Those issues have
+local fixes and need a new CI run. See [docs/PACKAGING.md](docs/PACKAGING.md).
 
 The classifier ships two verified BetBlocker rules and refreshes
 `https://betblocker.org/blocked/` on every run. New visible block-page sentences
@@ -81,10 +83,10 @@ Other native targets await CI/toolchain verification:
 
 - **From this repository (supported).** A Python 3.14+ environment with the `desktop` extra installs the declared dependencies and runs the full app and CLI.
 - **Python package.** A locally built wheel or sdist provide the CLI, library, local web UI and FreeBSD support, with optional extras (`desktop`, `dev`).
-- **Packaged applications (M6 in progress).** The Linux x86_64 portable tarball and universal Android APK were built locally; the Linux launch and Android debug signature were smoke-checked. Windows/macOS builds and CI release artifacts remain unverified. Build targets also exist for those platforms, web and the iOS simulator. AppImage/Flatpak, Linux arm64, physical-device installation checks, production signing and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
+- **Packaged applications (M6 in progress).** Linux, Windows and macOS package jobs passed in the latest tag run. The APK still builds locally, but its CI job failed while downloading an Android Python runtime archive; the workflow now retries those downloads. The latest macOS CI failure was a socket-test assumption and is fixed locally. AppImage/Flatpak, Linux arm64, physical-device installation checks, production signing and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
 - **Container image (optional).** `packaging/Dockerfile` builds a headless web UI image. Docker is not a prerequisite for normal installation; the container's network route may differ from the device's VPN/DNS route.
 
-The previous Windows CI and release failures came from commit `c499847`: a Windows-only connection-test assumption, Linux installer permission checks running on Windows, and Flet/Rich writing a checkmark through CP1252. Local uncommitted changes address those issues; the fixes still need a new GitHub run before Windows artifacts can be considered verified. The application identity is `BlockProbe`, with the package and CLI name `blockprobe` and the bundle ID `io.github.ctterrlt.blockprobe`. Icon and splash requirements are documented in [docs/BRANDING.md](docs/BRANDING.md).
+The previous Windows CI and release failures came from commit `c499847`: a Windows-only connection-test assumption, Linux installer permission checks running on Windows, and Flet/Rich writing a checkmark through CP1252. Windows CI and release packaging now pass. The latest macOS CI test failure and Android runtime-download failure have local fixes pending a rerun. The application identity is `BlockProbe`, with the package and CLI name `blockprobe` and the bundle ID `io.github.ctterrlt.blockprobe`. Icon and splash requirements are documented in [docs/BRANDING.md](docs/BRANDING.md).
 
 The Linux download is a distribution-independent `tar.gz`, not a package for
 APT, DNF or Pacman. Extract it and run `./install.sh`; the helper installs the
@@ -223,7 +225,7 @@ Results are indicative. They reflect the network path and resolver of the device
 - **M3** — cache, 24-hour list refresh, append-only lists, guarded reset. **Done.**
 - **M4** — Flet UI: consent, source selection, custom websites, run, results, logs. **Done.**
 - **M5** — diagnostics and scheduling. **Done** (user-level jobs; no elevation).
-- **M6** — packaging for desktop, mobile, and containers. **In progress**: Python packages, Linux x86_64 bundle and Android debug APK have been built locally. Windows/macOS and CI artifacts remain unverified; AppImage/Flatpak, Linux arm64, physical-device checks, production signing and store publication remain.
+- **M6** — packaging for desktop, mobile, and containers. **In progress**: Python packages, Linux x86_64 bundle and Android debug APK have been built locally. Linux, Windows and macOS CI package jobs passed, but the latest Android package job failed on its runtime download and awaits a rerun. AppImage/Flatpak, Linux arm64, physical-device checks, production signing and store publication remain.
 - **M7** — documentation and the first usable release. **Docs updated**; the release waits for M6 and native artifact review.
 
 ## Contributing

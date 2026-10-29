@@ -72,6 +72,17 @@ jobs:
         with:
           distribution: temurin
           java-version: "17"
+      - if: matrix.target == 'apk'
+        name: Set Android runtime cache
+        run: |
+          echo "FLET_CACHE_DIR=$HOME/.flet/cache" >> "$GITHUB_ENV"
+      - if: matrix.target == 'apk'
+        uses: actions/cache@v4
+        with:
+          path: ~/.flet/cache/python-build
+          key: android-python-runtime-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
+          restore-keys: |
+            android-python-runtime-${{ runner.os }}-
       - if: matrix.target == 'windows'
         run: choco install innosetup --yes --no-progress
       - name: Install build tooling
@@ -80,7 +91,26 @@ jobs:
         name: Install Flet Linux build dependencies
         run: python scripts/install-linux-build-deps.py
       - name: Build native package
+        if: matrix.target != 'apk'
         run: python scripts/build.py ${{ matrix.target }} ${{ matrix.installer }}
+      - if: matrix.target == 'apk'
+        name: Build Android package (retry a failed runtime archive download)
+        shell: bash
+        run: |
+          for attempt in 1 2; do
+            if python scripts/build.py apk; then
+              exit 0
+            fi
+            if [[ "$attempt" -eq 1 ]]; then
+              echo "Android runtime download failed; clearing only the arm64 runtime archive and retrying."
+              if [[ -d "$FLET_CACHE_DIR/python-build" ]]; then
+                find "$FLET_CACHE_DIR/python-build" -type f \
+                  -name 'python-android-dart-*-arm64-v8a.tar.gz' -delete
+              fi
+              sleep 10
+            fi
+          done
+          exit 1
       - uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.target }}

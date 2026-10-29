@@ -8,8 +8,9 @@ Android artifacts through Flet. The Python wheel and source archive, a Linux
 portable tarball and a universal Android APK were built locally. The Linux
 installer helper and a headless Linux app launch were smoke-checked. The APK
 was verified with Android's APK signer and uses the default Android debug
-certificate; it has not been installed on a physical device. Windows/macOS
-native outputs and release CI remain unverified. M6 remains open.
+certificate; it has not been installed on a physical device. The latest tag
+run built Windows, macOS and Linux packages, while Android failed during its
+runtime archive download. M6 remains open.
 
 ## Install from source or Python package
 
@@ -79,11 +80,16 @@ publishable Play Store build. A debug APK can be installed for local testing.
 | iOS | simulator app bundle | physical-device IPA, signing and App Store submission remain unimplemented |
 
 CI is configured to build Python, Windows, macOS, Linux and Android APK
-artifacts on a `v*` tag and attach them to the GitHub release. In the last tag
-run the Python, macOS, Linux and Android jobs passed; the Windows job failed on
-CP1252 output from Flet/Rich. The local UTF-8 fix is uncommitted and still needs
-a pushed rerun. The workflow does not sign or publish installers to app stores.
-Review `.github/workflows/release.yaml` before creating a release tag.
+artifacts on a `v*` tag and attach them to the GitHub release. In the latest tag
+run, Python, Windows, macOS and Linux package jobs passed. The APK job failed
+while downloading the Android Python runtime archive; the workflow now caches
+runtime archives and retries the APK build once after clearing the affected
+arm64 archive. Separately, macOS CI failed because a test assumed a
+refused local connection instead of allowing the timeout returned on macOS; the
+test now accepts either transport failure. A local APK rebuild succeeded using
+the cached runtime. These changes still need a new GitHub run. Release artifacts
+are unsigned and are not published to app stores. Review
+`.github/workflows/release.yaml` before creating a release tag.
 
 ### Linux installation
 
@@ -111,11 +117,11 @@ linux --installer` also creates a native `.pkg.tar.zst` with package metadata,
 GTK dependencies and the AGPL license. Install it from the repository root with:
 
 ```console
-sudo pacman -U dist/packages/linux/blockprobe-1.0.0-1-x86_64.pkg.tar.zst
+sudo pacman -U dist/packages/linux/blockprobe-1.1.1-1-x86_64.pkg.tar.zst
 ```
 
 A graphical package manager that supports local Arch packages can open this
-file; `yay -U dist/packages/linux/blockprobe-1.0.0-1-x86_64.pkg.tar.zst` also
+file; `yay -U dist/packages/linux/blockprobe-1.1.1-1-x86_64.pkg.tar.zst` also
 works. Pacman resolves the declared dependencies and keeps the license with the
 installed package. Debian `.deb` and Fedora `.rpm` packages are not built. The
 portable bundle must remain together because
@@ -163,8 +169,8 @@ started by the user.
 ## Milestones
 
 M6 is in progress: Python packages, Linux x86_64 and Android debug APK artifacts
-were built locally. Android physical-device installation, Windows/macOS build
-verification, Linux arm64, AppImage/Flatpak, physical-device iOS packaging,
-production signing, notarization and store-ready releases remain. M7
-documentation is updated; the first release waits for M6 and a completed
-artifact review.
+were built locally, and the latest release run built Windows, macOS and Linux
+packages. Android physical-device installation, Linux arm64, AppImage/Flatpak,
+physical-device iOS packaging, production signing, notarization and store-ready
+releases remain. M7 documentation is updated; the first release waits for M6
+and a completed artifact review.

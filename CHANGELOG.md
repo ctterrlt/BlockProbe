@@ -9,7 +9,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased] — 2026-10-29
 
-First complete implementation, targeting 1.0.0.
+First complete implementation, targeting 1.1.1.
 
 ### Added
 
@@ -72,7 +72,9 @@ First complete implementation, targeting 1.0.0.
   sentences are appended as review-needed literals (see `docs/SIGNATURES.md`).
 - M6 remains open. Python wheel/sdist, a Linux x86_64 portable bundle and a
   universal Android APK were built locally. The APK uses the Android debug
-  certificate; no physical Android install was tested. Windows/macOS builds,
-  release CI, Linux arm64, AppImage/Flatpak, production signing, notarization
-  and store submissions remain unverified or incomplete. See
+  certificate; no physical Android install was tested. Windows, macOS and Linux
+  CI package jobs passed; the latest APK job failed during runtime download and
+  the workflow now caches and retries that build. A macOS CI socket test failure is fixed
+  locally and also awaits rerun. Linux arm64, AppImage/Flatpak, production
+  signing, notarization and store submissions remain unverified or incomplete. See
   `docs/PACKAGING.md` for the current artifact status.

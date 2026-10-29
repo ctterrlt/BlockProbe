@@ -7,7 +7,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "blockprobe"
-version = "1.0.0"
+version = "1.1.1"
 description = "Local-first tool that verifies whether gambling sites remain reachable after installing a blocker."
 readme = "README.md"
 requires-python = ">=3.14"
@@ -107,7 +107,7 @@ org = "io.github.ctterrlt"
 product = "BlockProbe"
 company = "BlockProbe contributors"
 copyright = "Copyright (C) 2026 Christian"
-build_number = 1
+build_number = 3
 bundle_id = "io.github.ctterrlt.blockprobe"
 icon_background = "#0B1220"
 
