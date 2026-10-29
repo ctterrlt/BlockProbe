@@ -212,6 +212,10 @@ class ResultsScreen:
                     percent=health.risk_percent,
                     level=health.risk_level,
                 )
+                self.results_summary.value += "\n" + t(
+                    "Risk is a run-level estimate. Detected VPN, proxy or DNS "
+                    "filtering adds risk; unknown or disabled factors add none."
+                )
                 if health.first_failure_after:
                     self.results_summary.value += " " + t(
                         "First neutral control failure after: {domain}",

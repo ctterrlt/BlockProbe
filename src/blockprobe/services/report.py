@@ -322,6 +322,11 @@ class ReportService:
             "",
             f"{health.summary}",
             "",
+            "The percentage is calculated once at the end of the run from the "
+            "complete result set. Detected VPN, proxy or filtering-DNS factors add "
+            "risk; disabled, unknown or not-inspectable factors add nothing. It is "
+            "a heuristic, not a diagnosis.",
+            "",
         ]
         if health.reasons:
             lines.extend(f"- {escape(reason)}" for reason in health.reasons)

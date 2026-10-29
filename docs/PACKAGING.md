@@ -78,10 +78,12 @@ publishable Play Store build. A debug APK can be installed for local testing.
 | Web | static web bundle | hosting and base URL must be configured by the deployer |
 | iOS | simulator app bundle | physical-device IPA, signing and App Store submission remain unimplemented |
 
-CI builds Python, Windows, macOS, Linux and Android APK artifacts on a `v*`
-tag and attaches them to the GitHub release. The workflow does not sign or
-publish installers to app stores. Review `.github/workflows/release.yaml` before
-creating a release tag.
+CI is configured to build Python, Windows, macOS, Linux and Android APK
+artifacts on a `v*` tag and attach them to the GitHub release. In the last tag
+run the Python, macOS, Linux and Android jobs passed; the Windows job failed on
+CP1252 output from Flet/Rich. The local UTF-8 fix is uncommitted and still needs
+a pushed rerun. The workflow does not sign or publish installers to app stores.
+Review `.github/workflows/release.yaml` before creating a release tag.
 
 ### Linux installation
 

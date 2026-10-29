@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import subprocess
+import sys
 import tarfile
 from pathlib import Path
 
@@ -11,6 +12,10 @@ from scripts.build import build_linux_archive
 
 ROOT = Path(__file__).resolve().parents[2]
 INSTALLER = ROOT / "packaging" / "linux" / "install.sh"
+linux_only = pytest.mark.skipif(
+    not sys.platform.startswith("linux"),
+    reason="The Linux installer and its POSIX permissions only run on Linux.",
+)
 
 
 @pytest.fixture
@@ -52,6 +57,7 @@ def test_arch_package_declares_license_runtime_dependencies_and_launcher() -> No
     assert "Exec=/usr/bin/blockprobe-desktop %U" in recipe
 
 
+@linux_only
 def test_linux_installer_copies_app_license_and_desktop_entry(
     tmp_path: Path, portable_bundle: Path
 ) -> None:
@@ -82,6 +88,7 @@ def test_linux_installer_copies_app_license_and_desktop_entry(
     assert (bin_home / "blockprobe-desktop").stat().st_mode & 0o111
 
 
+@linux_only
 @pytest.mark.parametrize(
     ("binary_exists", "license_exists", "error_fragment"),
     [

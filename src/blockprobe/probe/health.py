@@ -28,7 +28,6 @@ _TRANSPORT_REASONS = {
     ReasonCode.CONNECT_FAILURE.value,
     ReasonCode.EMPTY_PAGE.value,
     ReasonCode.HTTP_ERROR.value,
-    ReasonCode.UNCLASSIFIED.value,
 }
 
 _DNS_REASONS = {
@@ -183,7 +182,18 @@ def _longest_unreachable_streak(ordered: list[ResultRow]) -> int:
 
 def _private_dns_is_custom(value: str) -> bool:
     lowered = (value or "").lower()
-    return bool(lowered) and "not configured" not in lowered and lowered != "unknown"
+    if not lowered or lowered == "unknown":
+        return False
+    return not any(
+        phrase in lowered
+        for phrase in (
+            "not configured",
+            "not inspectable",
+            "not applicable",
+            "cannot be read",
+            "checked only on android",
+        )
+    )
 
 
 def assess_probe_health(

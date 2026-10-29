@@ -116,3 +116,59 @@ def test_hosts_file_sinkhole_entries_are_evidence() -> None:
     )
     assert health.risk_percent > 0
     assert any("hosts file" in reason for reason in health.reasons)
+
+
+def test_unclassified_open_result_is_not_reported_as_transport_failure() -> None:
+    health = assess_probe_health(
+        [
+            result(
+                "unreviewed.example",
+                Verdict.OPENED,
+                ReasonCode.UNCLASSIFIED,
+                1,
+                needs_review=True,
+            )
+        ],
+        [],
+        {},
+    )
+
+    assert not any("DNS, connection" in reason for reason in health.reasons)
+    assert health.risk_percent == 0
+
+
+def test_unknown_private_dns_does_not_raise_risk() -> None:
+    health = assess_probe_health(
+        [result("a.example", Verdict.OPENED, ReasonCode.POSITIVE_MARKERS, 1)],
+        [],
+        {
+            "private_dns": (
+                "Not inspectable on this platform; Android Private DNS is "
+                "checked only on Android."
+            )
+        },
+    )
+
+    assert health.risk_percent == 0
+    assert not any("Private DNS" in reason for reason in health.reasons)
+
+
+def test_risk_is_deterministic_for_the_same_run_inputs() -> None:
+    rows = [
+        result("a.example", Verdict.OPENED, ReasonCode.POSITIVE_MARKERS, 1),
+        result("b.example", Verdict.UNREACHABLE, ReasonCode.CONNECT_TIMEOUT, 2),
+    ]
+    controls = [control(1, False, "a.example", 3)]
+    context = {
+        "vpn_interfaces": ["tailscale0"],
+        "vpn_providers": ["Tailscale via tailscale0"],
+        "proxies": ["HTTPS_PROXY=proxy.example:8080"],
+    }
+
+    first = assess_probe_health(rows, controls, context)
+    second = assess_probe_health(rows, controls, context)
+
+    assert first.risk_percent == second.risk_percent
+    assert first.risk_level == second.risk_level
+    assert first.reasons == second.reasons
+    assert first.recheck_domains == second.recheck_domains

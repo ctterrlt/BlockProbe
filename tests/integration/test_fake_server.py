@@ -8,7 +8,9 @@ covered at the same level because it needs no socket.
 
 from __future__ import annotations
 
+import asyncio
 import socket
+import sys
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlsplit
@@ -95,10 +97,18 @@ def _observation(url: str, fetch_result) -> ProbeObservation:  # type: ignore[no
     )
 
 
-def _closed_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.bind(("127.0.0.1", 0))
-        return int(probe.getsockname()[1])
+def _reserved_port() -> tuple[socket.socket, int]:
+    """Bind a port without listening and keep the socket open.
+
+    Closing a socket and then connecting to its port is racy on Windows: the
+    port can remain reserved and the connection reports a timeout instead of a
+    refusal. Keeping the un-listened socket alive removes that race while still
+    testing a non-listening TCP endpoint. Windows may still surface a timeout,
+    which the test accepts as a transport failure rather than an opened site.
+    """
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    probe.bind(("127.0.0.1", 0))
+    return probe, int(probe.getsockname()[1])
 
 
 async def test_open_page_is_classified_as_opened(fake_server: str) -> None:
@@ -155,17 +165,44 @@ async def test_redirect_chain_is_recorded(fake_server: str) -> None:
     assert classification.verdict is Verdict.OPENED
 
 
-async def test_refused_connection_is_unreachable() -> None:
-    result = await connect(
-        "closed.test",
-        "127.0.0.1",
-        _closed_port(),
-        timeout=0.5,
-        retries=0,
-        use_tls=False,
+async def test_connect_propagates_cancellation(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def never(*args, **kwargs):
+        await asyncio.sleep(3600)
+
+    monkeypatch.setattr("blockprobe.probe.connect.asyncio.open_connection", never)
+    task = asyncio.create_task(
+        connect("cancel.test", "127.0.0.1", 443, timeout=30, retries=2, use_tls=False)
     )
+    await asyncio.sleep(0)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await asyncio.wait_for(task, timeout=1.0)
+
+
+async def test_refused_connection_is_unreachable() -> None:
+    probe, port = _reserved_port()
+    try:
+        result = await connect(
+            "closed.test",
+            "127.0.0.1",
+            port,
+            timeout=1.0,
+            retries=0,
+            use_tls=False,
+        )
+    finally:
+        probe.close()
     assert result.ok is False
-    assert result.error_kind == "connect_refused"
+    if sys.platform != "win32":
+        assert result.error_kind == "connect_refused"
+    else:
+        # The Windows TCP stack can report a timeout for a reserved local port.
+        # Both outcomes are transport failures, never an opened website.
+        assert result.error_kind in {
+            "connect_refused",
+            "connect_timeout",
+            "connect_failure",
+        }
 
 
 async def test_tls_failure_against_a_plain_http_port(fake_server: str) -> None:

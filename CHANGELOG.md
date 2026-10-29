@@ -37,7 +37,7 @@ First complete implementation, targeting 1.0.0.
 - **Scheduling.** Off-by-default user-level jobs (systemd user timer, launchd
   agent, Task Scheduler XML), rendered and written without elevation, plus
   leak-only desktop notifications when a notifier is available.
-- **Quality.** 194 tests passing and 2 live-capture tests skipped by default,
+- **Quality.** 202 tests passing and 2 live-capture tests skipped by default,
   real ADM fixture plus a layout-independence fixture, fake-server integration
   tests, strict typing on `core`, ruff, and cross-platform CI.
 - **Linux installation.** The portable tarball includes the AGPL license and a

@@ -20,9 +20,35 @@ DIST = ROOT / "dist" / "packages"
 TARGETS = ("python", "windows", "macos", "linux", "apk", "aab", "web", "ios-simulator")
 
 
+def _subprocess_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Return a UTF-8, colour-free environment for native build tools.
+
+    Flet uses Rich for progress output. On a Windows runner Rich can select the
+    legacy console renderer and write a checkmark through the CP1252 codec,
+    aborting an otherwise successful build. Forcing UTF-8 at the Python stream
+    boundary keeps the same build deterministic on every runner.
+    """
+    env = os.environ.copy()
+    if extra:
+        env.update(extra)
+    # These values are intentionally forced last: a caller's inherited
+    # CP1252 stream must not reintroduce the Windows crash. The legacy Windows
+    # stdio switch is enabled so PYTHONIOENCODING also applies to console
+    # buffers; like other Python flag variables, any non-empty value enables it.
+    env.update(
+        {
+            "PYTHONUTF8": "1",
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONLEGACYWINDOWSSTDIO": "1",
+            "NO_COLOR": "1",
+        }
+    )
+    return env
+
+
 def run(command: list[str], *, cwd: Path = ROOT, env: dict[str, str] | None = None) -> None:
     print("+", " ".join(command), flush=True)
-    subprocess.run(command, cwd=cwd, check=True, env=env)
+    subprocess.run(command, cwd=cwd, check=True, env=_subprocess_env(env))
 
 
 def find_executable(name: str) -> str:

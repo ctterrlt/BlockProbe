@@ -119,7 +119,8 @@ def _mask(url: str) -> str:
 
 def proxy_environment() -> list[str]:
     values: list[str] = []
-    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"):
+    # NO_PROXY is only a bypass list, not evidence that a proxy is active.
+    for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"):
         value = os.environ.get(name) or os.environ.get(name.lower())
         if value:
             values.append(f"{name}={_mask(value)}")
@@ -332,12 +333,20 @@ def system_proxy() -> list[str]:
                 timeout=3,
                 check=False,
             )
-            lines = [
-                line.strip()
-                for line in result.stdout.splitlines()
-                if "Enable" in line or "Proxy" in line or "Server" in line
-            ]
-            return lines[:10]
+            # ``scutil --proxy`` includes disabled proxy keys too. Report only
+            # active switches and never echo a raw server/credential value.
+            active = {
+                "HTTPEnable": "HTTP proxy enabled",
+                "HTTPSEnable": "HTTPS proxy enabled",
+                "SOCKSEnable": "SOCKS proxy enabled",
+                "ProxyAutoConfigEnable": "automatic proxy configuration enabled",
+                "ProxyAutoDiscoveryEnable": "automatic proxy discovery enabled",
+            }
+            found: list[str] = []
+            for key, label in active.items():
+                if re.search(rf"^\s*{key}\s*:\s*1\s*$", result.stdout, re.MULTILINE):
+                    found.append(label)
+            return found
         except (OSError, subprocess.SubprocessError):
             return []
     if sys.platform.startswith("win"):
@@ -348,8 +357,9 @@ def system_proxy() -> list[str]:
             with winreg.OpenKey(winreg.HKEY_CURRENT_USER, path) as key:
                 enabled, _ = winreg.QueryValueEx(key, "ProxyEnable")
                 if enabled:
-                    server, _ = winreg.QueryValueEx(key, "ProxyServer")
-                    return [f"ProxyServer={server}"]
+                    # Do not copy the configured server or any user-info into
+                    # diagnostics and reports; only record that one is active.
+                    return ["Windows system proxy enabled"]
         except OSError:
             return []
     return []

@@ -84,7 +84,7 @@ Other native targets await CI/toolchain verification:
 - **Packaged applications (M6 in progress).** The Linux x86_64 portable tarball and universal Android APK were built locally; the Linux launch and Android debug signature were smoke-checked. Windows/macOS builds and CI release artifacts remain unverified. Build targets also exist for those platforms, web and the iOS simulator. AppImage/Flatpak, Linux arm64, physical-device installation checks, production signing and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
 - **Container image (optional).** `packaging/Dockerfile` builds a headless web UI image. Docker is not a prerequisite for normal installation; the container's network route may differ from the device's VPN/DNS route.
 
-The application identity is `BlockProbe`, with the package and CLI name `blockprobe` and the bundle ID `io.github.ctterrlt.blockprobe`. Icon and splash requirements are documented in [docs/BRANDING.md](docs/BRANDING.md).
+The previous Windows CI and release failures came from commit `c499847`: a Windows-only connection-test assumption, Linux installer permission checks running on Windows, and Flet/Rich writing a checkmark through CP1252. Local uncommitted changes address those issues; the fixes still need a new GitHub run before Windows artifacts can be considered verified. The application identity is `BlockProbe`, with the package and CLI name `blockprobe` and the bundle ID `io.github.ctterrlt.blockprobe`. Icon and splash requirements are documented in [docs/BRANDING.md](docs/BRANDING.md).
 
 The Linux download is a distribution-independent `tar.gz`, not a package for
 APT, DNF or Pacman. Extract it and run `./install.sh`; the helper installs the
@@ -198,7 +198,7 @@ Further reading: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 
 ```console
 python -m pip install -e ".[dev]"
-python -m pytest          # 186 passing, 2 live-capture tests skipped by default
+python -m pytest          # 202 passing, 2 live-capture tests skipped by default
 python -m ruff check src tests scripts
 python -m mypy            # strict on blockprobe.core
 ```

@@ -50,7 +50,7 @@ async def connect(
     use_tls: bool = True,
 ) -> ConnectResult:
     """Open a TCP/TLS connection, retrying transient failures."""
-    last_error: BaseException | None = None
+    last_error: Exception | None = None
     start = time.perf_counter()
     attempts = 0
     for attempt in range(retries + 1):
@@ -83,7 +83,9 @@ async def connect(
                 tls=use_tls,
                 attempts=attempts,
             )
-        except BaseException as exc:
+        except Exception as exc:
+            # CancelledError derives from BaseException, so cancellation is not
+            # swallowed and retried here; scans must stop promptly when asked.
             last_error = exc
             if writer is not None:
                 try:

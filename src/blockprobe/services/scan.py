@@ -349,8 +349,10 @@ class ScanService:
             sequence=next_sequence,
         )
         controls.append(initial)
-        health = self._persist_health(run, controls, refresh)
         if not initial.ok:
+            # The run ends before any target is probed; this is the final
+            # snapshot for this aborted attempt.
+            health = self._persist_health(run, controls, refresh)
             storage.update_run_status(run.id, RunStatus.PAUSED)
             return ScanOutcome(
                 run_id=run.id,
@@ -413,8 +415,10 @@ class ScanService:
             )
 
         def on_control(check: ControlCheck) -> None:
+            # Collect controls during the run. The risk percentage is computed
+            # once after run_batch from the complete result set, so a partial
+            # snapshot can never be mistaken for the final verdict.
             controls.append(check)
-            self._persist_health(run, controls, refresh)
 
         await self._engine.run_batch(
             run.id,

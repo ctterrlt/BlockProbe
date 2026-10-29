@@ -6,6 +6,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from blockprobe.core.models import NetworkContext
+from blockprobe.diagnostics import system_dns
 from blockprobe.diagnostics import vpn_proxy_detect as vpn
 
 
@@ -60,3 +61,25 @@ def test_network_context_round_trip_keeps_new_fields() -> None:
     assert restored.dns_filters == context.dns_filters
     assert restored.hosts_block_entries == 2
     assert restored.vpn_providers == context.vpn_providers
+
+
+def test_no_proxy_bypass_list_is_not_reported_as_a_proxy(monkeypatch) -> None:
+    monkeypatch.setenv("NO_PROXY", "localhost,127.0.0.1")
+    monkeypatch.delenv("HTTP_PROXY", raising=False)
+    monkeypatch.delenv("HTTPS_PROXY", raising=False)
+    monkeypatch.delenv("ALL_PROXY", raising=False)
+    monkeypatch.delenv("http_proxy", raising=False)
+    monkeypatch.delenv("https_proxy", raising=False)
+    monkeypatch.delenv("all_proxy", raising=False)
+
+    assert vpn.proxy_environment() == []
+
+
+def test_system_proxy_is_included_without_credentials(monkeypatch) -> None:
+    monkeypatch.setattr(vpn, "proxy_environment", lambda: ["HTTPS_PROXY=proxy.example:8080"])
+    monkeypatch.setattr(vpn, "system_proxy", lambda: ["HTTP proxy enabled"])
+
+    context = system_dns.collect_network_context()
+
+    assert "HTTPS_PROXY=proxy.example:8080" in context.proxies
+    assert "HTTP proxy enabled" in context.proxies

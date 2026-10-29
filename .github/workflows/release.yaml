@@ -10,6 +10,12 @@ on:
 permissions:
   contents: write
 
+env:
+  PYTHONUTF8: "1"
+  PYTHONIOENCODING: "utf-8"
+  PYTHONLEGACYWINDOWSSTDIO: "1"
+  NO_COLOR: "1"
+
 jobs:
   python-package:
     name: Python wheel and sdist

@@ -61,7 +61,9 @@ def private_dns_hint() -> str:
             "Android Private DNS cannot be read without elevated rights; check "
             "Settings > Network > Private DNS in the browser/device yourself."
         )
-    return "Not configured through the system resolver (no Android Private DNS detected)."
+    return (
+        "Not inspectable on this platform; Android Private DNS is checked only on Android."
+    )
 
 
 def browser_doh_hint() -> str:
@@ -94,6 +96,7 @@ def collect_network_context() -> NetworkContext:
         proxy_environment,
         resolver_details,
         system_dns_servers,
+        system_proxy,
         vpn_interfaces,
         vpn_provider_names,
     )
@@ -122,7 +125,7 @@ def collect_network_context() -> NetworkContext:
         dns_filters=filters,
         hosts_entries=hosts_entries(),
         hosts_block_entries=hosts_block_entries(),
-        proxies=proxy_environment(),
+        proxies=list(dict.fromkeys([*proxy_environment(), *system_proxy()])),
         vpn_interfaces=interfaces,
         vpn_providers=vpn_provider_names(interfaces),
         ipv6=ipv6_available(),
