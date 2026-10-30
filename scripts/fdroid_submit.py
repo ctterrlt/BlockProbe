@@ -298,14 +298,71 @@ _BlockDumper.add_representer(str, _represent_string)
 
 def dump_yaml(data: dict[str, Any]) -> str:
     """Return stable, readable YAML for the fdroiddata commit."""
-    return yaml.dump(
-        data,
-        Dumper=_BlockDumper,
-        sort_keys=False,
-        allow_unicode=True,
-        default_flow_style=False,
-        width=1000,
-    )
+    try:
+        from ruamel.yaml import YAML
+        from ruamel.yaml.comments import CommentedMap
+        from ruamel.yaml.scalarstring import LiteralScalarString
+    except ModuleNotFoundError as exc:
+        raise SystemExit("ruamel.yaml is required: python -m pip install ruamel.yaml") from exc
+
+    field_order = [
+        "Disabled", "AntiFeatures", "Categories", "License", "AuthorName",
+        "AuthorEmail", "AuthorWebSite", "WebSite", "SourceCode", "IssueTracker",
+        "Translation", "Changelog", "Donate", "Liberapay", "OpenCollective",
+        "Bitcoin", "Litecoin", "Name", "AutoName", "Summary", "Description",
+        "RequiresRoot", "RepoType", "Repo", "Binaries", "Builds",
+        "AllowedAPKSigningKeys", "MaintainerNotes", "ArchivePolicy", "AutoUpdateMode",
+        "UpdateCheckMode", "UpdateCheckIgnore", "VercodeOperation", "UpdateCheckName",
+        "UpdateCheckData", "CurrentVersion", "CurrentVersionCode", "NoSourceSince",
+    ]
+    build_order = [
+        "versionName", "versionCode", "disable", "commit", "timeout", "subdir",
+        "submodules", "sudo", "init", "patch", "gradle", "maven", "output",
+        "binary", "srclibs", "oldsdkloc", "encoding", "forceversion", "forcevercode",
+        "rm", "extlibs", "prebuild", "androidupdate", "target", "scanignore",
+        "scandelete", "build", "buildjni", "ndk", "preassemble", "gradleprops",
+        "antcommands", "postbuild", "novcheck", "antifeatures",
+    ]
+
+    ordered = CommentedMap()
+    for key in field_order:
+        if key not in data:
+            continue
+        value = data[key]
+        if key in {"Description", "MaintainerNotes"} and isinstance(value, str):
+            value = LiteralScalarString(value)
+        if key == "Builds":
+            builds = []
+            for build in value or []:
+                if not isinstance(build, dict):
+                    continue
+                current = CommentedMap(
+                    (field, build[field]) for field in build_order if field in build
+                )
+                for field in ("build", "prebuild", "postbuild", "init", "patch", "sudo"):
+                    commands = current.get(field)
+                    if isinstance(commands, list) and len(commands) == 1:
+                        current[field] = commands[0]
+                builds.append(current)
+            value = builds
+        ordered[key] = value
+    for key, value in data.items():
+        if key not in ordered:
+            ordered[key] = value
+
+    for key in ("Name", "RepoType", "Builds", "AllowedAPKSigningKeys", "MaintainerNotes", "ArchivePolicy"):
+        if key in ordered:
+            ordered.yaml_set_comment_before_after_key(key, before="blank")
+            ordered.ca.items[key][1][-1].value = "\n"
+
+    dumper = YAML(typ="rt")
+    dumper.indent(mapping=2, sequence=4, offset=2)
+    dumper.width = 1000
+    from io import StringIO
+
+    stream = StringIO()
+    dumper.dump(ordered, stream)
+    return stream.getvalue()
 
 
 class GitLabClient:

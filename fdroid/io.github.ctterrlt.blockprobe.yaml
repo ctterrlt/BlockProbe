@@ -63,10 +63,11 @@ MaintainerNotes: |-
   --no-compile-packages) so the APK carries readable Python sources.
 
   The build entry installs python3-venv through sudo before prebuild. The
-  timeout is extended because the first Flet build downloads Flutter, Gradle
-  and the Android SDK command-line tools. Flet signs its local output with the
-  debug key; F-Droid re-signs the published APK, so the upstream debug key is
-  not trusted for distribution.
+  timeout is extended because the first Flet build downloads Gradle and the
+  Android SDK command-line tools. The recipe precaches the Flutter engine
+  artifacts required by Flet. Flet signs its local output with the debug key;
+  F-Droid re-signs the published APK, so the upstream debug key is not trusted
+  for distribution.
 
   The BlockProbe release workflow opens or updates this fdroiddata merge
   request. It cannot upload, replace or delete files in the official F-Droid

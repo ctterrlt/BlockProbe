@@ -17,13 +17,28 @@ VERSION_CODE="$(
 import re
 import sys
 
-match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?", sys.argv[1])
+match = re.fullmatch(
+    r"(\d+)\.(\d+)\.(\d+)"
+    r"(?:-(alpha|beta|gamma|rc)(?:\.(\d+))?)?"
+    r"(?:\+[0-9A-Za-z.-]+)?",
+    sys.argv[1],
+)
 if not match:
     raise SystemExit(f"VERSION is not major.minor.patch[-prerelease]: {sys.argv[1]}")
-parts = tuple(map(int, match.groups()))
-if any(part >= 1000 for part in parts):
+major, minor, patch = map(int, match.groups()[:3])
+if any(part >= 1000 for part in (major, minor, patch)):
     raise SystemExit("Each VERSION component must be less than 1000")
-print(parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2])
+stage, serial_text = match.groups()[3:]
+stage_slot = {"alpha": 10, "beta": 20, "gamma": 30, "rc": 40}.get(stage, 99)
+serial = int(serial_text or 0)
+if serial > 9:
+    raise SystemExit("Prerelease serials must be between 0 and 9")
+if stage is not None:
+    stage_slot += serial
+code = (major * 1_000_000 + minor * 1_000 + patch) * 100 + stage_slot
+if code <= 0 or code > 2_100_000_000:
+    raise SystemExit("VERSION produces an invalid Android version code")
+print(code)
 PY
 )"
 
@@ -80,6 +95,10 @@ prepare() {
   cd "$BUILD_DIR"
 
   echo "Building BlockProbe $VERSION ($VERSION_CODE) with Flet $FLET_VERSION"
+  # F-Droid checks out Flutter as a bare srclib, without the engine artifacts
+  # that the official Flutter archive includes. Flet skips its own SDK install
+  # when it finds this SDK on PATH, so populate the Android artifacts first.
+  flutter precache --android
   flet build apk \
     --yes \
     --no-rich-output \
