@@ -192,13 +192,13 @@ def test_dump_yaml_round_trips() -> None:
     dumped = fdroid_submit.dump_yaml(data)
 
     expected = dict(data)
-    expected["Builds"] = [dict(build) for build in data["Builds"]]
+    expected["Builds"] = [dict(build_entry) for build_entry in data["Builds"]]
     # F-Droid's canonical writer collapses one-command script lists to scalars.
-    for build in expected["Builds"]:
+    for build_entry in expected["Builds"]:
         for field in ("build", "prebuild", "postbuild", "init", "patch", "sudo"):
-            commands = build.get(field)
+            commands = build_entry.get(field)
             if isinstance(commands, list) and len(commands) == 1:
-                build[field] = commands[0]
+                build_entry[field] = commands[0]
 
     assert fdroid_submit.yaml.safe_load(dumped) == expected
     assert "Description: |-\n" in dumped
