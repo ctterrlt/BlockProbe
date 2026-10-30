@@ -7,7 +7,18 @@ import flet as ft
 
 from blockprobe.i18n import t
 from blockprobe.ui import actions
-from blockprobe.ui.components import ACCENT_DIM, BORDER, MUTED, SURFACE, WARN, button, card, hero, text
+from blockprobe.ui.components import (
+    ACCENT_DIM,
+    BORDER,
+    MUTED,
+    SURFACE,
+    WARN,
+    apply_page_theme,
+    button,
+    card,
+    hero,
+    text,
+)
 
 
 class RunScreen:
@@ -28,6 +39,9 @@ class RunScreen:
     pause_button: ft.Button | None
     resume_button: ft.Button | None
     cancel_button: ft.Button | None
+    pause_slot: ft.Container | None
+    resume_slot: ft.Container | None
+    cancel_slot: ft.Container | None
     run_card: ft.Container | None
     run_card_title: ft.Text | None
 
@@ -46,9 +60,7 @@ class RunScreen:
         )
         self._source_rows: dict[str, ft.Control] = {}
         self.preview_text = text(t("Preview not loaded yet."), 13)
-        self.auto_refresh_switch = ft.Switch(
-            label=t("Update stale portal lists first"), value=True
-        )
+        self.auto_refresh_switch = ft.Switch(value=True)
         self.progress_bar = ft.ProgressBar(value=0, color="#38BDF8", bgcolor="#1E293B")
         self.progress_text = text(t("No scan is running."), 13)
         self._run_feedback_visible = False
@@ -58,6 +70,9 @@ class RunScreen:
         self.pause_button = None
         self.resume_button = None
         self.cancel_button = None
+        self.pause_slot = None
+        self.resume_slot = None
+        self.cancel_slot = None
         self.run_card = None
         self.run_card_title = None
 
@@ -71,6 +86,27 @@ class RunScreen:
         self.cancel_button = button(
             t("Cancel"), ft.Icons.CANCEL_OUTLINED, self._wrap(actions.cancel_scan)
         )
+        self.pause_button.expand = True
+        self.resume_button.expand = True
+        self.cancel_button.expand = True
+        self.pause_slot = ft.Container(
+            content=self.pause_button,
+            col={"xs": 12, "sm": 6},
+            expand=True,
+        )
+        self.resume_slot = ft.Container(
+            content=self.resume_button,
+            col={"xs": 12, "sm": 6},
+            expand=True,
+        )
+        self.cancel_slot = ft.Container(
+            content=self.cancel_button,
+            col={"xs": 12, "sm": 6},
+            expand=True,
+        )
+        assert self.pause_slot is not None
+        assert self.resume_slot is not None
+        assert self.cancel_slot is not None
         self.refresh_run_controls()
         sources_card = card(
             t("1. Pick the sources"),
@@ -79,17 +115,35 @@ class RunScreen:
                     self.source_search,
                     self.sources_column,
                     self.preview_text,
-                    ft.Row(
+                    ft.ResponsiveRow(
                         [
-                            button(
-                                t("Preview"),
-                                ft.Icons.SEARCH,
-                                self._wrap(self._preview),
+                            ft.Container(
+                                content=button(
+                                    t("Preview"),
+                                    ft.Icons.SEARCH,
+                                    self._wrap(self._preview),
+                                ),
+                                col={"xs": 12, "sm": 4},
                             ),
-                            self.auto_refresh_switch,
+                            ft.Container(
+                                content=ft.Row(
+                                    [
+                                        self.auto_refresh_switch,
+                                        ft.Container(
+                                            content=text(
+                                                t("Update stale portal lists first"),
+                                                13,
+                                            ),
+                                            expand=True,
+                                        ),
+                                    ],
+                                    spacing=8,
+                                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                                ),
+                                col={"xs": 12, "sm": 8},
+                            ),
                         ],
-                        wrap=True,
-                        spacing=12,
+                        run_spacing=8,
                     ),
                     ft.Row(
                         [
@@ -111,6 +165,7 @@ class RunScreen:
                     ),
                 ],
                 spacing=10,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             ),
         )
         run_card = card(
@@ -120,9 +175,9 @@ class RunScreen:
                     ft.ResponsiveRow(
                         [
                             ft.Container(content=self.start_button, col={"xs": 12, "sm": 6}),
-                            ft.Container(content=self.pause_button, col={"xs": 6, "sm": 2}),
-                            ft.Container(content=self.resume_button, col={"xs": 6, "sm": 2}),
-                            ft.Container(content=self.cancel_button, col={"xs": 12, "sm": 2}),
+                            self.pause_slot,
+                            self.resume_slot,
+                            self.cancel_slot,
                         ],
                         run_spacing=8,
                     ),
@@ -130,6 +185,7 @@ class RunScreen:
                     self.progress_text,
                 ],
                 spacing=12,
+                horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             ),
         )
         self.run_card = run_card
@@ -147,6 +203,7 @@ class RunScreen:
             ],
             spacing=12,
             scroll=ft.ScrollMode.AUTO,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
 
@@ -162,21 +219,37 @@ class RunScreen:
         )
 
     def refresh_run_controls(self) -> None:
-        if self.start_button is None:
+        if (
+            self.start_button is None
+            or self.pause_button is None
+            or self.resume_button is None
+            or self.cancel_button is None
+            or self.pause_slot is None
+            or self.resume_slot is None
+            or self.cancel_slot is None
+        ):
             return
         summary = actions.latest_run_summary()
         status = summary.status.value if summary is not None else ""
         active = actions.runtime().scan.active_run is not None
         running = active and status == "running"
-        paused = status == "paused" or any(
-            run.status.value == "paused"
-            for run in actions.runtime().storage.list_runs(limit=50)
+        paused = status == "paused" or (
+            not active
+            and any(
+                run.status.value == "paused"
+                for run in actions.runtime().storage.list_runs(limit=50)
+            )
         )
         self.start_button.visible = not active
         self.start_button.disabled = active
         self.pause_button.visible = running
         self.resume_button.visible = paused
         self.cancel_button.visible = running
+        # Hide the responsive cells too; otherwise an invisible Pause/Resume
+        # button still reserves half a phone row and pushes its counterpart off-screen.
+        self.pause_slot.visible = running
+        self.resume_slot.visible = paused
+        self.cancel_slot.visible = running
         # Keep feedback visible after the click handler returns too. On compact
         # layouts this is the only in-context place where a failed start can be
         # explained; hiding it made the Start button appear to do nothing.
@@ -282,6 +355,11 @@ class RunScreen:
         for key, row in self._source_rows.items():
             if isinstance(row, ft.Container):
                 row.bgcolor = ACCENT_DIM if checkboxes[key].value else SURFACE
+        apply_page_theme(
+            self.page,
+            actions.runtime().settings.config.app.theme_mode,
+            update=False,
+        )
         self.page.update()
 
     def _preview(self) -> actions.ActionResult:

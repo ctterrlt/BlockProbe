@@ -10,7 +10,7 @@ Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
 runtime display, Flet build version/build code, Windows installer and Arch
 package artifact.
 
-The current local development version is `1.2.2-alpha`. `python
+The current local development version is `1.2.3-alpha`. `python
 scripts/build.py all` rebuilds the targets available on the current host and
 cleans target-specific previous artifacts first.
 

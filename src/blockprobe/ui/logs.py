@@ -95,6 +95,7 @@ class LogsScreen:
                 ),
             ],
             spacing=16,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
 

@@ -48,5 +48,6 @@ def help_view() -> ft.Control:
     return ft.Column(
         [card(t("About, privacy and permission"), ft.Column(lines, spacing=12))],
         scroll=ft.ScrollMode.AUTO,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         expand=True,
     )

@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3-alpha] — 2026-10-30
+
+### Changed
+
+- Improved compact-screen layouts, theme updates and scan controls.
+- Paginated mobile scan results to reduce rendering load and improve scrolling.
+- Show the saved file path after exporting a report or domain list.
+
 ## [1.2.2-alpha] — 2026-10-30
 
 ### Added

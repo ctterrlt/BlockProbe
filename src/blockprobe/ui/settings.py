@@ -277,6 +277,7 @@ class SettingsScreen:
             ],
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
 

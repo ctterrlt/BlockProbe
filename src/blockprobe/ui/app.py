@@ -148,6 +148,7 @@ class BlockProbeUi(
         # Keep technical details in the relevant screen. Global feedback should
         # stay short and never expose filesystem paths or run identifiers.
         self.status_detail.value = ""
+        self._apply_live_theme()
         mode = actions.runtime().settings.config.app.theme_mode
         dark = mode == "dark" or (
             mode == "system"
@@ -229,7 +230,10 @@ class BlockProbeUi(
         self.mobile_nav.selected_index = index if 0 <= index < 4 else 4
         content = self.more_view if index == 6 else self.views[index]
         self.content_area.content = ft.Column(
-            [self.page_heading, content], spacing=20, expand=True
+            [self.page_heading, content],
+            spacing=20,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            expand=True,
         )
         labels = [t("Run"), t("Sources"), t("Results"), t("Logs"), t("Settings"), t("Help")]
         descriptions = [
@@ -250,6 +254,7 @@ class BlockProbeUi(
             self.refresh_results()
         if index == 3:
             self.refresh_logs()
+        self._apply_live_theme()
         self.page.update()
 
     def _more_view(self) -> ft.Control:
@@ -314,6 +319,7 @@ class BlockProbeUi(
         self.content_area.content = ft.Column(
             [self.page_heading, self.views[0]],
             spacing=20,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
         self.refresh_portal_texts()
@@ -411,6 +417,12 @@ class BlockProbeUi(
         self.status_bar.visible = not compact
         self.status_title.size = 15 if compact else 20
         self.refresh_run_layout(compact)
+        self.refresh_results_layout(compact)
+
+    def _apply_live_theme(self) -> None:
+        """Reapply the selected palette after a screen replaces its controls."""
+        mode = actions.runtime().settings.config.app.theme_mode
+        apply_page_theme(self.page, mode, update=False)
 
     # -------------------------------------------------------------------- polls
 
@@ -436,6 +448,7 @@ class BlockProbeUi(
                         key = (active, summary.total)
                         if key != self._results_key:
                             self.refresh_results()
+                            self._apply_live_theme()
                     self.page.update()
                 except Exception:
                     continue

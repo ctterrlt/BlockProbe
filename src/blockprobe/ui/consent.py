@@ -16,7 +16,14 @@ import flet as ft
 from blockprobe import APP_NAME, __version__
 from blockprobe.i18n import available_languages, t
 from blockprobe.ui import actions
-from blockprobe.ui.components import BACKGROUND, MUTED, TEXT, button, text
+from blockprobe.ui.components import (
+    BACKGROUND,
+    MUTED,
+    TEXT,
+    apply_page_theme,
+    button,
+    text,
+)
 
 
 def _selected_language(event: Any, dropdown_value: object) -> str:
@@ -76,6 +83,11 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
             return
         page.clean()
         page.add(ft.SafeArea(content=consent_view(page, on_accepted), expand=True))
+        apply_page_theme(
+            page,
+            actions.runtime().settings.config.app.theme_mode,
+            update=False,
+        )
         page.update()
 
     # Flet 1.x Dropdown emits selection through on_select. Assigning an

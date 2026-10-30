@@ -3,17 +3,33 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import flet as ft
 
 from blockprobe.core.enums import Verdict
 from blockprobe.core.models import ResultRow
 from blockprobe.i18n import t
 from blockprobe.ui import actions
-from blockprobe.ui.components import MUTED, OK, TEXT, WARN, button, card, hero, text
+from blockprobe.ui.components import (
+    BAD,
+    BORDER,
+    MUTED,
+    OK,
+    SURFACE,
+    TEXT,
+    WARN,
+    button,
+    card,
+    hero,
+    text,
+)
 
 
 class ResultsScreen:
     """Mixin with the results screen and its filters."""
+
+    RESULTS_PAGE_SIZE = 20
 
     page: ft.Page
     results_summary: ft.Text
@@ -22,14 +38,19 @@ class ResultsScreen:
     leaks_only_switch: ft.Switch
     results_table: ft.DataTable
     results_scroll: ft.Row
+    results_mobile_list: ft.Column
     results_empty: ft.Container
     comparison_text: ft.Text
+    results_page_label: ft.Text
+    export_status: ft.Text
 
     def _wrap(self, action):  # type: ignore[no-untyped-def]
         raise NotImplementedError
 
     def _setup_results(self) -> None:
         self._results_key: tuple[object, ...] | None = None
+        self._filtered_result_rows: list[ResultRow] = []
+        self._result_page_index = 0
         self.results_summary = text(t("No results yet."), 13)
         self.results_search = ft.TextField(
             label=t("Search domain"),
@@ -64,6 +85,20 @@ class ResultsScreen:
             column_spacing=18,
         )
         self.results_scroll = ft.Row([self.results_table], scroll=ft.ScrollMode.AUTO)
+        self.results_mobile_list = ft.Column(spacing=8, visible=False)
+        self.results_page_label = text("", 12, MUTED)
+        self.export_status = text("", 12, MUTED, selectable=True)
+        self.results_pager = ft.Row(
+            [
+                button(t("Previous"), ft.Icons.CHEVRON_LEFT, self._previous_results_page),
+                self.results_page_label,
+                button(t("Next"), ft.Icons.CHEVRON_RIGHT, self._next_results_page),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=12,
+            visible=False,
+        )
         self.results_empty = ft.Container(
             content=ft.Column(
                 [
@@ -124,28 +159,39 @@ class ResultsScreen:
                                         t("Markdown"),
                                         ft.Icons.DESCRIPTION,
                                         self._wrap(
-                                            lambda: actions.export_report("markdown")
+                                            lambda: self._export(
+                                                lambda: actions.export_report("markdown")
+                                            )
                                         ),
                                     ),
                                     button(
                                         t("CSV"),
                                         ft.Icons.TABLE_VIEW,
-                                        self._wrap(lambda: actions.export_report("csv")),
+                                        self._wrap(
+                                            lambda: self._export(
+                                                lambda: actions.export_report("csv")
+                                            )
+                                        ),
                                     ),
                                     button(
                                         t("JSON"),
                                         ft.Icons.DATA_OBJECT,
-                                        self._wrap(lambda: actions.export_report("json")),
+                                        self._wrap(
+                                            lambda: self._export(
+                                                lambda: actions.export_report("json")
+                                            )
+                                        ),
                                     ),
                                     button(
                                         t("Domain list (txt)"),
                                         ft.Icons.LIST_ALT,
-                                        self._wrap(actions.export_domain_list),
+                                        self._wrap(lambda: self._export(actions.export_domain_list)),
                                     ),
                                 ],
                                 wrap=True,
                                 spacing=12,
                             ),
+                            self.export_status,
                         ],
                         spacing=10,
                     ),
@@ -153,12 +199,21 @@ class ResultsScreen:
                 card(t("Comparison with the previous run"), self.comparison_text),
                 card(
                     t("Results (domains are never links)"),
-                    ft.Column([self.results_empty, self.results_scroll], expand=True),
+                    ft.Column(
+                        [
+                            self.results_empty,
+                            self.results_mobile_list,
+                            self.results_pager,
+                            self.results_scroll,
+                        ],
+                        expand=True,
+                    ),
                     expand=True,
                 ),
             ],
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
 
@@ -170,33 +225,17 @@ class ResultsScreen:
         verdict_value = str(self.verdict_filter.value or "all")
         if verdict_value != "all":
             rows = [row for row in rows if row.verdict.value == verdict_value]
+        self._filtered_result_rows = rows
+        self._result_page_index = 0
         self.results_empty.visible = not rows
-        self.results_scroll.visible = bool(rows)
-        self.results_table.rows = [
-            ft.DataRow(
-                cells=[
-                    ft.DataCell(text(row.domain, 12, TEXT)),
-                    ft.DataCell(
-                        text(
-                            row.verdict.label,
-                            12,
-                            OK if row.verdict is Verdict.OPENED else MUTED,
-                        )
-                    ),
-                    ft.DataCell(text(row.reason_label, 12)),
-                    ft.DataCell(text(row.confidence.label, 12)),
-                    ft.DataCell(
-                        text(
-                            t("yes") if row.needs_review else t("no"),
-                            12,
-                            WARN if row.needs_review else MUTED,
-                        )
-                    ),
-                    ft.DataCell(text(", ".join(row.sources) or "—", 12)),
-                ]
-            )
-            for row in rows
-        ]
+        compact = bool(getattr(self, "_compact_layout", False))
+        self.results_scroll.visible = bool(rows) and not compact
+        self.results_mobile_list.visible = bool(rows) and compact
+        self.results_pager.visible = bool(rows) and compact and len(rows) > self.RESULTS_PAGE_SIZE
+        self._render_result_page()
+        self.results_table.rows = (
+            [self._desktop_result_row(row) for row in rows] if not compact else []
+        )
         summary = actions.latest_run_summary()
         if summary is None:
             self.results_summary.value = t("No run stored yet. Start a scan first.")
@@ -258,3 +297,134 @@ class ResultsScreen:
         return actions.ActionResult(
             t("Results refreshed"), t("{count} row(s) shown.", count=len(rows))
         )
+
+    def refresh_results_layout(self, compact: bool) -> None:
+        """Use readable result cards on phones and the full table on wide screens."""
+        self._compact_layout = compact
+        self.results_scroll.visible = bool(self.results_table.rows) and not compact
+        self.results_mobile_list.visible = bool(self._filtered_result_rows) and compact
+        self.results_pager.visible = (
+            compact and len(self._filtered_result_rows) > self.RESULTS_PAGE_SIZE
+        )
+        if compact:
+            self.results_table.rows = []
+        else:
+            self.results_table.rows = [
+                self._desktop_result_row(row) for row in self._filtered_result_rows
+            ]
+        self._render_result_page()
+
+    def _render_result_page(self) -> None:
+        total = len(self._filtered_result_rows)
+        start = self._result_page_index * self.RESULTS_PAGE_SIZE
+        page_rows = self._filtered_result_rows[start : start + self.RESULTS_PAGE_SIZE]
+        self.results_mobile_list.controls = [self._mobile_result_card(row) for row in page_rows]
+        end = min(start + len(page_rows), total)
+        self.results_page_label.value = t(
+            "Showing {start}-{end} of {total}",
+            start=start + 1 if total else 0,
+            end=end,
+            total=total,
+        )
+
+    def _previous_results_page(self, _event: object = None) -> None:
+        if self._result_page_index > 0:
+            self._result_page_index -= 1
+            self._render_result_page()
+            self.page.update()
+
+    def _next_results_page(self, _event: object = None) -> None:
+        last_page = max(0, (len(self._filtered_result_rows) - 1) // self.RESULTS_PAGE_SIZE)
+        if self._result_page_index < last_page:
+            self._result_page_index += 1
+            self._render_result_page()
+            self.page.update()
+
+    def _export(self, action: Callable[[], actions.ActionResult]) -> actions.ActionResult:
+        result = action()
+        self.export_status.value = (
+            f"{result.title}: {result.detail}" if result.detail else result.title
+        )
+        try:
+            self.page.update()
+        except Exception:
+            pass
+        return result
+
+    @classmethod
+    def _desktop_result_row(cls, row: ResultRow) -> ft.DataRow:
+        return ft.DataRow(
+            cells=[
+                ft.DataCell(text(row.domain, 12, TEXT)),
+                ft.DataCell(
+                    text(row.verdict.label, 12, cls._verdict_color(row.verdict))
+                ),
+                ft.DataCell(text(row.reason_label, 12)),
+                ft.DataCell(text(row.confidence.label, 12)),
+                ft.DataCell(
+                    text(
+                        t("yes") if row.needs_review else t("no"),
+                        12,
+                        WARN if row.needs_review else MUTED,
+                    )
+                ),
+                ft.DataCell(text(", ".join(row.sources) or "—", 12)),
+            ]
+        )
+
+    @staticmethod
+    def _mobile_result_card(row: ResultRow) -> ft.Control:
+        verdict_color = ResultsScreen._verdict_color(row.verdict)
+        return ft.Container(
+            content=ft.Column(
+                [
+                    text(
+                        row.domain,
+                        14,
+                        TEXT,
+                        weight=ft.FontWeight.W_600,
+                        selectable=True,
+                    ),
+                    ft.Row(
+                        [
+                            text(row.verdict.label, 12, verdict_color),
+                            text(row.confidence.label, 12, MUTED),
+                            text(
+                                f"{t('Review')}: {t('yes') if row.needs_review else t('no')}",
+                                12,
+                                WARN if row.needs_review else MUTED,
+                            ),
+                        ],
+                        wrap=True,
+                        spacing=8,
+                    ),
+                    text(
+                        t("{label}: {value}", label=t("Why"), value=row.reason_label),
+                        12,
+                        MUTED,
+                    ),
+                    text(
+                        t(
+                            "{label}: {value}",
+                            label=t("Source"),
+                            value=", ".join(row.sources) or "—",
+                        ),
+                        12,
+                        MUTED,
+                    ),
+                ],
+                spacing=6,
+            ),
+            padding=12,
+            bgcolor=SURFACE,
+            border=ft.Border.all(1, BORDER),
+            border_radius=10,
+        )
+
+    @staticmethod
+    def _verdict_color(verdict: Verdict) -> str:
+        if verdict is Verdict.OPENED:
+            return BAD
+        if verdict is Verdict.BLOCKED:
+            return OK
+        return WARN

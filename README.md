@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.2.2--alpha-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-1.2.3--alpha-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
@@ -15,7 +15,7 @@ The project is intended for people who need evidence about whether a blocker is 
 
 ## Status
 
-The current development build is **1.2.2-alpha**. The earlier 1.2.0 and 1.1.1
+The current development build is **1.2.3-alpha**. The earlier 1.2.0 and 1.1.1
 GitHub release downloads were withdrawn. This local alpha adds regulator
 sources and has been rebuilt for review.
 
@@ -26,7 +26,7 @@ is usable **from source**: the ADM, DGOJ, SRIJ, ANJ, GGL and MGA portal refreshe
 live probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
 local web UI all work, and the test suite covers the portal, classifier,
 storage, cache, UI and CLI paths. No signed desktop or mobile release has been
-produced yet (milestone M6 is in progress). The 1.2.2-alpha Linux bundle,
+produced yet (milestone M6 is in progress). The 1.2.3-alpha Linux bundle,
 Android APK/AAB and web bundle have now been rebuilt locally. The APK carries
 the Android debug signature and is not a production release. The shared Flet UI keeps scan
 actions visible while source choices scroll, wraps long source labels, applies
