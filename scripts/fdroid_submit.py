@@ -360,25 +360,37 @@ class GitLabClient:
 
     def ensure_fork(self, upstream: str, username: str, fork_path: str | None = None) -> dict[str, Any]:
         fork = fork_path or f"{username}/{upstream.rsplit('/', 1)[-1]}"
+        existing = False
         try:
             project = self.get_project(fork)
-            if project.get("default_branch"):
-                return project
+            existing = True
         except GitLabError as exc:
             if exc.status != 404:
                 raise
 
-        encoded = urllib.parse.quote(upstream, safe="")
-        try:
-            self._request("POST", f"/projects/{encoded}/fork", body={})
-        except GitLabError as exc:
-            if exc.status not in (400, 409):
-                raise
+        if not existing:
+            encoded = urllib.parse.quote(upstream, safe="")
+            try:
+                self._request("POST", f"/projects/{encoded}/fork", body={})
+            except GitLabError as exc:
+                if exc.status not in (400, 409):
+                    raise
 
         for _ in range(60):
             try:
                 project = self.get_project(fork)
-                if project.get("default_branch"):
+                import_status = project.get("import_status")
+                if import_status in {"failed", "timeout"}:
+                    raise SystemExit(f"GitLab fork {fork} import finished with status {import_status}.")
+                # GitLab creates forks asynchronously. A default_branch can be
+                # present before the repository refs are imported, so wait for
+                # import_status before trying to create a branch in the fork.
+                if project.get("default_branch") and import_status not in {
+                    "scheduled",
+                    "queued",
+                    "started",
+                    "importing",
+                }:
                     return project
             except GitLabError as exc:
                 if exc.status != 404:
