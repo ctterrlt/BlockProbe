@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-# Purpose: Build Python and unsigned native distribution artifacts for tags.
+# Purpose: Build distribution artifacts and publish successful tag builds.
 
 name: Release
 
@@ -97,6 +97,37 @@ jobs:
         run: choco install innosetup --yes --no-progress
       - name: Install build tooling
         run: python -m pip install -e ".[packaging]"
+      - if: matrix.target == 'apk' || matrix.target == 'aab'
+        name: Configure Android release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          any_signing_value="${ANDROID_KEYSTORE_BASE64}${ANDROID_KEYSTORE_PASSWORD}${ANDROID_KEY_PASSWORD}${ANDROID_KEY_ALIAS}"
+          if [[ "$GITHUB_REF_TYPE" == "tag" && -z "$any_signing_value" ]]; then
+            echo "::error::Configure the Android signing secrets before publishing a tagged release."
+            exit 1
+          fi
+          if [[ -z "$any_signing_value" ]]; then
+            echo "::notice::No Android signing secrets set; this non-release build will use Flet's debug key."
+            exit 0
+          fi
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" || -z "$ANDROID_KEYSTORE_PASSWORD" || \
+                -z "$ANDROID_KEY_PASSWORD" || -z "$ANDROID_KEY_ALIAS" ]]; then
+            echo "::error::Set all four Android signing secrets or remove them all."
+            exit 1
+          fi
+          signing_dir="$RUNNER_TEMP/blockprobe-android-signing"
+          mkdir -p "$signing_dir"
+          chmod 700 "$signing_dir"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$signing_dir/upload.jks"
+          chmod 600 "$signing_dir/upload.jks"
+          keytool -list -keystore "$signing_dir/upload.jks" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          printf 'FLET_ANDROID_SIGNING_KEY_STORE=%s\n' \
+            "$signing_dir/upload.jks" >> "$GITHUB_ENV"
       - if: matrix.target == 'linux'
         name: Install Flet Linux build dependencies
         run: python scripts/install-linux-build-deps.py
@@ -106,6 +137,10 @@ jobs:
       - if: matrix.target == 'apk' || matrix.target == 'aab'
         name: Build Android package (retry a failed runtime archive download)
         shell: bash
+        env:
+          FLET_ANDROID_SIGNING_KEY_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          FLET_ANDROID_SIGNING_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          FLET_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           for attempt in 1 2; do
             if python scripts/build.py ${{ matrix.target }}; then
@@ -121,6 +156,38 @@ jobs:
             fi
           done
           exit 1
+      - if: matrix.target == 'apk'
+        name: Verify signed APK
+        run: |
+          shopt -s nullglob
+          apks=(dist/packages/apk/*.apk)
+          [[ "${#apks[@]}" -eq 1 ]]
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/sdk}}"
+          if [[ ! -d "$sdk_root/build-tools" && -d "$HOME/Android/Sdk/build-tools" ]]; then
+            sdk_root="$HOME/Android/Sdk"
+          fi
+          apksigner="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 \
+            -type f -name apksigner -print | sort -V | tail -n 1)"
+          if [[ -z "$apksigner" ]]; then
+            echo "Could not find apksigner under $sdk_root/build-tools." >&2
+            exit 1
+          fi
+          "$apksigner" verify --verbose --print-certs "${apks[0]}"
+      - if: matrix.target == 'aab'
+        name: Verify signed Android App Bundle
+        run: |
+          shopt -s nullglob
+          bundles=(dist/packages/aab/*.aab)
+          [[ "${#bundles[@]}" -eq 1 ]]
+          verification="$(jarsigner -verify -verbose -certs "${bundles[0]}" 2>&1)" || {
+            printf '%s\n' "$verification"
+            exit 1
+          }
+          if ! grep -q 'jar verified\.' <<< "$verification"; then
+            printf '%s\n' "$verification"
+            echo "AAB is not validly signed." >&2
+            exit 1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: package-${{ matrix.target }}

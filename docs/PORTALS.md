@@ -4,18 +4,28 @@
 # Portals
 
 A portal is a public regulator page that publishes a list of licensed or
-blocked gambling websites. BlockProbe ships with one portal definition, Italy's
-ADM Concessionari list; every portal is a TOML file that the generic engine can
-run without new code.
+blocked gambling websites. BlockProbe ships Italy's ADM Concessionari list,
+Spain's DGOJ licensed operator directory, Portugal's SRIJ licensed operator
+list, France's ANJ approved operator list, and Germany's GGL whitelist. It also
+ships the Malta Gaming Authority's international list of URLs falsely claiming
+MGA affiliation. That warning list is not a worldwide licensed-operator
+register. Each source is bundled as TOML and as an app default for packaged
+installs.
 
-The app currently bundles ADM as its only official regulator feed. Other
-regulator feeds appear in source selection only after a reviewed TOML
-definition is installed. “Custom websites” are user-entered domains, not
-official portal feeds. The Sources screen is where users add those domains.
+“Custom websites” are user-entered domains, not official portal feeds. The
+Sources screen is where users add those domains. The scan picker supports
+searching portal names, so a longer list stays easy to navigate.
+
+There is no single authoritative international gambling licence list. The MGA
+feed contains URLs named by the Authority as falsely claiming MGA affiliation;
+it covers various international domains but is not a complete illegal-site
+list. The MGA's licensee register is a separate JavaScript search application
+and is not imported as a feed.
 
 ## Where definitions live
 
-- Built-in definitions: the repository's `portals/` directory.
+- Built-in definitions: bundled defaults in the app and matching TOML files in
+  the repository's `portals/` directory for review and local development.
 - User definitions: the `portals/` directory inside the BlockProbe data
   directory (`BLOCKPROBE_DATA_DIR`, or the platform data directory).
 - Both directories are loaded at startup and merged into the `portals` table in

@@ -1,10 +1,10 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "(python_full_version >= '3.15' and platform_machine != 'ARM64') or (python_full_version >= '3.15' and sys_platform != 'win32')",
-    "(python_full_version < '3.15' and platform_machine != 'ARM64') or (python_full_version < '3.15' and sys_platform != 'win32')",
     "python_full_version >= '3.15' and platform_machine == 'ARM64' and sys_platform == 'win32'",
+    "(python_full_version < '3.15' and platform_machine != 'ARM64') or (python_full_version < '3.15' and sys_platform != 'win32')",
     "python_full_version < '3.15' and platform_machine == 'ARM64' and sys_platform == 'win32'",
 ]
 
@@ -153,6 +153,7 @@ dev = [
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "pyyaml" },
     { name = "respx" },
     { name = "ruff" },
 ]
@@ -177,6 +178,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=5.0" },
+    { name = "pyyaml", marker = "extra == 'dev'", specifier = ">=6" },
     { name = "respx", marker = "extra == 'dev'", specifier = ">=0.21" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.5" },
     { name = "starlette", specifier = ">=1.3.1,<2" },
@@ -1755,12 +1757,12 @@ wheels = [
 
 [package.optional-dependencies]
 standard = [
-    { name = "httptools", marker = "platform_machine != 'ARM64' or sys_platform != 'win32'" },
-    { name = "python-dotenv", marker = "platform_machine != 'ARM64' or sys_platform != 'win32'" },
-    { name = "pyyaml", marker = "platform_machine != 'ARM64' or sys_platform != 'win32'" },
+    { name = "httptools" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "uvloop", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'" },
-    { name = "watchfiles", marker = "platform_machine != 'ARM64' or sys_platform != 'win32'" },
-    { name = "websockets", marker = "platform_machine != 'ARM64' or sys_platform != 'win32'" },
+    { name = "watchfiles" },
+    { name = "websockets" },
 ]
 
 [[package]]
@@ -1818,7 +1820,7 @@ name = "watchfiles"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "anyio", marker = "platform_machine != 'ARM64' or sys_platform != 'win32'" },
+    { name = "anyio" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/b3/68/e6aa0b77d217b31f8f486ec0cdfe5e00e6e38dc0be657e7d85819b9faf0a/watchfiles-1.3.0.tar.gz", hash = "sha256:99aee4a07847c06820765fd7b1b49ceac4f3f711ccb7d104655a33231de1c207", size = 108119, upload-time = "2026-09-21T09:08:55.664Z" }
 wheels = [

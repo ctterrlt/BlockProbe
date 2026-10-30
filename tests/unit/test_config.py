@@ -127,13 +127,13 @@ def test_save_round_trip(tmp_path: Path) -> None:
     assert reloaded.config.app.language == "it"
 
 
-def test_render_config_contains_every_section() -> None:
-    settings = load_config()
+def test_render_config_contains_every_section(tmp_path: Path) -> None:
+    settings = load_config(tmp_path / "config.toml")
     text = render_config(settings.config)
     for section in ("[app]", "[storage]", "[cache]", "[portals]", "[safety]", "[probe]"):
         assert section in text
     assert "language = 'en'" in text
-    assert "theme" not in text
+    assert "theme_mode = 'system'" in text
     assert "privacy" not in text
 
 

@@ -17,8 +17,9 @@
 # decisions. Reports never include raw response bodies.
 debug = false
 # Interface language: "en" (default), "it", "fr", "es" or "pt".
-# The window follows the system light/dark theme automatically.
+# Appearance: "system" follows OS brightness; "light" and "dark" override it.
 language = "en"
+theme_mode = "system"
 
 [storage]
 # Only "sqlite" is available: everything is stored in one local database file.

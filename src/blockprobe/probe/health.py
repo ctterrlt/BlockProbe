@@ -4,8 +4,8 @@
 A rejected website is not automatically an error: the destination can be down,
 geo-restricted, filtered by a DNS resolver or blocked by a VPN. This module
 combines neutral control checks interleaved with the scan, transport-level
-failure patterns and the detected network context into one transparent risk
-score, and lists the results that should be rechecked after the first control
+failure patterns and the detected network context into one transparent
+interference signal, and lists the results that should be rechecked after the first control
 failure.
 """
 
@@ -29,13 +29,6 @@ _TRANSPORT_REASONS = {
     ReasonCode.EMPTY_PAGE.value,
     ReasonCode.HTTP_ERROR.value,
 }
-
-_DNS_REASONS = {
-    ReasonCode.DNS_FAILURE.value,
-    ReasonCode.DNS_FILTERED.value,
-    ReasonCode.DNS_SINKHOLE.value,
-}
-
 
 @dataclass(slots=True)
 class ControlCheck:
@@ -180,28 +173,12 @@ def _longest_unreachable_streak(ordered: list[ResultRow]) -> int:
     return longest
 
 
-def _private_dns_is_custom(value: str) -> bool:
-    lowered = (value or "").lower()
-    if not lowered or lowered == "unknown":
-        return False
-    return not any(
-        phrase in lowered
-        for phrase in (
-            "not configured",
-            "not inspectable",
-            "not applicable",
-            "cannot be read",
-            "checked only on android",
-        )
-    )
-
-
 def assess_probe_health(
     results: list[ResultRow],
     controls: list[ControlCheck] | None = None,
     network_context: dict[str, Any] | None = None,
 ) -> ProbeHealth:
-    """Return a deterministic risk score and recheck list for one run."""
+    """Return a deterministic interference signal and recheck list for one run."""
     controls = sorted(controls or [], key=lambda item: item.sequence)
     network_context = network_context or {}
     ordered = _ordered(results)
@@ -213,7 +190,6 @@ def assess_probe_health(
     transport_failures = sum(
         1 for row in ordered if row.reason_code in _TRANSPORT_REASONS
     )
-    dns_failures = sum(1 for row in ordered if row.reason_code in _DNS_REASONS)
     failures = [control for control in controls if not control.ok]
     first_failure = failures[0] if failures else None
     affected = _affected_after(ordered, first_failure)
@@ -228,30 +204,27 @@ def assess_probe_health(
     reasons: list[str] = []
     score = 0.0
     if total:
-        score += min(30.0, unreachable_ratio * 60.0)
-        score += min(20.0, unreachable * 1.5)
+        # Failure counts are correlated evidence: do not add a per-site penalty
+        # on top of the same unreachable ratio and then call that a probability.
+        score += min(18.0, unreachable_ratio * 30.0)
         if unreachable:
             reasons.append(
                 f"{unreachable} of {total} checked websites were unreachable "
                 f"({round(unreachable_ratio * 100, 1)}%)."
             )
     if transport_failures:
-        score += min(12.0, transport_failures * 1.5)
         reasons.append(
             f"{transport_failures} result(s) show a DNS, connection or empty-response "
             "failure rather than a verified block page."
         )
-    if dns_failures:
-        score += min(8.0, dns_failures * 1.5)
     if longest_streak >= 3:
-        score += min(15.0, (longest_streak - 2) * 3.0)
         reasons.append(
             f"{longest_streak} consecutive websites were unreachable; that pattern "
             "is more typical of a network/VPN/DNS interruption than unrelated outages."
         )
     if controls:
         failure_ratio = len(failures) / len(controls)
-        score += min(25.0, len(failures) * 8.0 + failure_ratio * 15.0)
+        score += min(50.0, len(failures) * 12.0 + failure_ratio * 20.0)
         if failures:
             reasons.append(
                 f"{len(failures)} of {len(controls)} neutral control checks failed."
@@ -279,16 +252,13 @@ def assess_probe_health(
         str(item) for item in network_context.get("dns_filters") or [] if str(item)
     ]
     if dns_filters:
-        # A known family/adult-filter resolver is strong local evidence. It is
-        # still not proof that the scanned gambling domains are on its list, so
-        # the report keeps the wording probabilistic.
-        score += 48.0
-        score = max(score, 72.0)
+        # A resolver that can filter describes configuration, not what
+        # happened to these domains. Outcomes and neutral controls provide
+        # evidence of active interference.
         reasons.append(
-            "Content-filtering DNS resolver detected: "
+            "A DNS service with filtering features is configured: "
             + ", ".join(dns_filters)
-            + ". Treat rejected websites as possible DNS filtering until a "
-            "different resolver is tested."
+            + ". This alone does not mean it blocked any checked website."
         )
     hosts_blocks = int(network_context.get("hosts_block_entries") or 0)
     if hosts_blocks:
@@ -298,18 +268,18 @@ def assess_probe_health(
             f"{'y' if hosts_blocks == 1 else 'ies'}; this can block domains "
             "independently of the installed blocker."
         )
-    if _private_dns_is_custom(str(network_context.get("private_dns") or "")):
-        score += 5.0
-        reasons.append("Private DNS is configured or could not be ruled out.")
     if controls and failures and len(failures) == len(controls):
-        score = max(score, 82.0)
-    if total == 0 and not failures and not dns_filters and not hosts_blocks:
+        score = max(score, 70.0)
+    # If independent neutral sites all work, target failures alone cannot
+    # establish network-wide interference. Keep the signal below "high".
+    if controls and not failures and not hosts_blocks:
+        score = min(score, 39.0)
+    if total == 0 and not failures and not hosts_blocks:
         score = 0.0
     if (
         total
         and unreachable == 0
         and not failures
-        and not dns_filters
         and not hosts_blocks
     ):
         score = min(score, 15.0)
@@ -317,15 +287,9 @@ def assess_probe_health(
     if risk_percent >= 55:
         risk_level = "high"
         summary = (
-            "High probability that a VPN, DNS filter or blocker interfered with "
-            "this run; treat failed results as suspect and recheck them."
+            "Strong signs that a VPN, DNS filter or local blocker interfered "
+            "with this run; treat failed results as suspect and recheck them."
         )
-        if dns_filters:
-            summary = (
-                "High probability that a filtering DNS resolver is affecting "
-                "these results; recheck the listed domains with the filter "
-                "disabled or on another network."
-            )
     elif risk_percent >= 25:
         risk_level = "elevated"
         summary = (
@@ -335,12 +299,11 @@ def assess_probe_health(
     else:
         risk_level = "low"
         summary = (
-            "No systemic interference was detected; the results are probably "
-            "representative of this network path."
+            "The scan found no strong network-wide interference evidence. "
+            "Failed website checks may still need confirmation."
         )
     false_positive_suspected = bool(
         failures
-        or dns_filters
         or hosts_blocks
         or (total >= 3 and unreachable_ratio >= 0.5)
         or (recheck_domains and risk_percent >= 25)

@@ -217,13 +217,14 @@ class ResultsScreen:
             health = actions.latest_run_health(summary.run_id)
             if health is not None:
                 self.results_summary.value += "\n" + t(
-                    "Interference risk: {percent}% ({level})",
+                    "Interference signal: {percent}% ({level})",
                     percent=health.risk_percent,
                     level=health.risk_level,
                 )
                 self.results_summary.value += "\n" + t(
-                    "Risk is a run-level estimate. Detected VPN, proxy or DNS "
-                    "filtering adds risk; unknown or disabled factors add none."
+                    "This is a heuristic signal, not a measured probability. "
+                    "Neutral website checks help separate network trouble from "
+                    "individual site failures."
                 )
                 if health.first_failure_after:
                     self.results_summary.value += " " + t(

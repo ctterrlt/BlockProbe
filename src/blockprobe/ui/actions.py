@@ -23,7 +23,7 @@ from platformdirs import user_data_dir
 from blockprobe import APP_NAME, __version__
 from blockprobe.core.compliance import SCOPE_FACTS, scope_summary
 from blockprobe.core.enums import RunStatus
-from blockprobe.core.errors import BlockProbeError
+from blockprobe.core.errors import BlockProbeError, ConsentRequired
 from blockprobe.core.models import Portal, ResultRow, RunComparison, RunSummary, ScanSelection
 from blockprobe.i18n import LANGUAGES, set_language, t
 from blockprobe.logging_setup import export_logs_zip
@@ -391,6 +391,12 @@ def start_scan(request: ScanRequest) -> ActionResult:
         )
     except BlockProbeError as exc:
         _LOGGER.info("scan request rejected: %s", exc)
+        if isinstance(exc, ConsentRequired):
+            return ActionResult(
+                t("Consent required"),
+                t("Accept the first-run notice before scanning or updating websites."),
+                ok=False,
+            )
         detail = (
             t(
                 "No websites are selected. Refresh a portal or add a custom website, "
@@ -500,7 +506,7 @@ def _summary_result(
     if health is not None:
         lines.append(
             t(
-                "Interference risk: {percent}% ({level})",
+                "Interference signal: {percent}% ({level})",
                 percent=health.risk_percent,
                 level=health.risk_level,
             )
@@ -1029,6 +1035,7 @@ def save_settings(
     auto_refresh_on_run: bool | None = None,
     refresh_ttl_hours: int | None = None,
     use_control_resolver: bool | None = None,
+    theme_mode: str | None = None,
 ) -> ActionResult:
     app_runtime = runtime()
     config = app_runtime.settings.config
@@ -1044,6 +1051,15 @@ def save_settings(
             )
         config.app.language = code
         set_language(code)
+    if theme_mode is not None:
+        mode = theme_mode.strip().lower()
+        if mode not in {"system", "light", "dark"}:
+            return ActionResult(
+                t("Settings not saved"),
+                t("Choose system, light or dark appearance."),
+                ok=False,
+            )
+        config.app.theme_mode = mode
     if concurrency is not None:
         if concurrency < 1 or concurrency > 100:
             return ActionResult(

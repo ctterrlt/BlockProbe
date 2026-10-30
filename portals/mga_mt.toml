@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: MGA notices naming URLs falsely claiming MGA affiliation.
+# This is an international warning list, not a worldwide licensing whitelist.
+uuid = "a42ca930-ce9f-4577-98dc-21edccad4d47"
+name = "MGA - Unauthorised URLs (international)"
+enabled = true
+default = false
+
+[source]
+country = "MT"
+start_url = "https://www.mga.org.mt/player-hub/unauthorised-urls/"
+strategy = "auto"
+max_pages = 20
+rate_limit_per_sec = 1.0
+respect_robots = true
+exclude_domains = ["mga.org.mt"]

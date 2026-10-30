@@ -18,7 +18,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from blockprobe.core.errors import PortalError, ValidationError
-from blockprobe.core.models import Portal, builtin_adm_portal
+from blockprobe.core.models import Portal, builtin_adm_portal, builtin_regulator_portals
 from blockprobe.portals.domain_normalizer import DomainRejected, normalize_domain
 
 _LOGGER = logging.getLogger("blockprobe.portals.loader")
@@ -59,11 +59,11 @@ def load_portals(
                 continue
             portals.setdefault(portal.uuid, portal)
 
-    builtin = builtin_adm_portal()
-    if builtin.uuid not in portals and not any(
-        portal.start_url == builtin.start_url for portal in portals.values()
-    ):
-        portals[builtin.uuid] = builtin
+    for builtin in [builtin_adm_portal(), *builtin_regulator_portals()]:
+        if builtin.uuid not in portals and not any(
+            portal.start_url == builtin.start_url for portal in portals.values()
+        ):
+            portals[builtin.uuid] = builtin
 
     values = list(portals.values())
     if not include_disabled:

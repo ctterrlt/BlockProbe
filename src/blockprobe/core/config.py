@@ -81,6 +81,7 @@ def _debug_from_env() -> bool | None:
 class AppSection:
     debug: bool = False
     language: str = DEFAULT_LANGUAGE
+    theme_mode: str = "system"
 
 
 @dataclass(slots=True)
@@ -271,9 +272,15 @@ def _merge_config(data: dict[str, Any], path: Path | None = None) -> AppConfig:
             f"{path or 'config.toml'}: the language {language!r} is not supported. "
             f"Choose one of: {', '.join(LANGUAGES)}."
         )
+    theme_mode = str(app.get("theme_mode") or config.app.theme_mode).lower()
+    if theme_mode not in {"system", "light", "dark"}:
+        raise ConfigError(
+            f"{path or 'config.toml'}: theme_mode must be 'system', 'light' or 'dark'."
+        )
     config.app = AppSection(
         debug=_as_bool(app.get("debug"), config.app.debug),
         language=language,
+        theme_mode=theme_mode,
     )
     storage_backend = str(storage.get("backend") or config.storage.backend).lower()
     if storage_backend != "sqlite":
@@ -417,6 +424,7 @@ def render_config(config: AppConfig) -> str:
         "[app]",
         f"debug = {str(config.app.debug).lower()}",
         f"language = {config.app.language!r}",
+        f"theme_mode = {config.app.theme_mode!r}",
         "",
         "[storage]",
         f"backend = {config.storage.backend!r}",

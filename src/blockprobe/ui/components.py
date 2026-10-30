@@ -20,6 +20,91 @@ WARN = "#8A5B0A"
 BAD = "#A33B36"
 ACCENT_DIM = "#DCEDE8"
 
+_DARK_PALETTE = {
+    ACCENT: "#67B8A7",
+    BACKGROUND: "#111816",
+    SURFACE: "#202A27",
+    BORDER: "#374640",
+    TEXT: "#E6EFEB",
+    MUTED: "#A8B6B0",
+    OK: "#61B58A",
+    WARN: "#D8AD62",
+    BAD: "#D77C74",
+    ACCENT_DIM: "#29463E",
+}
+_LIGHT_PALETTE = {dark: light for light, dark in _DARK_PALETTE.items()}
+
+
+def apply_palette(controls: object, *, dark: bool) -> None:
+    """Apply semantic light/dark colors to an existing Flet control tree."""
+    colors = _DARK_PALETTE if dark else _LIGHT_PALETTE
+    seen: set[int] = set()
+
+    def visit(value: object) -> None:
+        if id(value) in seen:
+            return
+        seen.add(id(value))
+        if isinstance(value, str):
+            return
+        if isinstance(value, (list, tuple)):
+            for item in value:
+                visit(item)
+            return
+        if isinstance(value, dict):
+            for item in value.values():
+                visit(item)
+            return
+        if isinstance(value, ft.BorderSide):
+            if value.color in colors:
+                value.color = colors[value.color]
+            return
+        if isinstance(value, ft.Border):
+            for side in (value.top, value.right, value.bottom, value.left):
+                visit(side)
+            return
+        if isinstance(value, ft.Control):
+            for name in ("color", "bgcolor", "indicator_color", "icon_color"):
+                current = getattr(value, name, None)
+                if isinstance(current, str) and current in colors:
+                    setattr(value, name, colors[current])
+            border = getattr(value, "border", None)
+            if isinstance(border, ft.Border):
+                visit(border)
+            for child in vars(value).values():
+                if isinstance(child, (ft.Control, list, tuple, dict)):
+                    visit(child)
+
+    visit(controls)
+
+
+def palette_background(*, dark: bool) -> str:
+    return _DARK_PALETTE[BACKGROUND] if dark else BACKGROUND
+
+
+def apply_page_theme(page: ft.Page, mode: str, *, update: bool = True) -> None:
+    """Follow the OS appearance in system mode and recolor explicit controls."""
+    page.theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
+    page.dark_theme = ft.Theme(
+        color_scheme_seed=ACCENT,
+        use_material3=True,
+    )
+    page.theme_mode = {
+        "system": ft.ThemeMode.SYSTEM,
+        "light": ft.ThemeMode.LIGHT,
+        "dark": ft.ThemeMode.DARK,
+    }[mode]
+    platform_brightness = getattr(page, "platform_brightness", None)
+    dark = mode == "dark" or (
+        mode == "system" and platform_brightness == ft.Brightness.DARK
+    )
+    apply_palette(
+        [page.controls, getattr(page, "overlay", []), getattr(page, "dialog", None)],
+        dark=dark,
+    )
+    page.bgcolor = palette_background(dark=dark)
+    if update:
+        page.update()
+
 
 def text(
     value: str,

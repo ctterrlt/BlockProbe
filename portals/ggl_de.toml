@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: Germany's GGL official whitelist of permitted gambling providers.
+uuid = "89d1d083-54e4-4b61-a5c2-70ca6ef8f652"
+name = "GGL - Amtliche Whitelist"
+enabled = true
+default = false
+
+[source]
+country = "DE"
+start_url = "https://www.gluecksspiel-behoerde.de/de/fuer-spielende/uebersicht-erlaubter-anbieter-whitelist"
+strategy = "auto"
+max_pages = 10
+rate_limit_per_sec = 1.0
+respect_robots = true
+exclude_domains = ["gluecksspiel-behoerde.de"]
+include_regex = ["\\.de$"]

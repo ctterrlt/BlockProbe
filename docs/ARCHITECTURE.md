@@ -29,9 +29,10 @@ only build widgets and route events.
 The app version is read from `src/blockprobe/VERSION`. Hatchling uses that same
 file for wheel metadata, native installer builds read it when generating their
 version fields, and `scripts/build.py` passes it to Flet as the display version
-and derives the Android build code from it. The Flet UI uses a responsive Material 3 light theme;
-the scan source picker includes every enabled portal definition and the
-user-maintained custom domain list.
+and derives the Android build code from it. The Flet UI uses a responsive
+Material 3 theme that follows OS brightness by default, with saved light and
+dark overrides. The scan source picker includes every enabled portal definition
+and the user-maintained custom domain list.
 
 ```text
 src/

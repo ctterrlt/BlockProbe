@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: Portugal's SRIJ licensed online gambling operators and websites.
+uuid = "fd35ac4b-f6d4-4f2d-9a8f-50dc0c0f03e2"
+name = "SRIJ - Entidades licenciadas"
+enabled = true
+default = false
+
+[source]
+country = "PT"
+start_url = "https://www.srij.turismodeportugal.pt/pt/jogos-e-apostas-online/entidades-licenciadas"
+strategy = "auto"
+max_pages = 10
+rate_limit_per_sec = 1.0
+respect_robots = true
+exclude_domains = ["srij.turismodeportugal.pt", "turismodeportugal.pt"]
+include_regex = ["\\.pt$"]

@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: Canonical F-Droid metadata. The official store requires a generated
+# metadata/<app-id>.yml inside fdroiddata; scripts/fdroid_submit.py renders this
+# file to that name only in the merge-request branch.
+
+Categories:
+  - Internet
+  - Security
+License: AGPL-3.0-or-later
+AuthorName: Christian
+AuthorEmail: tursi.christian9@gmail.com
+WebSite: https://github.com/ctterrlt/BlockProbe
+SourceCode: https://github.com/ctterrlt/BlockProbe
+IssueTracker: https://github.com/ctterrlt/BlockProbe/issues
+Changelog: https://github.com/ctterrlt/BlockProbe/blob/HEAD/CHANGELOG.md
+
+Name: BlockProbe
+Summary: Check whether gambling sites remain reachable through your blocker
+Description: |-
+  BlockProbe is a local-first Android, desktop and web tool that checks
+  whether gambling websites remain reachable after a blocker or filtering DNS
+  service has been installed. It runs control checks and compares them with
+  selected regulator portals, then reports which sites still respond.
+
+  The app ships with official regulator sources for several jurisdictions and
+  lets you add custom portals. Results are stored locally; BlockProbe does not
+  require an account and does not send scan results to a server.
+
+  BlockProbe is an alpha release. It is intended for self-exclusion and
+  harm-reduction checks, not as a replacement for a blocker or for clinical
+  advice.
+
+RepoType: git
+Repo: https://github.com/ctterrlt/BlockProbe
+
+Builds:
+  - versionName: '@@VERSION@@'
+    versionCode: '@@VERSION_CODE@@'
+    commit: '@@COMMIT@@'
+    ndk: r28c
+    timeout: 14400
+    srclibs:
+      - flutter@stable
+    sudo:
+      - apt-get update
+      - apt-get install -y python3-venv
+    output: build/flet/apk/blockprobe.apk
+    prebuild:
+      - git -C $$flutter$$ checkout -f 3.44.8
+      - export PATH=$$flutter$$/bin:$PATH && bash fdroid/build.sh prepare
+    build:
+      - bash fdroid/build.sh build
+
+MaintainerNotes: |-
+  Built with Flet 1.0.5 and Flutter 3.44.8. The Flutter SDK is checked out from
+  the flutter srclib at tag 3.44.8. Flet's Android pipeline downloads the
+  Python 3.14 runtime and Android wheels during prebuild; the build step copies
+  the resulting APK into the recorded output path.
+  The app is packaged without Python bytecode (--no-compile-app and
+  --no-compile-packages) so the APK carries readable Python sources.
+
+  The build entry installs python3-venv through sudo before prebuild. The
+  timeout is extended because the first Flet build downloads Flutter, Gradle
+  and the Android SDK command-line tools. Flet signs its local output with the
+  debug key; F-Droid re-signs the published APK, so the upstream debug key is
+  not trusted for distribution.
+
+  The BlockProbe release workflow opens or updates this fdroiddata merge
+  request. It cannot upload, replace or delete files in the official F-Droid
+  repository. ArchivePolicy: 1 keeps one version in the main repository and
+  moves older versions to F-Droid's archive after maintainers publish the new
+  build.
+
+  The universal APK is large because Flet bundles Python, Flutter and three
+  ABIs. Per-ABI splits can be added if the repository size becomes a problem.
+
+ArchivePolicy: 1
+AutoUpdateMode: None
+UpdateCheckMode: None
+CurrentVersion: '@@VERSION@@'
+CurrentVersionCode: '@@VERSION_CODE@@'

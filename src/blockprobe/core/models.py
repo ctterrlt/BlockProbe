@@ -188,6 +188,83 @@ def builtin_adm_portal() -> Portal:
     )
 
 
+def builtin_regulator_portals() -> list[Portal]:
+    """Return official regulator source catalogs bundled with the app."""
+    return [
+        Portal(
+            uuid="7c1cc63e-6407-4a0a-84c4-67181a7f7621",
+            name="DGOJ - Operadores con licencia",
+            start_url=(
+                "https://www.ordenacionjuego.es/gl/operadores-juego/"
+                "operadores-licencia/operadores"
+            ),
+            country="ES",
+            strategy="auto",
+            max_pages=30,
+            rate_limit_per_sec=1.0,
+            respect_robots=True,
+            exclude_domains=("ordenacionjuego.es", "administracion.gob.es"),
+            include_regex=(r"\.es$",),
+        ),
+        Portal(
+            uuid="fd35ac4b-f6d4-4f2d-9a8f-50dc0c0f03e2",
+            name="SRIJ - Entidades licenciadas",
+            start_url=(
+                "https://www.srij.turismodeportugal.pt/pt/"
+                "jogos-e-apostas-online/entidades-licenciadas"
+            ),
+            country="PT",
+            strategy="auto",
+            max_pages=10,
+            rate_limit_per_sec=1.0,
+            respect_robots=True,
+            exclude_domains=(
+                "srij.turismodeportugal.pt",
+                "turismodeportugal.pt",
+            ),
+            include_regex=(r"\.pt$",),
+        ),
+        Portal(
+            uuid="f0a629fb-5f73-42f7-91c0-ccfe737aebec",
+            name="ANJ - Opérateurs agréés",
+            start_url="https://www.anj.fr/offre-de-jeu-et-marche/operateurs-agrees",
+            country="FR",
+            strategy="auto",
+            max_pages=10,
+            rate_limit_per_sec=1.0,
+            respect_robots=True,
+            exclude_domains=("anj.fr",),
+            include_regex=(r"\.fr$",),
+        ),
+        Portal(
+            uuid="89d1d083-54e4-4b61-a5c2-70ca6ef8f652",
+            name="GGL - Amtliche Whitelist",
+            start_url=(
+                "https://www.gluecksspiel-behoerde.de/de/fuer-spielende/"
+                "uebersicht-erlaubter-anbieter-whitelist"
+            ),
+            country="DE",
+            strategy="auto",
+            max_pages=10,
+            rate_limit_per_sec=1.0,
+            respect_robots=True,
+            exclude_domains=("gluecksspiel-behoerde.de",),
+            include_regex=(r"\.de$",),
+        ),
+        Portal(
+            uuid="a42ca930-ce9f-4577-98dc-21edccad4d47",
+            name="MGA - Unauthorised URLs (international)",
+            start_url="https://www.mga.org.mt/player-hub/unauthorised-urls/",
+            country="MT",
+            strategy="auto",
+            max_pages=20,
+            rate_limit_per_sec=1.0,
+            respect_robots=True,
+            exclude_domains=("mga.org.mt",),
+        ),
+    ]
+
+
 @dataclass(slots=True)
 class Site:
     domain: str

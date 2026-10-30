@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: France's ANJ directory of licensed online gambling operators.
+uuid = "f0a629fb-5f73-42f7-91c0-ccfe737aebec"
+name = "ANJ - Opérateurs agréés"
+enabled = true
+default = false
+
+[source]
+country = "FR"
+start_url = "https://www.anj.fr/offre-de-jeu-et-marche/operateurs-agrees"
+strategy = "auto"
+max_pages = 10
+rate_limit_per_sec = 1.0
+respect_robots = true
+exclude_domains = ["anj.fr"]
+include_regex = ["\\.fr$"]

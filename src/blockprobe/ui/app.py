@@ -23,7 +23,6 @@ from blockprobe.core.models import RunSummary
 from blockprobe.i18n import t
 from blockprobe.ui import actions
 from blockprobe.ui.components import (
-    ACCENT,
     ACCENT_DIM,
     BACKGROUND,
     BAD,
@@ -33,6 +32,7 @@ from blockprobe.ui.components import (
     OK,
     SURFACE,
     TEXT,
+    apply_page_theme,
     text,
 )
 from blockprobe.ui.consent import consent_view
@@ -83,10 +83,16 @@ class BlockProbeUi(
         self.mobile_nav = ft.NavigationBar(
             selected_index=0,
             destinations=[
-                *(ft.NavigationBarDestination(icon=icon, label=label) for icon, label in destinations[:4]),
+                *(
+                    ft.NavigationBarDestination(
+                        icon=icon,
+                        label=t("Scan") if index == 0 else label,
+                    )
+                    for index, (icon, label) in enumerate(destinations[:4])
+                ),
                 ft.NavigationBarDestination(icon=ft.Icons.MORE_HORIZ, label=t("More")),
             ],
-            label_behavior=ft.NavigationBarLabelBehavior.ALWAYS_SHOW,
+            label_behavior=ft.NavigationBarLabelBehavior.ONLY_SHOW_SELECTED,
             bgcolor=CARD,
             indicator_color=ACCENT_DIM,
             elevation=0,
@@ -107,7 +113,15 @@ class BlockProbeUi(
             t("Start with a portal update, then run a scan. Results stay on this device."),
             13,
         )
-        self.snack = ft.SnackBar(content=text("", 14, TEXT))
+        self.snack = ft.SnackBar(
+            content=text("", 14, TEXT),
+            behavior=ft.SnackBarBehavior.FLOATING,
+            margin=12,
+            duration=3500,
+            on_dismiss=self._on_snack_dismiss,
+        )
+        self._action_sequence = 0
+        self._snack_open = False
         self.views: list[ft.Control] = []
         self.current_screen = 0
         self._compact_layout: bool | None = None
@@ -121,15 +135,36 @@ class BlockProbeUi(
 
     # ------------------------------------------------------------------ helpers
 
-    def apply(self, result: actions.ActionResult) -> None:
+    def _on_snack_dismiss(self, _event: Any) -> None:
+        self._snack_open = False
+
+    def apply(self, result: actions.ActionResult, sequence: int | None = None) -> None:
+        if sequence is None:
+            self._action_sequence += 1
+            sequence = self._action_sequence
+        if sequence != self._action_sequence:
+            return
         self.status_title.value = result.title
         # Keep technical details in the relevant screen. Global feedback should
         # stay short and never expose filesystem paths or run identifiers.
         self.status_detail.value = ""
-        self.snack.content = text(result.title, 14, TEXT)
+        mode = actions.runtime().settings.config.app.theme_mode
+        dark = mode == "dark" or (
+            mode == "system"
+            and getattr(self.page, "platform_brightness", None) == ft.Brightness.DARK
+        )
+        self.snack.content = text(
+            result.title,
+            14,
+            "#0B1713" if dark else "#FFFFFF",
+        )
         self.snack.bgcolor = OK if result.ok else BAD
         try:
+            if self._snack_open:
+                self.page.pop_dialog()
+                self._snack_open = False
             self.page.show_dialog(self.snack)
+            self._snack_open = True
         except Exception:
             pass
         try:
@@ -138,6 +173,9 @@ class BlockProbeUi(
             pass
 
     def run_async(self, action: Callable[[], actions.ActionResult]) -> None:
+        self._action_sequence += 1
+        sequence = self._action_sequence
+
         def work() -> None:
             try:
                 result = action()
@@ -148,10 +186,26 @@ class BlockProbeUi(
                     t("The action could not be completed. Check Logs for details."),
                     ok=False,
                 )
+            if actions.consent_required():
+                self._show_consent()
+                return
             self.refresh_run_controls()
-            self.apply(result)
+            self.apply(result, sequence)
 
         self.page.run_thread(work)
+
+    def _show_consent(self) -> None:
+        """Return to first-run consent if local data deletion cleared it."""
+        self._alive = False
+        self.page.clean()
+        self.page.add(
+            ft.SafeArea(
+                content=consent_view(self.page, lambda: _enter_main(self.page)),
+                expand=True,
+            )
+        )
+        _apply_saved_theme(self.page)
+        self.page.update()
 
     def _wrap(self, action: Callable[[], actions.ActionResult]) -> Callable[[Any], None]:
         def on_click(_event: Any) -> None:
@@ -201,6 +255,17 @@ class BlockProbeUi(
     def _more_view(self) -> ft.Control:
         from blockprobe.ui.components import button, card, hero
 
+        self.more_theme_dropdown = ft.Dropdown(
+            label=t("Appearance"),
+            value=actions.runtime().settings.config.app.theme_mode,
+            dense=True,
+            options=[
+                ft.DropdownOption(key="system", text=t("System default")),
+                ft.DropdownOption(key="light", text=t("Light")),
+                ft.DropdownOption(key="dark", text=t("Dark")),
+            ],
+            on_select=self._change_theme,
+        )
         return ft.Column(
             [
                 hero(
@@ -208,6 +273,7 @@ class BlockProbeUi(
                     t("Open settings or read the privacy and responsible-use notes."),
                     icon=ft.Icons.MORE_HORIZ,
                 ),
+                card(t("Appearance"), self.more_theme_dropdown),
                 card(
                     t("Settings and help"),
                     ft.Row(
@@ -387,6 +453,7 @@ class BlockProbeUi(
         page = self.page
         page.clean()
         page.add(ft.SafeArea(content=_main_shell(page), expand=True))
+        _apply_saved_theme(page)
         page.update()
         new_ui = getattr(page, "data", None)
         if isinstance(new_ui, BlockProbeUi):
@@ -440,6 +507,7 @@ def build_app(page: ft.Page) -> ft.Control:
 def _enter_main(page: ft.Page) -> None:
     shell = _main_shell(page)
     page.add(ft.SafeArea(content=shell, expand=True))
+    _apply_saved_theme(page)
     page.update()
     ui = getattr(page, "data", None)
     if isinstance(ui, BlockProbeUi):
@@ -455,13 +523,19 @@ def _main_shell(page: ft.Page) -> ft.Control:
 def main(page: ft.Page) -> None:
     """Build the BlockProbe window and connect its controls to actions."""
     page.title = f"{APP_NAME} {__version__}"
-    page.theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
-    page.theme_mode = ft.ThemeMode.LIGHT
-    page.bgcolor = BACKGROUND
+    page.on_platform_brightness_change = lambda _event: _apply_saved_theme(
+        page, update=True
+    )
     page.padding = 0
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
     page.add(ft.SafeArea(content=build_app(page), expand=True))
+    _apply_saved_theme(page)
     page.update()
     ui = getattr(page, "data", None)
     if isinstance(ui, BlockProbeUi):
         ui.start_poller()
+
+
+def _apply_saved_theme(page: ft.Page, *, update: bool = False) -> None:
+    mode = actions.runtime().settings.config.app.theme_mode
+    apply_page_theme(page, mode, update=update)

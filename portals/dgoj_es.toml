@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Purpose: Spain's DGOJ licensed online gambling operators and domains.
+uuid = "7c1cc63e-6407-4a0a-84c4-67181a7f7621"
+name = "DGOJ - Operadores con licencia"
+enabled = true
+default = false
+
+[source]
+country = "ES"
+start_url = "https://www.ordenacionjuego.es/gl/operadores-juego/operadores-licencia/operadores"
+strategy = "auto"
+max_pages = 30
+rate_limit_per_sec = 1.0
+respect_robots = true
+exclude_domains = ["ordenacionjuego.es", "administracion.gob.es"]
+include_regex = ["\\.es$"]

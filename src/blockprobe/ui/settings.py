@@ -10,7 +10,16 @@ import flet as ft
 
 from blockprobe.i18n import DEFAULT_LANGUAGE, available_languages, t
 from blockprobe.ui import actions
-from blockprobe.ui.components import BACKGROUND, BAD, TEXT, button, card, hero, text
+from blockprobe.ui.components import (
+    BACKGROUND,
+    BAD,
+    TEXT,
+    apply_page_theme,
+    button,
+    card,
+    hero,
+    text,
+)
 
 
 class SettingsScreen:
@@ -25,6 +34,7 @@ class SettingsScreen:
     auto_refresh_setting: ft.Switch
     ttl_field: ft.TextField
     settings_status: ft.Text
+    theme_dropdown: ft.Dropdown
 
     def _wrap(self, action):  # type: ignore[no-untyped-def]
         raise NotImplementedError
@@ -37,6 +47,17 @@ class SettingsScreen:
 
     def _setup_settings(self) -> None:
         config = actions.runtime().settings.config
+        self.theme_dropdown = ft.Dropdown(
+            label=t("Appearance"),
+            value=config.app.theme_mode,
+            dense=True,
+            options=[
+                ft.DropdownOption(key="system", text=t("System default")),
+                ft.DropdownOption(key="light", text=t("Light")),
+                ft.DropdownOption(key="dark", text=t("Dark")),
+            ],
+        )
+        self.theme_dropdown.on_select = self._change_theme
         self.debug_switch = ft.Switch(label=t("Debug logging"), value=config.app.debug)
         self.language_dropdown = ft.Dropdown(
             label=t("Language"),
@@ -119,6 +140,7 @@ class SettingsScreen:
                     t("Manage network checks, updates and local data from one place."),
                     icon=ft.Icons.TUNE,
                 ),
+                card(t("Appearance"), self.theme_dropdown),
                 card(
                     t("Probe settings"),
                     ft.Column(
@@ -278,6 +300,7 @@ class SettingsScreen:
             control_url=self.control_url_field.value or "",
             auto_refresh_on_run=bool(self.auto_refresh_setting.value),
             refresh_ttl_hours=ttl,
+            theme_mode=str(self.theme_dropdown.value or "system"),
         )
         if (
             result.ok
@@ -285,12 +308,36 @@ class SettingsScreen:
         ):
             self.rebuild_ui(result)
         else:
+            if result.ok:
+                apply_page_theme(
+                    self.page,
+                    actions.runtime().settings.config.app.theme_mode,
+                    update=False,
+                )
+                self.page.update()
             self.settings_status.value = (
                 result.title
                 if result.ok
                 else f"{result.title}: {result.detail.splitlines()[0]}"
             )
         return result
+
+    def _change_theme(self, event: ft.ControlEvent) -> None:
+        value = str(
+            event.data
+            if event.data in {"system", "light", "dark"}
+            else self.theme_dropdown.value or "system"
+        )
+        result = actions.save_settings(theme_mode=value)
+        if not result.ok:
+            self.settings_status.value = f"{result.title}: {result.detail}"
+            self.page.update()
+            return
+        self.theme_dropdown.value = value
+        more_theme_dropdown = getattr(self, "more_theme_dropdown", None)
+        if more_theme_dropdown is not None:
+            more_theme_dropdown.value = value
+        apply_page_theme(self.page, value)
 
     def _install_schedule(self) -> actions.ActionResult:
         try:

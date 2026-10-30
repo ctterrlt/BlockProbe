@@ -74,22 +74,25 @@ def test_all_controls_failing_sets_a_high_floor() -> None:
         control(2, False, "a.example", 2),
     ]
     health = assess_probe_health(rows, controls, {})
-    assert health.risk_percent >= 82
+    assert health.risk_percent >= 70
     assert health.risk_level == "high"
     assert health.control_failures == 2
 
 
-def test_known_filtering_dns_raises_risk_substantially() -> None:
+def test_known_filtering_dns_is_context_not_proof_of_interference() -> None:
     context = {
         "dns_filters": ["208.67.222.123 (OpenDNS FamilyShield)"],
         "resolver_labels": ["208.67.222.123 (OpenDNS FamilyShield)"],
     }
-    health = assess_probe_health([], [], context)
-    assert health.risk_percent >= 72
-    assert health.risk_level == "high"
-    assert health.false_positive_suspected is True
-    assert any("filtering DNS" in reason for reason in health.reasons)
-    assert "filtering DNS" in health.summary
+    health = assess_probe_health(
+        [result("a.example", Verdict.OPENED, ReasonCode.UNCLASSIFIED, 1)],
+        [],
+        context,
+    )
+    assert health.risk_percent == 0
+    assert health.risk_level == "low"
+    assert health.false_positive_suspected is False
+    assert any("filtering features" in reason for reason in health.reasons)
 
 
 def test_vpn_alone_stays_low_without_failed_controls_or_unreachable_sites() -> None:

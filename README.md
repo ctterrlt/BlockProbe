@@ -15,18 +15,20 @@ The project is intended for people who need evidence about whether a blocker is 
 
 ## Status
 
-The current development build is **1.2.1-alpha**. It replaces the broken
-1.2.0 and 1.1.1 GitHub release downloads; both release entries and their
-assets have been withdrawn while the alpha artifacts are rebuilt and checked.
+The current development build is **1.2.2-alpha**. The earlier 1.2.0 and 1.1.1
+GitHub release downloads were withdrawn. This local alpha adds regulator
+sources and has been rebuilt for review.
 
 The app version is maintained in [`src/blockprobe/VERSION`](src/blockprobe/VERSION) and is used
 by the package metadata, runtime display and native installer builds. Change this file to
 update the version throughout the project. BlockProbe
-is usable **from source**: the ADM portal refresh, live
-probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
+is usable **from source**: the ADM, DGOJ, SRIJ, ANJ, GGL and MGA portal refreshes,
+live probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
 local web UI all work, and the test suite covers the portal, classifier,
 storage, cache, UI and CLI paths. No signed desktop or mobile release has been
-produced yet (milestone M6 is in progress). The shared Flet UI keeps scan
+produced yet (milestone M6 is in progress). The 1.2.2-alpha Linux bundle,
+Android APK/AAB and web bundle have now been rebuilt locally. The APK carries
+the Android debug signature and is not a production release. The shared Flet UI keeps scan
 actions visible while source choices scroll, wraps long source labels, applies
 first-run language changes as soon as they are selected, and uses short success
 messages. Starting a scan immediately shows a preparation message, then keeps
@@ -38,10 +40,20 @@ in an Android 35 emulator and visibly reported that the scan started, then
 completed. The Linux desktop bundle stayed open through a 15-second Xvfb
 launch. The web bundle builds and
 loads at narrow and wide browser sizes, but headless Chromium stayed on its
-startup screen, so web interaction still needs verification. These artifacts
-are not production-signed. Windows and macOS native bundles must be built on
+startup screen, so web interaction still needs verification. The local APK is
+debug-signed; tagged Android release APK/AAB files use the release key
+configured in GitHub Actions. Windows and macOS native bundles must be built on
 their respective hosts; the release workflow covers those targets. See
 [docs/PACKAGING.md](docs/PACKAGING.md) for current build coverage.
+
+Official F-Droid metadata is kept in
+[`fdroid/io.github.ctterrlt.blockprobe.yaml`](fdroid/io.github.ctterrlt.blockprobe.yaml).
+After the GitHub `Release` workflow succeeds for a tag, the `F-Droid` workflow
+renders and submits the metadata to `fdroiddata` as a merge request. The
+required `.yml` file exists only in that merge request. F-Droid maintainers
+still review, build, sign and publish the app; the workflow cannot upload or
+delete an F-Droid release. See [docs/FDROID.md](docs/FDROID.md) for setup,
+release steps and limitations.
 
 The classifier ships two verified BetBlocker rules and refreshes
 `https://betblocker.org/blocked/` on every run. New visible block-page sentences
@@ -53,16 +65,16 @@ silently doing nothing.
 
 ## Capabilities
 
-- **Portal collection.** Downloads regulator-published domain lists, starting with Italy's ADM Concessionari, with robots.txt compliance, rate limiting, pagination, and append-only updates at most once every 24 hours.
+- **Portal collection.** Downloads regulator-published domain lists from Italy (ADM), Spain (DGOJ), Portugal (SRIJ), France (ANJ), Germany (GGL), and the Malta Gaming Authority (MGA). The MGA source is its international list of URLs falsely claiming MGA affiliation, not a worldwide licence list. Updates respect robots.txt, use rate limits and pagination, and append new domains without deleting existing ones.
 - **Local probing.** Resolves each domain through the system resolver, checks TCP/TLS connectivity, and fetches a bounded HTTP response. Tests the host as listed plus its apex and `www` variants.
 - **Redirect and new-window evidence.** Records 302/307/308 chains, static `<meta refresh>`, `window.open`, `location` targets and reopen-on-return hints without executing JavaScript or downloading assets. A target on a known blocker landing page is blocked from the URL alone.
 - **Evidence-based classification.** Applies ordered signature rules to page content, headers, and redirect chains. Verdicts carry a reason code, confidence, and evidence; no verdict is inferred from an HTTP status code alone.
-- **Neutral controls and interference risk.** Requests Google, Wikipedia and Cloudflare before and between probes, reports the first control failure and the domains to recheck, and raises a transparent VPN/DNS interference percentage. A locally detected content-filtering resolver raises the risk substantially.
+- **Neutral controls and interference signal.** Requests Google, Wikipedia and Cloudflare before and between probes, reports the first control failure and the domains to recheck, and reports a transparent heuristic VPN/DNS interference signal. A locally detected content-filtering resolver is shown as context, but it does not by itself raise that signal.
 - **Privacy and legal scope.** Every report states that BlockProbe asks for no age verification, sets or stores no cookies, uploads nothing, accepts no website terms, downloads no images or files, and claims no GDPR/US privacy-law compliance.
 - **Local storage.** SQLite only, in one local database file. Probe verdicts are never cached; cached portal lists and views are invalidated through a database generation counter. Dynamic BetBlocker patterns live in an append-only table.
 - **Diagnostics.** Reports system DNS configuration, resolver and VPN hints, VPN/proxy usage, hosts-file sinkholes, Private DNS and IPv6 availability, and optionally compares results with a user-configured control resolver.
 - **Cross-platform interfaces.** A Flet desktop and mobile UI, a Typer-based CLI, and a local web UI bound to `127.0.0.1`.
-- **Five languages, light theme.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings; the choice is saved locally and applied immediately. Responsive layouts adapt to available width, long source labels wrap, and the scan action remains visible while source choices scroll. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
+- **Five languages, adaptive appearance.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings. Appearance follows the operating system by default, with saved Light and Dark overrides. Layouts adapt to narrow windows and phone widths, with scrolling content and compact navigation labels. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
 - **Scheduled scans.** Off by default, user-level only (systemd user timer, launchd agent, Task Scheduler XML), with leak-only notifications when a notifier is available.
 - **Privacy by design.** No accounts, telemetry, analytics, or crash reporting. Network traffic is limited to selected portals, probe targets, neutral controls, the BetBlocker block page and opt-in checks.
 
@@ -154,7 +166,7 @@ The CLI provides the same use cases. A typical session:
 
 ```console
 blockprobe consent accept          # once per consent version
-blockprobe refresh                 # update the ADM list (append-only)
+blockprobe refresh                 # update stale portal lists (append-only)
 blockprobe scan --wait             # probe everything, print each verdict
 blockprobe report --format markdown
 blockprobe diagnose

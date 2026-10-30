@@ -280,6 +280,13 @@
 **/**/*.pem
 **/**/*.key
 **/**/*.cer
+**/.secrets/**/*
+
+# F-Droid: keep the canonical .yaml only. The mandatory .yml is generated
+# inside the fdroiddata merge-request branch, never in this repository.
+fdroid/*.yml
 
 # Keep the PyInstaller specification under version control
 !**/packaging/**/*.spec
+
+**/errors/**/*

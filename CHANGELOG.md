@@ -7,11 +7,57 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2-alpha] — 2026-10-30
+
+### Added
+
+- Added bundled regulator sources for France (ANJ), Germany (GGL), and Malta
+  (MGA). The MGA feed is its international unauthorised-URL warning list; it
+  is not a global licence registry. Together with ADM, DGOJ and SRIJ, six
+  official sources are available on fresh installs.
+- Updated the canonical app version and derived Android build number to
+  `1.2.2-alpha` / `1002002`.
+- Added canonical F-Droid metadata, a tag-driven workflow that renders the
+  `fdroiddata` `.yml` and opens or updates the merge request when GitLab
+  credentials are configured, and `docs/FDROID.md`. Official publication still
+  requires F-Droid maintainer review, build and signing.
+
+### Changed
+
+- Reframed the network interference percentage as a heuristic signal rather
+  than a probability. A configured filtering DNS resolver is now reported as
+  context and does not raise the signal unless control checks or results show
+  actual interference.
+
+### Build and verification
+
+- The local `all` build completed for Python wheel/sdist, Linux portable bundle,
+  Android APK/AAB and web bundle. APK manifest reports `versionName=1.2.2-alpha`
+  and `versionCode=1002002`; `apksigner` verified its Android debug signature.
+  Windows, macOS and iOS simulator targets require their respective native
+  runners. No tests or UI/device checks were run for this source update.
+
 ## [1.2.1-alpha] — 2026-10-30
 
 This alpha replaces the withdrawn 1.2.0 and 1.1.1 release downloads. It
 focuses on making the shared Flet interface work clearly across compact and
 wide screens and on rebuilding the distribution artifacts.
+
+### Cross-platform UI follow-up
+
+- Made the Run screen a single scrolling surface so its final section stays
+  reachable above the mobile navigation at short heights and narrow widths.
+- Added a persisted System, Light and Dark appearance choice. System is the
+  default and follows OS brightness changes; explicit colors in the shared UI
+  are recolored to keep both appearances legible.
+- Shortened the selected mobile navigation label and only show labels for the
+  active destination, preventing “Esecuzione” from wrapping under the tab bar.
+- Replaced an open notification before showing a newer result and ignored late
+  results from older overlapping actions, so the latest action feedback stays
+  visible.
+- Return to the consent screen when deleting local data clears consent, and
+  report a missing consent record as such instead of saying that no websites
+  were selected.
 
 ### Fixed
 

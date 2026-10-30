@@ -6,11 +6,12 @@
 BlockProbe supports source/Python-package installation and builds desktop and
 Android artifacts through Flet. The Python wheel and source archive, a Linux
 portable tarball and a universal Android APK were built locally. The Linux
-installer helper and a headless Linux app launch were smoke-checked. The APK
-was verified with Android's APK signer and uses the default Android debug
-certificate; the project owner has installed it on a physical phone. It is not
-production-signed. M6 remains open until the remaining platform and signing
-work is complete.
+installer helper and a headless Linux app launch were smoke-checked. The
+locally built APK uses Flet's default Android debug certificate; the project
+owner has installed it on a physical phone. Tagged release builds now use the
+configured Android release keystore and fail if its secrets are missing. M6
+remains open until a signed release has been built and verified with the
+owner's long-term key.
 
 ## Install from source or Python package
 
@@ -73,8 +74,10 @@ Desktop builds must run on their target operating system. Android builds run on
 Linux/macOS/Windows with the Android toolchain Flet installs. iOS simulator
 builds require macOS and Xcode. The Windows installer requires Inno Setup. The
 macOS DMG helper wraps an existing `.app`; it does not sign, notarize, or submit
-the app. Android release signing keys must be supplied separately for a
-publishable Play Store build. A debug APK can be installed for local testing.
+the app. Android release builds read the signing values from Flet's
+`FLET_ANDROID_SIGNING_KEY_*` environment variables; the GitHub release workflow
+maps protected repository secrets to them. Builds without a key use Flet's
+debug certificate for local testing.
 
 | Target | Artifact produced | Current limits |
 | --- | --- | --- |
@@ -82,19 +85,55 @@ publishable Play Store build. A debug APK can be installed for local testing.
 | Windows | portable ZIP; optional per-user Setup EXE | unsigned; built on Windows |
 | macOS | app ZIP; optional DMG | unsigned and not notarized; built on macOS |
 | Linux | portable tar.gz; optional Arch `.pkg.tar.zst` | x86_64 built locally; Arch package built on Arch Linux; `.deb`, `.rpm`, AppImage and Flatpak are not built |
-| Android | universal APK or AAB | APK locally built and signature-checked with debug certificate; no production signing key or Play Store submission |
+| Android | universal APK or AAB | tag releases use the configured Android release key; local builds without signing variables use Flet's debug key; no Play Store submission |
 | Web | static web bundle | hosting and base URL must be configured by the deployer |
 | iOS | simulator app bundle | physical-device IPA, signing and App Store submission remain unimplemented |
+
+### Android release signing
+
+Create one long-lived upload keystore and keep a secure backup outside this
+repository. This prompts for its passwords and certificate details:
+
+```console
+keytool -genkeypair -v -keystore blockprobe-upload.jks \
+  -alias blockprobe -keyalg RSA -keysize 2048 -validity 10000
+```
+
+Encode the keystore as one base64 line (`base64 -w 0 blockprobe-upload.jks` on
+GNU/Linux), then add these repository Actions secrets:
+
+- `ANDROID_KEYSTORE_BASE64`: the one-line base64 keystore contents
+- `ANDROID_KEYSTORE_PASSWORD`: the keystore password
+- `ANDROID_KEY_PASSWORD`: the private-key password
+- `ANDROID_KEY_ALIAS`: `blockprobe` for the example command
+
+Do not rotate or replace this key for later APK/AAB updates. Tagged releases
+fail before publication if any signing secret is missing or invalid. Manual
+branch builds may omit all four secrets and use Flet's debug key for testing.
+F-Droid builds the source independently and signs its own APK.
 
 The release workflow builds Python, Windows, macOS, Linux, Android APK/AAB,
 web and iOS simulator artifacts on their supported runners. A manual workflow
 run builds and uploads CI artifacts without publishing a release; a tag push
 builds the matrix and publishes a release, marked as a prerelease when its tag
 contains a hyphen. Android runtime downloads are cached and retried once after
-a failed archive download. The old 1.2.0 and 1.1.1 GitHub release entries were
-withdrawn because their downloads were unusable; their Git tags remain as
-history. Release artifacts are unsigned and are not published to app stores.
+a failed archive download. Tagged Android builds require these GitHub Actions
+secrets: `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`,
+`ANDROID_KEY_PASSWORD` and `ANDROID_KEY_ALIAS`. The same permanent key signs
+the APK and AAB on each release. Manual non-tag builds can still use Flet's
+debug key when those secrets are absent. Release signatures are checked before
+the artifacts are uploaded. Keep the keystore backed up securely and reuse it
+for every update; do not commit it to the repository. F-Droid builds and signs
+its own APK independently.
+
+The old 1.2.1-alpha GitHub release entry was removed while its tag and commit
+were preserved. Other historical Git tags remain unchanged.
 Review `.github/workflows/release.yaml` before creating an alpha tag.
+
+The separate `F-Droid` workflow renders the official metadata and opens or
+updates the `fdroiddata` merge request. It never creates, edits or deletes
+GitHub releases, tags or commits. See [FDROID.md](FDROID.md) for the one-time
+GitLab setup, publication limits and local validation commands.
 
 ### Linux installation
 

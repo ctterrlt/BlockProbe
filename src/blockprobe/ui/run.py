@@ -7,7 +7,7 @@ import flet as ft
 
 from blockprobe.i18n import t
 from blockprobe.ui import actions
-from blockprobe.ui.components import WARN, button, card, hero, text
+from blockprobe.ui.components import ACCENT_DIM, BORDER, MUTED, SURFACE, WARN, button, card, hero, text
 
 
 class RunScreen:
@@ -37,6 +37,14 @@ class RunScreen:
     def _setup_run(self) -> None:
         self.source_checkboxes = {}
         self.sources_column = ft.Column(spacing=2)
+        self.source_search = ft.TextField(
+            label=t("Find a portal"),
+            prefix_icon=ft.Icons.SEARCH,
+            text_size=14,
+            dense=True,
+            on_change=self._filter_sources,
+        )
+        self._source_rows: dict[str, ft.Control] = {}
         self.preview_text = text(t("Preview not loaded yet."), 13)
         self.auto_refresh_switch = ft.Switch(
             label=t("Update stale portal lists first"), value=True
@@ -68,6 +76,7 @@ class RunScreen:
             t("1. Pick the sources"),
             ft.Column(
                 [
+                    self.source_search,
                     self.sources_column,
                     self.preview_text,
                     ft.Row(
@@ -132,15 +141,12 @@ class RunScreen:
                     t("Choose a source, preview the websites, then start a scan."),
                     icon=ft.Icons.RADAR,
                 ),
-                ft.Column(
-                    [sources_card, card(t("Latest stored run"), self.summary_text)],
-                    spacing=16,
-                    scroll=ft.ScrollMode.AUTO,
-                    expand=True,
-                ),
+                sources_card,
                 run_card,
+                card(t("Latest stored run"), self.summary_text),
             ],
             spacing=12,
+            scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
 
@@ -148,7 +154,7 @@ class RunScreen:
         """Tighten the persistent scan action on narrow phone layouts."""
         if self.run_card is None or self.run_card_title is None:
             return
-        self.run_card_title.visible = not compact
+        self.run_card_title.visible = True
         self.run_card.padding = (
             ft.Padding.symmetric(horizontal=12, vertical=8)
             if compact
@@ -182,6 +188,7 @@ class RunScreen:
         choices = actions.portal_choices()
         controls: list[ft.Control] = []
         self.source_checkboxes = {}
+        self._source_rows = {}
         all_box = ft.Checkbox(
             value=True,
             semantics_label=t("All sources (every enabled portal + custom)"),
@@ -193,17 +200,21 @@ class RunScreen:
         custom_box.data = "custom"
         self.source_checkboxes["all"] = all_box
         self.source_checkboxes["custom"] = custom_box
-        controls.append(
-            self._source_choice_row(
-                "all", all_box, t("All sources (every enabled portal + custom)")
-            )
+        row = self._source_choice_row(
+            "all", all_box, t("All sources (every enabled portal + custom)")
         )
+        controls.append(row)
+        self._source_rows["all"] = row
         for portal_id, label in choices:
             box = ft.Checkbox(value=False, semantics_label=label)
             box.data = portal_id
             self.source_checkboxes[portal_id] = box
-            controls.append(self._source_choice_row(portal_id, box, label))
-        controls.append(self._source_choice_row("custom", custom_box, t("Custom websites")))
+            row = self._source_choice_row(portal_id, box, label)
+            controls.append(row)
+            self._source_rows[portal_id] = row
+        row = self._source_choice_row("custom", custom_box, t("Custom websites"))
+        controls.append(row)
+        self._source_rows["custom"] = row
         for box in self.source_checkboxes.values():
             box.on_change = self._on_source_change
         self.sources_column.controls = controls
@@ -219,6 +230,16 @@ class RunScreen:
         preview = actions.preview_scan(self._request())
         self.preview_text.value = preview.detail
 
+    def _filter_sources(self, event: ft.ControlEvent) -> None:
+        query = str(event.control.value or "").strip().casefold()
+        for key, row in self._source_rows.items():
+            if key in {"all", "custom"}:
+                row.visible = not query
+                continue
+            label = self.source_checkboxes[key].semantics_label or key
+            row.visible = not query or query in label.casefold()
+        self.page.update()
+
     def _source_choice_row(
         self, key: str, checkbox: ft.Checkbox, label: str
     ) -> ft.Control:
@@ -226,17 +247,20 @@ class RunScreen:
             checkbox.value = not bool(checkbox.value)
             self._apply_source_change(key, bool(checkbox.value))
 
-        return ft.Row(
-            [
-                checkbox,
-                ft.Container(
-                    content=text(label, 14),
-                    expand=True,
-                    on_click=toggle,
-                ),
-            ],
-            spacing=8,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        return ft.Container(
+            content=ft.Row(
+                [
+                    checkbox,
+                    ft.Container(content=text(label, 14), expand=True, on_click=toggle),
+                    ft.Icon(ft.Icons.CHEVRON_RIGHT, color=MUTED, size=18),
+                ],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=3),
+            bgcolor=ACCENT_DIM if checkbox.value else SURFACE,
+            border=ft.Border.all(1, BORDER),
+            border_radius=10,
         )
 
     def _on_source_change(self, event: ft.ControlEvent) -> None:
@@ -255,6 +279,9 @@ class RunScreen:
                 checkboxes["all"].value = False
             if not any(box.value for key, box in checkboxes.items() if key != "all"):
                 checkboxes["all"].value = True
+        for key, row in self._source_rows.items():
+            if isinstance(row, ft.Container):
+                row.bgcolor = ACCENT_DIM if checkboxes[key].value else SURFACE
         self.page.update()
 
     def _preview(self) -> actions.ActionResult:

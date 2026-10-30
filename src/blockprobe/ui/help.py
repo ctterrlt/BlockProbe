@@ -28,7 +28,7 @@ def help_view() -> ft.Control:
         text(
             t(
                 "BlockProbe {version} — AGPL-3.0-or-later, no warranty, results are "
-                "indicative. Sources: official regulator lists such as ADM and the user's "
+                "indicative. Sources: official regulator lists and the user's "
                 "own list. Verified BetBlocker rules are included; the live block page "
                 "is also fetched on each run and new patterns are appended for review.",
                 version=__version__,

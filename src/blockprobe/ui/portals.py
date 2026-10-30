@@ -9,14 +9,27 @@ import flet as ft
 
 from blockprobe.i18n import t
 from blockprobe.ui import actions
-from blockprobe.ui.components import BAD, TEXT, button, card, hero, text
+from blockprobe.ui.components import (
+    ACCENT_DIM,
+    BAD,
+    BORDER,
+    MUTED,
+    OK,
+    SURFACE,
+    TEXT,
+    WARN,
+    button,
+    card,
+    hero,
+    text,
+)
 
 
 class SourcesScreen:
     """Mixin with the portals and custom-website screens."""
 
     page: ft.Page
-    portals_text: ft.Text
+    portals_text: ft.Column
     custom_input: ft.TextField
     custom_list: ft.Column
     portal_name_input: ft.TextField
@@ -40,7 +53,7 @@ class SourcesScreen:
         self.portal_country_input = ft.TextField(
             label=t("Country code"), value="IT", max_length=2, text_size=14
         )
-        self.portals_text = text(t("Portals not loaded yet."), 12)
+        self.portals_text = ft.Column(spacing=8)
         self.custom_input = ft.TextField(
             label=t("Add websites"),
             hint_text=t("Paste at least one domain, one per line."),
@@ -170,7 +183,10 @@ class SourcesScreen:
         for site in sites:
             row = ft.Row(
                 [
-                    text(f"{site.domain} ({', '.join(site.hosts)})", 12, TEXT),
+                    ft.Container(
+                        content=text(f"{site.domain} ({', '.join(site.hosts)})", 12, TEXT),
+                        expand=True,
+                    ),
                     ft.IconButton(
                         icon=ft.Icons.DELETE_OUTLINE,
                         tooltip=t("Remove from the custom list (portal rows are kept)"),
@@ -180,6 +196,7 @@ class SourcesScreen:
                     ),
                 ],
                 spacing=6,
+                expand=True,
             )
             self.custom_list.controls.append(row)
         self.page.update()
@@ -207,10 +224,10 @@ class SourcesScreen:
             portals = actions.runtime().storage.list_portals()
         except Exception:
             portals = []
+        self.portals_text.controls.clear()
         if not portals:
-            self.portals_text.value = t("No portals configured yet.")
+            self.portals_text.controls.append(text(t("No portals configured yet."), 13))
             return
-        lines = []
         for portal in portals:
             state = t("enabled") if portal.enabled else t("disabled")
             if portal.last_refreshed_at:
@@ -219,6 +236,44 @@ class SourcesScreen:
                 )
             else:
                 when = t("never updated")
-            suffix = f" — {t('last error: {error}', error=portal.last_error)}" if portal.last_error else ""
-            lines.append(f"{portal.name} ({state}, {when}){suffix}")
-        self.portals_text.value = "\n".join(lines)
+            status_color = (
+                BAD if portal.last_error else OK if portal.last_refreshed_at else WARN
+            )
+            if portal.last_error:
+                status_icon = ft.Icons.ERROR_OUTLINE
+            elif portal.last_refreshed_at:
+                status_icon = ft.Icons.CHECK_CIRCLE_OUTLINE
+            else:
+                status_icon = ft.Icons.SCHEDULE
+            details = [f"{portal.country} · {state} · {when}"]
+            if portal.last_error:
+                details.append(t("last error: {error}", error=portal.last_error))
+            self.portals_text.controls.append(
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Container(
+                                content=ft.Icon(status_icon, color=status_color, size=20),
+                                width=38,
+                                height=38,
+                                alignment=ft.Alignment.CENTER,
+                                bgcolor=ACCENT_DIM if not portal.last_error else "#F8E5E2",
+                                border_radius=11,
+                            ),
+                            ft.Column(
+                                [
+                                    text(portal.name, 14, TEXT, weight=ft.FontWeight.W_600),
+                                    text("\n".join(details), 12, BAD if portal.last_error else MUTED),
+                                ],
+                                spacing=3,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                    padding=10,
+                    bgcolor=SURFACE,
+                    border=ft.Border.all(1, BORDER),
+                    border_radius=11,
+                )
+            )

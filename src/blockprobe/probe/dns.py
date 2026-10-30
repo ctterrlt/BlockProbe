@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import logging
+import socket
 from collections.abc import Iterable
 
 from blockprobe.core.models import DnsResult
@@ -47,6 +48,31 @@ def _resolver(timeout: float, nameservers: Iterable[str] | None = None):  # type
     return resolver
 
 
+def _system_resolve(host: str) -> DnsResult | None:
+    """Use the OS resolver when dnspython cannot reach/configure DNS.
+
+    Android exposes DNS through its network stack and commonly has no usable
+    resolv.conf for Python libraries to read. ``getaddrinfo`` delegates to the
+    platform resolver, which is also the path normal app connections use.
+    """
+    try:
+        records = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except (OSError, socket.gaierror):
+        return None
+    ips = list(dict.fromkeys(record[4][0] for record in records if record[4]))
+    if not ips:
+        return None
+    sinkholes = [ip for ip in ips if is_sinkhole_ip(ip)]
+    return DnsResult(
+        host=host,
+        status="sinkhole" if sinkholes else "ok",
+        ips=ips,
+        sinkhole_ips=sinkholes,
+        error=None,
+        resolver="platform (getaddrinfo)",
+    )
+
+
 def resolve_sync(
     host: str,
     timeout: float = 6.0,
@@ -59,7 +85,10 @@ def resolve_sync(
     try:
         resolver = _resolver(timeout, nameservers)
     except Exception as exc:  # pragma: no cover - depends on host DNS setup
-        return DnsResult(host=host, status="error", error=f"resolver unavailable: {exc}")
+        fallback = _system_resolve(host) if nameservers is None else None
+        return fallback or DnsResult(
+            host=host, status="error", error=f"resolver unavailable: {exc}"
+        )
 
     resolver_label = "system"
     try:
@@ -78,6 +107,9 @@ def resolve_sync(
         try:
             answer = resolver.resolve(host, record_type, raise_on_no_answer=False)
         except dns.resolver.NXDOMAIN:
+            fallback = _system_resolve(host) if nameservers is None else None
+            if fallback is not None:
+                return fallback
             return DnsResult(
                 host=host,
                 status="nxdomain",
@@ -85,6 +117,9 @@ def resolve_sync(
                 resolver=resolver_label,
             )
         except dns.resolver.NoNameservers as exc:
+            fallback = _system_resolve(host) if nameservers is None else None
+            if fallback is not None:
+                return fallback
             return DnsResult(
                 host=host,
                 status="servfail",
@@ -92,6 +127,9 @@ def resolve_sync(
                 resolver=resolver_label,
             )
         except dns.exception.Timeout as exc:
+            fallback = _system_resolve(host) if nameservers is None else None
+            if fallback is not None:
+                return fallback
             return DnsResult(
                 host=host,
                 status="timeout",
@@ -99,6 +137,9 @@ def resolve_sync(
                 resolver=resolver_label,
             )
         except Exception as exc:
+            fallback = _system_resolve(host) if nameservers is None else None
+            if fallback is not None:
+                return fallback
             return DnsResult(
                 host=host,
                 status="error",
