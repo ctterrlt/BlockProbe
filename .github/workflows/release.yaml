@@ -158,10 +158,14 @@ jobs:
               exit 0
             fi
             if [[ "$attempt" -eq 1 ]]; then
-              echo "Android runtime download failed; clearing only the arm64 runtime archive and retrying."
+              echo "Android build failed; clearing incomplete runtime and NDK downloads before retrying."
               if [[ -d "$FLET_CACHE_DIR/python-build" ]]; then
                 find "$FLET_CACHE_DIR/python-build" -type f \
                   -name 'python-android-dart-*-arm64-v8a.tar.gz' -delete
+              fi
+              android_sdk="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+              if [[ -n "$android_sdk" ]]; then
+                rm -rf "$android_sdk/ndk/28.2.13676358"
               fi
               sleep 10
             fi
