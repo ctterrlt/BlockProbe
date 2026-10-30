@@ -8,7 +8,7 @@ import flet as ft
 from blockprobe.i18n import t
 from blockprobe.logging_setup import clear_logs, get_logs
 from blockprobe.ui import actions
-from blockprobe.ui.components import BAD, MUTED, button, card, hero, text
+from blockprobe.ui.components import BAD, MUTED, SURFACE, button, card, hero, text
 
 
 class LogsScreen:
@@ -130,14 +130,10 @@ class LogsScreen:
                 ft.Container(
                     content=text(line, 12, color),
                     padding=ft.Padding.symmetric(horizontal=10, vertical=8),
-                    bgcolor="#FFFFFF",
+                    bgcolor=SURFACE,
                     border_radius=8,
                 )
             )
-        try:
-            self.page.update()
-        except Exception:
-            pass
         return actions.ActionResult(
             t("Logs refreshed"), t("{count} entry(ies).", count=len(entries))
         )
@@ -145,10 +141,6 @@ class LogsScreen:
     def _clear_logs(self) -> actions.ActionResult:
         clear_logs()
         self.log_view.controls = []
-        try:
-            self.page.update()
-        except Exception:
-            pass
         return actions.ActionResult(
             t("Cleared"), t("The in-memory log view was emptied.")
         )

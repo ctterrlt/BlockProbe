@@ -64,14 +64,28 @@ def project_version() -> str:
 
 
 def version_code(version: str) -> int:
-    """Encode major.minor.patch as the Android version code used by Flet."""
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?", version)
+    """Encode major/minor/patch and prerelease stage as Android's version code."""
+    match = re.fullmatch(
+        r"(\d+)\.(\d+)\.(\d+)"
+        r"(?:-(alpha|beta|gamma|rc)(?:\.(\d+))?)?"
+        r"(?:\+[0-9A-Za-z.-]+)?",
+        version,
+    )
     if not match:
         raise SystemExit(f"VERSION is not major.minor.patch[-prerelease]: {version}")
-    parts = tuple(map(int, match.groups()))
+    major, minor, patch = map(int, match.groups()[:3])
+    stage, serial_text = match.groups()[3:]
+    parts = (major, minor, patch)
     if any(part >= 1000 for part in parts):
         raise SystemExit("Each VERSION component must be less than 1000.")
-    code = parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
+    stage_slots = {"alpha": 10, "beta": 20, "gamma": 30, "rc": 40}
+    stage_slot = stage_slots.get(stage, 99)
+    serial = int(serial_text or 0)
+    if serial > 9:
+        raise SystemExit("Prerelease serials must be between 0 and 9.")
+    if stage is not None:
+        stage_slot += serial
+    code = (major * 1_000_000 + minor * 1_000 + patch) * 100 + stage_slot
     if code <= 0 or code > 2_100_000_000:
         raise SystemExit("VERSION produces an invalid Android version code.")
     return code

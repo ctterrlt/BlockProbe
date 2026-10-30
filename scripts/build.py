@@ -40,15 +40,30 @@ def project_version() -> str:
 
 
 def project_build_number() -> int:
-    """Encode a three-part version as a monotonically increasing mobile code."""
+    """Encode core version and prerelease stage as a unique Android code."""
     version = project_version()
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?", version)
+    match = re.fullmatch(
+        r"(\d+)\.(\d+)\.(\d+)"
+        r"(?:-(alpha|beta|gamma|rc)(?:\.(\d+))?)?"
+        r"(?:\+[0-9A-Za-z.-]+)?",
+        version,
+    )
     if not match:
         raise SystemExit("Flet builds require VERSION in major.minor.patch[-prerelease] form.")
-    parts = tuple(map(int, match.groups()))
+    major, minor, patch = map(int, match.groups()[:3])
+    stage, serial_text = match.groups()[3:]
+    parts = (major, minor, patch)
     if any(part >= 1000 for part in parts):
         raise SystemExit("Each VERSION component must be less than 1000 for mobile builds.")
-    build_number = parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
+    stage_slots = {"alpha": 10, "beta": 20, "gamma": 30, "rc": 40}
+    stage_slot = stage_slots.get(stage, 99)
+    serial = int(serial_text or 0)
+    if serial > 9:
+        raise SystemExit("Prerelease serials must be between 0 and 9 for mobile builds.")
+    if stage is not None:
+        stage_slot += serial
+    core_code = major * 1_000_000 + minor * 1_000 + patch
+    build_number = core_code * 100 + stage_slot
     if build_number <= 0 or build_number > 2_100_000_000:
         raise SystemExit("VERSION produces an invalid Android build number.")
     return build_number

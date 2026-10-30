@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import flet as ft
 
+from blockprobe.core.models import RunSummary
 from blockprobe.i18n import t
 from blockprobe.ui import actions
 from blockprobe.ui.components import (
+    ACCENT,
     ACCENT_DIM,
     BORDER,
     MUTED,
@@ -61,10 +63,11 @@ class RunScreen:
         self._source_rows: dict[str, ft.Control] = {}
         self.preview_text = text(t("Preview not loaded yet."), 13)
         self.auto_refresh_switch = ft.Switch(value=True)
-        self.progress_bar = ft.ProgressBar(value=0, color="#38BDF8", bgcolor="#1E293B")
+        self.progress_bar = ft.ProgressBar(value=0, color=ACCENT, bgcolor=ACCENT_DIM)
         self.progress_text = text(t("No scan is running."), 13)
         self._run_feedback_visible = False
         self._run_start_failed = False
+        self._run_controls_signature: tuple[object, ...] | None = None
         self.summary_text = text(t("No run stored yet."), 13)
         self.start_button = None
         self.pause_button = None
@@ -218,7 +221,11 @@ class RunScreen:
             else ft.Padding.symmetric(horizontal=16, vertical=14)
         )
 
-    def refresh_run_controls(self) -> None:
+    def refresh_run_controls(
+        self,
+        summary: RunSummary | None = None,
+        active: bool | None = None,
+    ) -> bool:
         if (
             self.start_button is None
             or self.pause_button is None
@@ -228,18 +235,18 @@ class RunScreen:
             or self.resume_slot is None
             or self.cancel_slot is None
         ):
-            return
-        summary = actions.latest_run_summary()
+            return False
+        if summary is None:
+            summary = actions.latest_run_summary()
+        if active is None:
+            active = actions.runtime().scan.active_run is not None
         status = summary.status.value if summary is not None else ""
-        active = actions.runtime().scan.active_run is not None
         running = active and status == "running"
-        paused = status == "paused" or (
-            not active
-            and any(
-                run.status.value == "paused"
-                for run in actions.runtime().storage.list_runs(limit=50)
-            )
-        )
+        paused = status == "paused"
+        signature = (active, status, running, paused, self._run_feedback_visible)
+        if signature == self._run_controls_signature:
+            return False
+        self._run_controls_signature = signature
         self.start_button.visible = not active
         self.start_button.disabled = active
         self.pause_button.visible = running
@@ -256,6 +263,7 @@ class RunScreen:
         show_progress = active or status == "paused" or self._run_feedback_visible
         self.progress_bar.visible = show_progress
         self.progress_text.visible = show_progress
+        return True
 
     def _build_source_checkboxes(self) -> None:
         choices = actions.portal_choices()

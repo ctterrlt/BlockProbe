@@ -31,6 +31,7 @@ _DARK_PALETTE = {
     WARN: "#D8AD62",
     BAD: "#D77C74",
     ACCENT_DIM: "#29463E",
+    "#F8E5E2": "#482B29",
 }
 _LIGHT_PALETTE = {dark: light for light, dark in _DARK_PALETTE.items()}
 
@@ -81,6 +82,28 @@ def palette_background(*, dark: bool) -> str:
     return _DARK_PALETTE[BACKGROUND] if dark else BACKGROUND
 
 
+def palette_surface(*, dark: bool) -> str:
+    return _DARK_PALETTE[SURFACE] if dark else SURFACE
+
+
+def palette_text(*, dark: bool) -> str:
+    return _DARK_PALETTE[TEXT] if dark else TEXT
+
+
+def dark_for_mode(page: ft.Page, mode: str) -> bool:
+    return mode == "dark" or (
+        mode == "system"
+        and getattr(page, "platform_brightness", None) == ft.Brightness.DARK
+    )
+
+
+def prepare_dialog(page: ft.Page, dialog: ft.AlertDialog, mode: str) -> None:
+    """Apply explicit high-contrast colors before opening a native dialog."""
+    dark = dark_for_mode(page, mode)
+    apply_palette(dialog, dark=dark)
+    dialog.bgcolor = palette_surface(dark=dark)
+    dialog.title_text_style = ft.TextStyle(color=palette_text(dark=dark))
+    dialog.content_text_style = ft.TextStyle(color=palette_text(dark=dark))
 def apply_page_theme(page: ft.Page, mode: str, *, update: bool = True) -> None:
     """Follow the OS appearance in system mode and recolor explicit controls."""
     page.theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)

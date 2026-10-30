@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.2.3--alpha-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-1.2.3--gamma-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
@@ -15,23 +15,29 @@ The project is for people and families who want local evidence about website fil
 
 ## Status
 
-The current development build is **1.2.3-alpha**. The earlier 1.2.0 and 1.1.1
-GitHub release downloads were withdrawn. This local alpha adds regulator
-sources and has been rebuilt for review.
+The current development build is **1.2.3-gamma**. The earlier 1.2.0 and 1.1.1
+GitHub release downloads were withdrawn. This gamma build includes the current
+regulator sources.
 
 The app version is maintained in [`src/blockprobe/VERSION`](src/blockprobe/VERSION) and is used
-by the package metadata, runtime display and native installer builds. Change this file to
-update the version throughout the project. BlockProbe
+by the runtime display and native installer builds. The Python package metadata
+uses its PEP 440 equivalent (`1.2.3rc0` for this gamma build). Change the
+version file to update the version throughout the project. BlockProbe
 is usable **from source**: the ADM, DGOJ, SRIJ, ANJ, GGL and MGA portal refreshes,
 live probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
 local web UI all work, and the test suite covers the portal, classifier,
 storage, cache, UI and CLI paths. No signed desktop or mobile release has been
-produced yet (milestone M6 is in progress). The 1.2.3-alpha Linux bundle,
-Android APK/AAB and web bundle have now been rebuilt locally. The APK carries
-the Android debug signature and is not a production release. The shared Flet UI keeps scan
-actions visible while source choices scroll, wraps long source labels, applies
+produced yet (milestone M6 is in progress). The release workflow builds Linux,
+Android APK/AAB and web artifacts for tagged versions. A locally built APK uses
+the Android debug signature; tagged Android releases use the configured release
+key. The shared Flet UI keeps scan actions visible while source choices scroll,
+wraps long source labels, applies
 first-run language changes as soon as they are selected, and uses short success
-messages. Starting a scan immediately shows a preparation message, then keeps
+messages. The loading screen follows the system appearance, and generated
+results and portal cards retain the selected theme while a scan runs. Scan
+progress polling skips unchanged UI state to reduce phone rendering work. The
+Settings layout uses compact phone spacing. Starting a scan immediately shows
+a preparation message, then keeps
 the result or reason it could not start visible on compact screens. First-run
 language changes use the Flet Dropdown selection event and apply before the
 consent decision across desktop, mobile and web clients. Linux and

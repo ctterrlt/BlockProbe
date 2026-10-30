@@ -18,5 +18,9 @@ def test_runtime_version_comes_from_the_single_source_file() -> None:
     with (ROOT / "pyproject.toml").open("rb") as handle:
         project = tomllib.load(handle)
     assert "version" in project["project"]["dynamic"]
-    assert project["tool"]["hatch"]["version"]["path"] == "src/blockprobe/VERSION"
+    assert project["tool"]["hatch"]["version"] == {
+        "source": "code",
+        "path": "scripts/hatch_version.py",
+        "expression": "pep440_version()",
+    }
 

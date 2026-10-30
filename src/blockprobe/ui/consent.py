@@ -23,6 +23,7 @@ from blockprobe.ui.components import (
     apply_page_theme,
     apply_palette,
     button,
+    prepare_dialog,
     text,
 )
 
@@ -106,14 +107,21 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
         # until the user leaves the first-run screen.
         saved = actions.save_settings(language=str(language.value or "en"))
         if not saved.ok:
-            page.show_dialog(
-                ft.AlertDialog(
-                    modal=True,
-                    title=text(saved.title, 16, TEXT, weight=ft.FontWeight.BOLD),
-                    content=text(t("Could not save your language choice."), 13),
-                    actions=[ft.TextButton(content=t("Back"), on_click=lambda _e: page.pop_dialog())],
-                )
+            dialog = ft.AlertDialog(
+                modal=True,
+                title=text(saved.title, 16, TEXT, weight=ft.FontWeight.BOLD),
+                content=text(t("Could not save your language choice."), 13),
+                actions=[
+                    ft.TextButton(
+                        content=t("Back"),
+                        on_click=lambda _e: page.pop_dialog(),
+                    )
+                ],
             )
+            prepare_dialog(
+                page, dialog, actions.runtime().settings.config.app.theme_mode
+            )
+            page.show_dialog(dialog)
             return
         result = actions.accept_consent()
         if not result.ok:
@@ -133,6 +141,9 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
                 13,
             ),
             actions=[ft.Button(content=t("Back"), on_click=lambda _e: page.pop_dialog())],
+        )
+        prepare_dialog(
+            page, dialog, actions.runtime().settings.config.app.theme_mode
         )
         page.show_dialog(dialog)
 

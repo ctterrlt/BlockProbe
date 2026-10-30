@@ -26,8 +26,9 @@ The dependency direction is one-way: interfaces → services → engines → cor
 can reuse the exact same use cases; `blockprobe.ui.app` and the `ui/` screens
 only build widgets and route events.
 
-The app version is read from `src/blockprobe/VERSION`. Hatchling uses that same
-file for wheel metadata, native installer builds read it when generating their
+The app version is read from `src/blockprobe/VERSION`. Hatchling uses
+`scripts/hatch_version.py` to derive valid PEP 440 wheel metadata from that
+same file; native installer builds read it when generating their
 version fields, and `scripts/build.py` passes it to Flet as the display version
 and derives the Android build code from it. The Flet UI uses a responsive
 Material 3 theme that follows OS brightness by default, with saved light and
@@ -88,10 +89,12 @@ decodes JavaScript escapes (`\x3d`, `\u003d`). No fragment URL is hard-coded.
    apex, `www`) and probes in order: DNS resolution → TCP/TLS connect →
    bounded HTTP fetch with redirects.
 3. The classifier turns observations into a verdict with `ReasonCode`,
-   confidence and evidence. A blocked signature, a DNS sinkhole, a regulator
-   redirect or a connection-level failure are the only roads to `BLOCKED`;
-   HTTP status codes alone never decide. Unmatched responses are `OPENED`
-   (`unclassified`, low confidence, `needs_review = true`).
+   confidence and evidence. A blocked signature, a DNS sinkhole or a known
+   blocker/regulator redirect can support `BLOCKED`; HTTP status codes alone
+   never decide. A probe with no HTTP response is marked for review because it
+   cannot establish whether the site opens in a browser using another DNS or
+   transport path. Unmatched HTTP responses are `OPENED` with low confidence
+   and `needs_review = true`.
 4. Results are written to `site_results` plus `probe_attempts` (per host/scheme
    evidence: IP, timings, HTTP status, redirect chain, body hash, rule id).
 5. `RunControl` carries pause/cancel flags. A network guard checks a neutral

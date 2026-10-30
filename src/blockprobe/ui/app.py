@@ -34,6 +34,7 @@ from blockprobe.ui.components import (
     TEXT,
     apply_page_theme,
     apply_palette,
+    dark_for_mode,
     text,
 )
 from blockprobe.ui.consent import consent_view
@@ -114,15 +115,10 @@ class BlockProbeUi(
             t("Start with a portal update, then run a scan. Results stay on this device."),
             13,
         )
-        self.snack = ft.SnackBar(
-            content=text("", 14, TEXT),
-            behavior=ft.SnackBarBehavior.FLOATING,
-            margin=12,
-            duration=3500,
-            on_dismiss=self._on_snack_dismiss,
-        )
+        self.snack: ft.SnackBar | None = None
         self._action_sequence = 0
-        self._snack_open = False
+        self._last_poll_signature: tuple[object, ...] | None = None
+        self._last_controls_signature: tuple[object, ...] | None = None
         self.views: list[ft.Control] = []
         self.current_screen = 0
         self._compact_layout: bool | None = None
@@ -138,7 +134,10 @@ class BlockProbeUi(
     # ------------------------------------------------------------------ helpers
 
     def _on_snack_dismiss(self, _event: Any) -> None:
-        self._snack_open = False
+        # Flet dispatches dismissal after the control has been removed from
+        # its dialog stack. Ignore an older snackbar's late callback.
+        if getattr(_event, "control", None) is self.snack:
+            self.snack = None
 
     def apply(self, result: actions.ActionResult, sequence: int | None = None) -> None:
         if sequence is None:
@@ -152,28 +151,31 @@ class BlockProbeUi(
         self.status_detail.value = ""
         self._apply_live_theme()
         mode = actions.runtime().settings.config.app.theme_mode
-        dark = mode == "dark" or (
-            mode == "system"
-            and getattr(self.page, "platform_brightness", None) == ft.Brightness.DARK
+        dark = dark_for_mode(self.page, mode)
+        previous_snack = self.snack
+        if previous_snack is not None and previous_snack.open:
+            self.page.pop_dialog()
+        snack = ft.SnackBar(
+            content=text(
+                result.title,
+                14,
+                "#0B1713" if dark else "#FFFFFF",
+            ),
+            behavior=ft.SnackBarBehavior.FLOATING,
+            margin=12,
+            duration=3500,
+            bgcolor=("#61B58A" if dark else OK) if result.ok else ("#D77C74" if dark else BAD),
+            on_dismiss=self._on_snack_dismiss,
         )
-        self.snack.content = text(
-            result.title,
-            14,
-            "#0B1713" if dark else "#FFFFFF",
-        )
-        self.snack.bgcolor = OK if result.ok else BAD
+        self.snack = snack
         try:
-            if self._snack_open:
-                self.page.pop_dialog()
-                self._snack_open = False
-            self.page.show_dialog(self.snack)
-            self._snack_open = True
+            self.page.show_dialog(snack)
         except Exception:
-            pass
+            _LOGGER.exception("could not show action feedback")
         try:
             self.page.update()
         except Exception:
-            pass
+            _LOGGER.exception("could not update page after action feedback")
 
     def run_async(self, action: Callable[[], actions.ActionResult]) -> None:
         self._action_sequence += 1
@@ -437,18 +439,31 @@ class BlockProbeUi(
 
         def loop() -> None:
             while self._alive:
-                time.sleep(1.0)
+                time.sleep(1.5)
                 try:
                     summary = actions.latest_run_summary()
-                    active = actions.active_run_id()
-                    self._render_summary(summary)
-                    self.refresh_run_controls()
+                    active_run = actions.runtime().scan.active_run
+                    active = active_run.id if active_run is not None else None
+                    changed = self._render_summary(summary)
+                    changed = self.refresh_run_controls(
+                        summary,
+                        active=active_run is not None,
+                    ) or changed
                     if (
                         active is not None
                         and summary is not None
                         and self.current_screen == 2
                     ):
-                        key = (active, summary.total, summary.status.value)
+                        checked = summary.blocked + summary.unreachable + summary.opened
+                        key = (
+                            active,
+                            checked,
+                            summary.blocked,
+                            summary.unreachable,
+                            summary.opened,
+                            summary.needs_review,
+                            summary.status.value,
+                        )
                         query_active = bool((self.results_search.value or "").strip())
                         filters_active = (
                             bool(self.leaks_only_switch.value)
@@ -466,8 +481,11 @@ class BlockProbeUi(
                             self.refresh_results(update_page=False)
                             self._last_results_poll = now
                             self._apply_live_theme()
-                    self.page.update()
+                            changed = True
+                    if changed:
+                        self.page.update()
                 except Exception:
+                    _LOGGER.exception("UI poll failed")
                     continue
 
         thread = threading.Thread(target=loop, name="blockprobe-poller", daemon=True)
@@ -485,10 +503,7 @@ class BlockProbeUi(
         mode = actions.runtime().settings.config.app.theme_mode
         _apply_saved_theme(page, update=False)
         shell = _main_shell(page)
-        dark = mode == "dark" or (
-            mode == "system"
-            and getattr(page, "platform_brightness", None) == ft.Brightness.DARK
-        )
+        dark = dark_for_mode(page, mode)
         apply_palette(shell, dark=dark)
         page.add(ft.SafeArea(content=shell, expand=True))
         _apply_saved_theme(page, update=False)
@@ -499,17 +514,35 @@ class BlockProbeUi(
                 new_ui.apply(result)
             new_ui.start_poller()
 
-    def _render_summary(self, summary: RunSummary | None) -> None:
+    def _render_summary(self, summary: RunSummary | None) -> bool:
         # A previously stored run must not replace the result of a failed new
         # Start request. Keep the current error until the user tries again.
         if self._run_start_failed:
-            return
+            return False
+        signature: tuple[object, ...] = (
+            (
+                summary.run_id,
+                summary.status.value,
+                summary.total,
+                summary.started_at,
+                summary.finished_at,
+                summary.blocked,
+                summary.unreachable,
+                summary.opened,
+                summary.needs_review,
+            )
+            if summary is not None
+            else (None,)
+        )
+        if signature == self._last_poll_signature:
+            return False
+        self._last_poll_signature = signature
         if summary is None:
             self.summary_text.value = t("No run stored yet.")
             if not self._run_feedback_visible:
                 self.progress_text.value = t("No scan is running.")
                 self.progress_bar.value = 0
-            return
+            return True
         self.summary_text.value = t(
             "{status}: {total} websites — {opened} opened, {blocked} blocked, "
             "{unreachable} unreachable, {needs_review} need review.",
@@ -533,6 +566,7 @@ class BlockProbeUi(
         else:
             self.progress_text.value = t("Run {status}.", status=t(summary.status.value.title()))
             self.progress_bar.value = 1
+        return True
 
 
 def build_app(page: ft.Page) -> ft.Control:
@@ -561,6 +595,8 @@ def _main_shell(page: ft.Page) -> ft.Control:
 def main(page: ft.Page) -> None:
     """Build the BlockProbe window and connect its controls to actions."""
     page.title = f"{APP_NAME} {__version__}"
+    # Apply the saved palette before Flet paints the consent or app screen.
+    _apply_saved_theme(page, update=False)
     page.on_platform_brightness_change = lambda _event: _apply_saved_theme(
         page, update=True
     )

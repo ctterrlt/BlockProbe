@@ -104,6 +104,7 @@ jobs:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          EXPECTED_ANDROID_CERT_SHA256: f26ef654fab89fb03dae4db3740d59f49a52e8afb3b1bad74d1c7a677d13ca9d
         run: |
           any_signing_value="${ANDROID_KEYSTORE_BASE64}${ANDROID_KEYSTORE_PASSWORD}${ANDROID_KEY_PASSWORD}${ANDROID_KEY_ALIAS}"
           if [[ "$GITHUB_REF_TYPE" == "tag" && -z "$any_signing_value" ]]; then
@@ -112,6 +113,7 @@ jobs:
           fi
           if [[ -z "$any_signing_value" ]]; then
             echo "::notice::No Android signing secrets set; this non-release build will use Flet's debug key."
+            echo 'ANDROID_RELEASE_SIGNING=0' >> "$GITHUB_ENV"
             exit 0
           fi
           if [[ -z "$ANDROID_KEYSTORE_BASE64" || -z "$ANDROID_KEYSTORE_PASSWORD" || \
@@ -124,8 +126,17 @@ jobs:
           chmod 700 "$signing_dir"
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$signing_dir/upload.jks"
           chmod 600 "$signing_dir/upload.jks"
-          keytool -list -keystore "$signing_dir/upload.jks" \
-            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" >/dev/null
+          keystore_report="$signing_dir/keystore-certificate.txt"
+          keytool -list -v -keystore "$signing_dir/upload.jks" \
+            -storepass "$ANDROID_KEYSTORE_PASSWORD" -alias "$ANDROID_KEY_ALIAS" \
+            > "$keystore_report"
+          keystore_cert="$(awk '/SHA256:/{print $2; exit}' "$keystore_report" \
+            | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [[ "$keystore_cert" != "$EXPECTED_ANDROID_CERT_SHA256" ]]; then
+            echo "::error::Android signing secret is not the established BlockProbe release key."
+            exit 1
+          fi
+          echo 'ANDROID_RELEASE_SIGNING=1' >> "$GITHUB_ENV"
           printf 'FLET_ANDROID_SIGNING_KEY_STORE=%s\n' \
             "$signing_dir/upload.jks" >> "$GITHUB_ENV"
       - if: matrix.target == 'linux'
@@ -158,10 +169,16 @@ jobs:
           exit 1
       - if: matrix.target == 'apk'
         name: Verify signed APK
+        env:
+          EXPECTED_ANDROID_CERT_SHA256: f26ef654fab89fb03dae4db3740d59f49a52e8afb3b1bad74d1c7a677d13ca9d
         run: |
           shopt -s nullglob
           apks=(dist/packages/apk/*.apk)
           [[ "${#apks[@]}" -eq 1 ]]
+          if [[ "${ANDROID_RELEASE_SIGNING:-0}" != "1" ]]; then
+            echo "APK build was a non-release workflow_dispatch using Flet's debug key."
+            exit 0
+          fi
           sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/sdk}}"
           if [[ ! -d "$sdk_root/build-tools" && -d "$HOME/Android/Sdk/build-tools" ]]; then
             sdk_root="$HOME/Android/Sdk"
@@ -172,13 +189,26 @@ jobs:
             echo "Could not find apksigner under $sdk_root/build-tools." >&2
             exit 1
           fi
-          "$apksigner" verify --verbose --print-certs "${apks[0]}"
+          apk_report="$("$apksigner" verify --verbose --print-certs "${apks[0]}")"
+          printf '%s\n' "$apk_report"
+          apk_cert="$(sed -n 's/.*certificate SHA-256 digest: //p' <<< "$apk_report" \
+            | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [[ "$apk_cert" != "$EXPECTED_ANDROID_CERT_SHA256" ]]; then
+            echo "APK is not signed with the established BlockProbe release key." >&2
+            exit 1
+          fi
       - if: matrix.target == 'aab'
         name: Verify signed Android App Bundle
+        env:
+          EXPECTED_ANDROID_CERT_SHA256: f26ef654fab89fb03dae4db3740d59f49a52e8afb3b1bad74d1c7a677d13ca9d
         run: |
           shopt -s nullglob
           bundles=(dist/packages/aab/*.aab)
           [[ "${#bundles[@]}" -eq 1 ]]
+          if [[ "${ANDROID_RELEASE_SIGNING:-0}" != "1" ]]; then
+            echo "AAB build was a non-release workflow_dispatch using Flet's debug key."
+            exit 0
+          fi
           verification="$(jarsigner -verify -verbose -certs "${bundles[0]}" 2>&1)" || {
             printf '%s\n' "$verification"
             exit 1
@@ -186,6 +216,13 @@ jobs:
           if ! grep -q 'jar verified\.' <<< "$verification"; then
             printf '%s\n' "$verification"
             echo "AAB is not validly signed." >&2
+            exit 1
+          fi
+          cert_report="$(keytool -printcert -jarfile "${bundles[0]}")"
+          aab_cert="$(awk '/SHA256:/{print $2; exit}' <<< "$cert_report" \
+            | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [[ "$aab_cert" != "$EXPECTED_ANDROID_CERT_SHA256" ]]; then
+            echo "AAB is not signed with the established BlockProbe release key." >&2
             exit 1
           fi
       - uses: actions/upload-artifact@v4

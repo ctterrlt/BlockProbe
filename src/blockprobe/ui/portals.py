@@ -203,7 +203,6 @@ class SourcesScreen:
                 expand=True,
             )
             self.custom_list.controls.append(row)
-        self.page.update()
         return result
 
     def _remove_custom(self, event: ft.ControlEvent) -> None:
@@ -217,10 +216,6 @@ class SourcesScreen:
 
     def _refresh_portals_view(self) -> actions.ActionResult:
         self.refresh_portal_texts()
-        try:
-            self.page.update()
-        except Exception:
-            pass
         return actions.list_portals()
 
     def refresh_portal_texts(self) -> None:

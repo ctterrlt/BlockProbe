@@ -10,11 +10,15 @@ support personalized parental-control and adult-content-filter checks.
 Build entry point: `python scripts/build.py TARGET` from the repository root.
 Install Python 3.14+ and `python -m pip install -e ".[packaging]"` first.
 Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
-`src/blockprobe/VERSION` is the single version source for Python metadata,
-runtime display, Flet build version/build code, Windows installer and Arch
-package artifact.
+`src/blockprobe/VERSION` is the single version source for runtime display,
+Flet build version/build code, Windows installer and Arch package artifact.
+Hatchling converts SemVer-style prerelease labels to PEP 440 package metadata
+(`1.2.3-gamma` becomes `1.2.3rc0`).
+Android build codes reserve ordered slots for alpha, beta, gamma, release
+candidates and stable versions, so a later prerelease can update an earlier
+one without changing the package identity or signing key.
 
-The current local development version is `1.2.3-alpha`. `python
+The current local development version is `1.2.3-gamma`. `python
 scripts/build.py all` rebuilds the targets available on the current host and
 cleans target-specific previous artifacts first.
 

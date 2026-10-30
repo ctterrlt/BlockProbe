@@ -23,9 +23,12 @@
 | Muted text | `#53635F` |
 | Accent | `#176B5B` |
 
-The app uses a light Material 3 palette for clear contrast on phone screens.
-The splash and generated icon backgrounds are configured separately in
-`pyproject.toml`.
+The app uses a light or dark Material 3 palette with explicit semantic colors
+for readable text, status and cards. System appearance is the default. The
+native splash background follows light/dark mode, and `src/assets/splash.png`
+uses the same branded artwork as the app icon so the white shield remains
+visible on a light background. Splash colors and boot-screen theme are
+configured in `pyproject.toml`.
 
 ## App icon
 

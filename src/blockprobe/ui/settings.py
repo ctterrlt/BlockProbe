@@ -18,6 +18,7 @@ from blockprobe.ui.components import (
     button,
     card,
     hero,
+    prepare_dialog,
     text,
 )
 
@@ -133,15 +134,30 @@ class SettingsScreen:
         )
 
     def _settings_view(self) -> ft.Control:
-        return ft.Column(
+        self.settings_header = hero(
+            t("Tune your checks"),
+            t("Manage network checks, updates and local data from one place."),
+            icon=ft.Icons.TUNE,
+        )
+        self.settings_cards: list[ft.Container] = []
+
+        def settings_card(title: str, body: ft.Control, *, expand: bool = False) -> ft.Container:
+            item = card(title, body, expand=expand)
+            self.settings_cards.append(item)
+            return item
+
+        self._schedule_field_slots: list[ft.Container] = []
+
+        def schedule_slot(control: ft.Control) -> ft.Container:
+            slot = ft.Container(content=control, col={"xs": 12, "sm": 4})
+            self._schedule_field_slots.append(slot)
+            return slot
+
+        self.settings_root = ft.Column(
             [
-                hero(
-                    t("Tune your checks"),
-                    t("Manage network checks, updates and local data from one place."),
-                    icon=ft.Icons.TUNE,
-                ),
-                card(t("Appearance"), self.theme_dropdown),
-                card(
+                self.settings_header,
+                settings_card(t("Appearance"), self.theme_dropdown),
+                settings_card(
                     t("Probe settings"),
                     ft.Column(
                         [
@@ -172,7 +188,7 @@ class SettingsScreen:
                         spacing=10,
                     ),
                 ),
-                card(
+                settings_card(
                     t("Portal updates"),
                     ft.Column(
                         [
@@ -189,7 +205,7 @@ class SettingsScreen:
                         spacing=10,
                     ),
                 ),
-                card(
+                settings_card(
                     t("Scheduled scans (off by default)"),
                     ft.Column(
                         [
@@ -203,17 +219,9 @@ class SettingsScreen:
                             ),
                             ft.ResponsiveRow(
                                 [
-                                    ft.Container(
-                                        content=self.schedule_frequency,
-                                        col={"xs": 12, "sm": 4},
-                                    ),
-                                    ft.Container(
-                                        content=self.schedule_time, col={"xs": 12, "sm": 4}
-                                    ),
-                                    ft.Container(
-                                        content=self.schedule_weekday,
-                                        col={"xs": 12, "sm": 4},
-                                    ),
+                                    schedule_slot(self.schedule_frequency),
+                                    schedule_slot(self.schedule_time),
+                                    schedule_slot(self.schedule_weekday),
                                 ],
                                 run_spacing=10,
                             ),
@@ -243,7 +251,7 @@ class SettingsScreen:
                         spacing=10,
                     ),
                 ),
-                card(
+                settings_card(
                     t("Danger zone"),
                     ft.Column(
                         [
@@ -280,6 +288,7 @@ class SettingsScreen:
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
+        return self.settings_root
 
     def _save_settings(self) -> actions.ActionResult:
         try:
@@ -340,8 +349,28 @@ class SettingsScreen:
         apply_page_theme(self.page, value)
 
     def refresh_settings_layout(self, compact: bool) -> None:
-        """Keep scan concurrency adjustable on both phone and desktop layouts."""
+        """Use compact spacing and a two-column schedule form on phones."""
         self.concurrency_field.visible = True
+        self.settings_root.spacing = 10 if compact else 16
+        self.settings_header.padding = ft.Padding.symmetric(
+            horizontal=4, vertical=3 if compact else 6
+        )
+        header_content = self.settings_header.content
+        if isinstance(header_content, ft.Row) and len(header_content.controls) > 1:
+            heading = header_content.controls[1]
+            if isinstance(heading, ft.Column) and len(heading.controls) > 1:
+                title, description = heading.controls[:2]
+                if isinstance(title, ft.Text):
+                    title.size = 19 if compact else 22
+                if isinstance(description, ft.Text):
+                    description.size = 12 if compact else 14
+        for item in self.settings_cards:
+            item.padding = ft.Padding.symmetric(
+                horizontal=12 if compact else 16,
+                vertical=10 if compact else 14,
+            )
+        for slot in self._schedule_field_slots:
+            slot.col = {"xs": 6, "sm": 4} if compact else {"xs": 12, "sm": 4}
 
     def _install_schedule(self) -> actions.ActionResult:
         try:
@@ -431,5 +460,10 @@ class SettingsScreen:
                     on_click=confirm,
                 ),
             ],
+        )
+        prepare_dialog(
+            self.page,
+            dialog,
+            actions.runtime().settings.config.app.theme_mode,
         )
         self.page.show_dialog(dialog)

@@ -19,6 +19,7 @@ from blockprobe.ui.components import (
     SURFACE,
     TEXT,
     WARN,
+    apply_page_theme,
     button,
     card,
     hero,
@@ -227,11 +228,19 @@ class ResultsScreen:
     def _on_results_search_change(self, _event: ft.ControlEvent) -> None:
         self._results_search_dirty = True
 
-    def refresh_results(self, *, update_page: bool = True) -> actions.ActionResult:
+    def refresh_results(self, *, update_page: bool = False) -> actions.ActionResult:
         self._results_search_dirty = False
         summary = actions.latest_run_summary()
         signature: tuple[object, ...] | None = (
-            (summary.run_id, summary.total, summary.status.value)
+            (
+                summary.run_id,
+                summary.total,
+                summary.blocked,
+                summary.unreachable,
+                summary.opened,
+                summary.needs_review,
+                summary.status.value,
+            )
             if summary is not None
             else None
         )
@@ -317,7 +326,15 @@ class ResultsScreen:
                 resolved=len(comparison.resolved),
             )
         self._results_key = (
-            (summary.run_id, summary.total, summary.status.value)
+            (
+                summary.run_id,
+                summary.total,
+                summary.blocked,
+                summary.unreachable,
+                summary.opened,
+                summary.needs_review,
+                summary.status.value,
+            )
             if summary is not None
             else None
         )
@@ -363,6 +380,11 @@ class ResultsScreen:
         if self._result_page_index > 0:
             self._result_page_index -= 1
             self._render_result_page()
+            apply_page_theme(
+                self.page,
+                actions.runtime().settings.config.app.theme_mode,
+                update=False,
+            )
             self.page.update()
 
     def _next_results_page(self, _event: object = None) -> None:
@@ -370,6 +392,11 @@ class ResultsScreen:
         if self._result_page_index < last_page:
             self._result_page_index += 1
             self._render_result_page()
+            apply_page_theme(
+                self.page,
+                actions.runtime().settings.config.app.theme_mode,
+                update=False,
+            )
             self.page.update()
 
     def _export(self, action: Callable[[], actions.ActionResult]) -> actions.ActionResult:
@@ -377,10 +404,6 @@ class ResultsScreen:
         self.export_status.value = (
             f"{result.title}: {result.detail}" if result.detail else result.title
         )
-        try:
-            self.page.update()
-        except Exception:
-            pass
         return result
 
     @classmethod

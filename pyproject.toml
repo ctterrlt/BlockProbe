@@ -77,8 +77,9 @@ Repository = "https://github.com/ctterrlt/BlockProbe"
 Issues = "https://github.com/ctterrlt/BlockProbe/issues"
 
 [tool.hatch.version]
-path = "src/blockprobe/VERSION"
-pattern = "(?P<version>[^\\s]+)"
+source = "code"
+path = "scripts/hatch_version.py"
+expression = "pep440_version()"
 
 [tool.ruff]
 line-length = 110
@@ -127,7 +128,7 @@ assets_dir = "assets"
 
 [tool.flet.splash]
 color = "#F4F7F6"
-dark_color = "#F4F7F6"
+dark_color = "#111816"
 
 [tool.flet.android]
 split_per_abi = false
@@ -151,11 +152,11 @@ artifact = "blockprobe"
 name = "flet"
 
 [tool.flet.boot_screen.flet]
-theme_mode = "light"
-bgcolor = "#F4F7F6"
-spinner_color = "#176B5B"
-bgcolor_dark = "#F4F7F6"
-spinner_color_dark = "#176B5B"
+theme_mode = "system"
+bgcolor_light = "#F4F7F6"
+spinner_color_light = "#176B5B"
+bgcolor_dark = "#111816"
+spinner_color_dark = "#67B8A7"
 spinner_size = 28
 prepare_message = "Preparing BlockProbe…"
 startup_message = "Starting BlockProbe…"

@@ -582,11 +582,19 @@ def classify(
         }.get(error_kind, ReasonCode.CONNECT_FAILURE)
         if observation.connect and observation.connect.error_kind == "tls_failure":
             reason = ReasonCode.TLS_FAILURE
-        needs_review = bool(evidence.get("possibly_blocked"))
+        # A failed probe cannot prove that the site is unavailable in a real
+        # browser: browsers may use different DNS, TLS and HTTP behavior. Keep
+        # these as uncertain so transient or client-specific failures are not
+        # displayed as a definitive unreachable verdict.
+        needs_review = True
+        evidence["note"] = (
+            "BlockProbe received no HTTP response. This does not prove that the "
+            "site is unavailable in a browser or through another DNS path."
+        )
         return Classification(
             verdict=Verdict.UNREACHABLE,
             reason_code=reason.value,
-            confidence=Confidence.LOW if needs_review else Confidence.MEDIUM,
+            confidence=Confidence.LOW,
             needs_review=needs_review,
             evidence=evidence,
         )

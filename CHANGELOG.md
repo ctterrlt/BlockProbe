@@ -17,6 +17,27 @@ All notable changes to this project are documented here. The format follows
 - Made scan concurrency configurable in Settings within platform limits:
   three on Android/iOS and eight elsewhere.
 
+## [1.2.3-gamma] — 2026-10-30
+
+### Fixed
+
+- Follow the operating system appearance during startup and use matching light
+  and dark launch colors; apply the saved app theme before the first screen is
+  painted.
+- Improve contrast in consent dialogs, scan progress, portal errors and result
+  verdicts in both appearance modes.
+- Label probe failures without an HTTP response as needing review, since those
+  failures alone cannot prove that a site is unavailable in a browser.
+- Give each Android prerelease stage its own increasing version code, so this
+  gamma update can replace earlier alpha/beta builds without reinstalling.
+- Keep newly generated portal and result content in the selected theme, reduce
+  redundant scan-poller updates, and refresh live results as verdict counts
+  change.
+- Show action feedback with a fresh notification control so a later action can
+  replace a visible message reliably.
+- Make Settings denser on phones and use a two-column schedule form at compact
+  widths.
+
 ## [1.2.3-alpha] — 2026-10-30
 
 ### Changed
