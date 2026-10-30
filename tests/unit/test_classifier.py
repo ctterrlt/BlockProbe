@@ -223,10 +223,12 @@ def test_404_and_500_are_unreachable_not_blocked() -> None:
     assert broken.reason_code == ReasonCode.HTTP_ERROR.value
 
 
-def test_empty_page_is_unreachable() -> None:
+def test_empty_success_page_is_opened_but_needs_review() -> None:
     result = classify(observe(fetch=make_fetch(body="", status=200)))
-    assert result.verdict is Verdict.UNREACHABLE
+    assert result.verdict is Verdict.OPENED
     assert result.reason_code == ReasonCode.EMPTY_PAGE.value
+    assert result.confidence is Confidence.LOW
+    assert result.needs_review is True
 
 
 def test_timeout_with_connect_evidence_is_unreachable_and_flagged() -> None:

@@ -686,10 +686,10 @@ def classify(
             )
         if visible_length < 64:
             return Classification(
-                verdict=Verdict.UNREACHABLE,
+                verdict=Verdict.OPENED,
                 reason_code=ReasonCode.EMPTY_PAGE.value,
-                confidence=Confidence.MEDIUM,
-                needs_review=False,
+                confidence=Confidence.LOW,
+                needs_review=True,
                 title=title,
                 evidence=evidence,
             )
@@ -737,6 +737,15 @@ def classify(
             evidence=evidence,
         )
     if not body:
+        if status is not None and 200 <= status < 300:
+            return Classification(
+                verdict=Verdict.OPENED,
+                reason_code=ReasonCode.EMPTY_PAGE.value,
+                confidence=Confidence.LOW,
+                needs_review=True,
+                title=title,
+                evidence=evidence,
+            )
         return Classification(
             verdict=Verdict.UNREACHABLE,
             reason_code=ReasonCode.EMPTY_PAGE.value,

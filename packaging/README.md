@@ -3,6 +3,10 @@
 
 # Packaging
 
+BlockProbe checks user-selected websites to help assess website filters. The
+built-in regulator feeds focus on gambling domains; custom-site scans also
+support personalized parental-control and adult-content-filter checks.
+
 Build entry point: `python scripts/build.py TARGET` from the repository root.
 Install Python 3.14+ and `python -m pip install -e ".[packaging]"` first.
 Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.

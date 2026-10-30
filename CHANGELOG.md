@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Clarified that BlockProbe supports personalized website-filter checks,
+  including parental controls and adult-content filters, while built-in
+  regulator feeds remain focused on gambling domains.
+- Made scan concurrency configurable in Settings within platform limits:
+  three on Android/iOS and eight elsewhere.
+
 ## [1.2.3-alpha] — 2026-10-30
 
 ### Changed
@@ -166,7 +176,7 @@ from it.
 ### Security
 
 - Fetched pages are treated as hostile: no JavaScript execution, size-capped
-  bodies, no stored response bodies, no link rendering for gambling domains.
+  bodies, no stored response bodies, and no clickable links for scanned domains.
 - HTTPS certificates and hostnames are verified. The cache is now in-memory
   JSON with bounded LRU/TTL behavior; it no longer stores pickle-backed entries
   on disk.

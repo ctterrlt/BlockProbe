@@ -30,6 +30,12 @@ DEFAULT_CONTROL_URLS = [
     "https://www.cloudflare.com/",
 ]
 
+# Mobile devices have tighter thermal, battery, and radio budgets than desktop
+# machines. Keep the network fan-out deliberately small even if a desktop
+# config was copied onto the phone.
+MOBILE_MAX_SCAN_CONCURRENCY = 3
+DEFAULT_MAX_SCAN_CONCURRENCY = 8
+
 
 def default_data_dir() -> Path:
     return Path(user_data_dir(APP_NAME, appauthor=False))
@@ -361,8 +367,10 @@ def _merge_config(data: dict[str, Any], path: Path | None = None) -> AppConfig:
     env_debug = _debug_from_env()
     if env_debug is not None:
         config.app.debug = env_debug
-    if is_mobile():
-        config.probe.concurrency = min(config.probe.concurrency, 8)
+    concurrency_cap = (
+        MOBILE_MAX_SCAN_CONCURRENCY if is_mobile() else DEFAULT_MAX_SCAN_CONCURRENCY
+    )
+    config.probe.concurrency = min(config.probe.concurrency, concurrency_cap)
     return config
 
 

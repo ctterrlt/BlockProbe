@@ -8,19 +8,23 @@ build-backend = "hatchling.build"
 [project]
 name = "blockprobe"
 dynamic = ["version"]
-description = "Local-first tool that verifies whether gambling sites remain reachable after installing a blocker."
+description = "Local-first tool for checking website filters, parental controls and user-selected domains."
 readme = "README.md"
 requires-python = ">=3.14"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Christian", email = "tursi.christian9@gmail.com" }]
 keywords = [
+    "adult-content-filtering",
     "betblocker",
+    "content-filtering",
     "dns-filter",
     "gambling",
     "local-first",
+    "parental-controls",
     "privacy",
     "self-exclusion",
+    "website-filtering",
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",

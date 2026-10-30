@@ -3,10 +3,11 @@
 
 # Contributing
 
-Thanks for taking the time to improve BlockProbe. This project checks whether
-gambling websites are still reachable after a blocker is installed, so accuracy
-and honesty matter more than features: a wrong verdict is worse than a
-"needs review".
+Thanks for taking the time to improve BlockProbe. The project checks selected
+websites to help people assess blockers and filters. It began with gambling-site
+blockers, while custom scans also support use cases such as adult-content
+filtering and parental controls. Accuracy and clear limits matter: a wrong
+verdict is worse than a "needs review".
 
 ## Before you start
 

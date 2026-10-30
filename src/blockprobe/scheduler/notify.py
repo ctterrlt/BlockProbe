@@ -76,7 +76,7 @@ def leaks_message(opened: int, total: int, newly_leaking: int | None = None) -> 
         )
     if opened <= 0:
         return (
-            f"No gambling website opened in the latest run ({total} checked): "
-            "the blocker looks effective right now."
+            f"No website opened in the latest run ({total} checked): "
+            "the filter blocked the selected sites on this network path."
         )
-    return f"{opened} of {total} checked gambling websites opened in the latest run."
+    return f"{opened} of {total} checked websites opened in the latest run."

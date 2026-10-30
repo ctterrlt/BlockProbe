@@ -8,6 +8,13 @@ crash reporting and no BlockProbe server. This page lists exactly what is
 stored, where it goes and how to remove it. It is a technical description, not
 legal advice.
 
+BlockProbe began as a way to check gambling-site blockers. Its built-in public
+regulator feeds still focus on gambling domains, while custom domains support
+personalized checks for other filtering needs, including adult-content filters
+and parental controls. The app probes only selected domain endpoints; it does
+not inspect browsing history or determine whether all content within a site is
+filtered.
+
 ## First-run consent
 
 Before the first network request the app shows a consent screen with five
@@ -123,10 +130,11 @@ scans only; Android background scheduling is not implemented. Android Private
 DNS settings are not reliably readable by the app, so diagnostics cannot
 confirm that setting on every device.
 
-## Harm reduction
+## Responsible use and harm reduction
 
 Results are indicative, never a guarantee that a blocker works in every browser
-or on every network. Gambling domains are shown as plain text, never as links.
-If gambling is affecting you, use the support resources for your country; the
-app is not a medical or legal service and does not provide access to gambling
-sites.
+or on every network. Scanned domains are shown as plain text, never as links.
+BlockProbe does not verify every browser, app, profile, or content category and
+is not a parental-control, medical, or legal service. It does not provide
+access to gambling or adult-content services. If gambling is affecting you,
+use the support resources for your country.

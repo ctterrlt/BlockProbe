@@ -21,6 +21,7 @@ from blockprobe.ui.components import (
     MUTED,
     TEXT,
     apply_page_theme,
+    apply_palette,
     button,
     text,
 )
@@ -81,13 +82,17 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
         result = actions.save_settings(language=selected)
         if not result.ok:
             return
+        mode = actions.runtime().settings.config.app.theme_mode
+        apply_page_theme(page, mode, update=False)
         page.clean()
-        page.add(ft.SafeArea(content=consent_view(page, on_accepted), expand=True))
-        apply_page_theme(
-            page,
-            actions.runtime().settings.config.app.theme_mode,
-            update=False,
+        view = consent_view(page, on_accepted)
+        dark = mode == "dark" or (
+            mode == "system"
+            and getattr(page, "platform_brightness", None) == ft.Brightness.DARK
         )
+        apply_palette(view, dark=dark)
+        page.add(ft.SafeArea(content=view, expand=True))
+        apply_page_theme(page, mode, update=False)
         page.update()
 
     # Flet 1.x Dropdown emits selection through on_select. Assigning an

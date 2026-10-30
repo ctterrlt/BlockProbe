@@ -273,6 +273,13 @@ class ScanService:
         )
 
     def _start_background(self, run: RunRecord, sites: list[Site]) -> None:
+        # Settings are persisted independently from the service instance.
+        # Rebuild the engine for every run so changed concurrency/timeouts
+        # take effect on the next scan, including after mobile caps apply.
+        self._engine = ProbeEngine(
+            engine_from_settings(self.settings.config, self.settings.config.debug),
+            self._rules,
+        )
         control = RunControl()
         self._active_run = run
         self._control = control

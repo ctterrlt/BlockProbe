@@ -114,7 +114,7 @@ def collect_network_context() -> NetworkContext:
     if filters:
         notes.append(
             "A resolver with content filtering is active. Its policy is local "
-            "and may or may not include gambling domains."
+            "and may or may not include the domains selected for this scan."
         )
     return NetworkContext(
         timestamp=utc_now(),

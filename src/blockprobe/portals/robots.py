@@ -18,7 +18,7 @@ from blockprobe import APP_NAME
 
 USER_AGENT = (
     f"{APP_NAME}/1.0 (+https://github.com/ctterrlt/BlockProbe; "
-    "local-first gambling-site blocker check)"
+    "local-first website-filter check)"
 )
 
 

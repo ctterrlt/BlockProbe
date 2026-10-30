@@ -22,7 +22,7 @@ from blockprobe import __version__
 app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
-    help="Verify that gambling sites are still blocked on this device.",
+    help="Check whether selected websites are blocked or reachable on this device.",
 )
 signature_app = typer.Typer(help="Capture and inspect block-page signatures.")
 portals_app = typer.Typer(help="Inspect the configured portal list.")

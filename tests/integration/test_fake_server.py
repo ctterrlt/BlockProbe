@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 
 import pytest
 
-from blockprobe.core.enums import ReasonCode, SignatureKind, Verdict
+from blockprobe.core.enums import Confidence, ReasonCode, SignatureKind, Verdict
 from blockprobe.core.models import (
     DnsResult,
     ProbeObservation,
@@ -140,11 +140,13 @@ async def test_challenge_page_counts_as_reachable(fake_server: str) -> None:
     assert classification.reason_code == ReasonCode.CHALLENGE_PAGE.value
 
 
-async def test_empty_page_is_not_a_leak(fake_server: str) -> None:
+async def test_empty_success_page_is_reachable_and_needs_review(fake_server: str) -> None:
     result = await fetch(f"{fake_server}/empty")
     classification = classify(_observation(f"{fake_server}/empty", result))
-    assert classification.verdict is Verdict.UNREACHABLE
+    assert classification.verdict is Verdict.OPENED
     assert classification.reason_code == ReasonCode.EMPTY_PAGE.value
+    assert classification.confidence is Confidence.LOW
+    assert classification.needs_review is True
 
 
 async def test_missing_page_is_dead(fake_server: str) -> None:

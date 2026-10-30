@@ -32,7 +32,7 @@ _TRANSPORT_REASONS = {
 
 @dataclass(slots=True)
 class ControlCheck:
-    """One request to a neutral, non-gambling website."""
+    """One request to a neutral control website outside the scan selection."""
 
     url: str
     ok: bool

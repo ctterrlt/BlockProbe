@@ -171,4 +171,4 @@ def test_leaks_message_only_reports_new_leaks() -> None:
         opened=4, total=10, newly_leaking=2
     )
     assert "4 of 10" in leaks_message(opened=4, total=10)
-    assert "No gambling website opened" in leaks_message(opened=0, total=10)
+    assert "No website opened" in leaks_message(opened=0, total=10)

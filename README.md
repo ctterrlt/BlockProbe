@@ -9,9 +9,9 @@
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
-BlockProbe is an open-source, local-first tool that verifies whether gambling websites remain reachable from a device after a blocker such as BetBlocker, Gamban, or a DNS filter has been installed. It collects domains from public regulator portals, probes each domain through the device's own network path, and classifies the outcome as **blocked**, **unreachable**, or **open**.
+BlockProbe is an open-source, local-first tool for checking whether website filters and blockers behave as expected on a device. It began as a way to check gambling-site blockers such as BetBlocker and Gamban, and its built-in regulator feeds still focus on gambling websites. The same probe engine can check sites chosen by the user to assess other filtering use cases, including adult-content filters and parental controls. It classifies each selected domain as **blocked**, **unreachable**, **open**, or **could not verify**, with evidence and confidence.
 
-The project is intended for people who need evidence about whether a blocker is working as expected, and for blocker maintainers who need reproducible reports about leaks.
+The project is for people and families who want local evidence about website filtering, and for filter maintainers who need reproducible reports. It checks only the domains selected for a scan; it does not browse pages, inspect their full content, or certify a filter across every app, browser, profile, or network.
 
 ## Status
 
@@ -65,7 +65,8 @@ silently doing nothing.
 
 ## Capabilities
 
-- **Portal collection.** Downloads regulator-published domain lists from Italy (ADM), Spain (DGOJ), Portugal (SRIJ), France (ANJ), Germany (GGL), and the Malta Gaming Authority (MGA). The MGA source is its international list of URLs falsely claiming MGA affiliation, not a worldwide licence list. Updates respect robots.txt, use rate limits and pagination, and append new domains without deleting existing ones.
+- **Built-in gambling sources.** Downloads regulator-published gambling-domain lists from Italy (ADM), Spain (DGOJ), Portugal (SRIJ), France (ANJ), Germany (GGL), and the Malta Gaming Authority (MGA). The MGA source is its international list of URLs falsely claiming MGA affiliation, not a worldwide licence list. Updates respect robots.txt, use rate limits and pagination, and append new domains without deleting existing ones.
+- **Personalized scans.** Add domains that matter to your own filtering setup, then select only those custom sites or combine them with built-in sources. This supports checks of adult-content filtering, parental controls, and other user-selected website categories; custom domains are never fetched as a feed. A domain-level probe can show whether a site responds on this device's network path, but cannot confirm that all pages or content within that site are filtered.
 - **Local probing.** Resolves each domain through the system resolver, checks TCP/TLS connectivity, and fetches a bounded HTTP response. Tests the host as listed plus its apex and `www` variants.
 - **Redirect and new-window evidence.** Records 302/307/308 chains, static `<meta refresh>`, `window.open`, `location` targets and reopen-on-return hints without executing JavaScript or downloading assets. A target on a known blocker landing page is blocked from the URL alone.
 - **Evidence-based classification.** Applies ordered signature rules to page content, headers, and redirect chains. Verdicts carry a reason code, confidence, and evidence; no verdict is inferred from an HTTP status code alone.
@@ -157,9 +158,10 @@ Dependencies are declared in `pyproject.toml`. FastAPI is constrained to a relea
 
 The native Flet app is the primary interface. The first launch shows the
 consent notice; nothing touches the network until it is accepted. The main
-window then offers six screens: **Run** (source selection, preview, start,
-pause, resume, cancel), **Sources** (add a regulator feed or individual
-custom websites in separate forms; scan selections keep them separate),
+window then offers six screens: **Run** (choose a source or personalized set,
+preview, start, pause, resume, cancel), **Sources** (add a regulator feed or
+individual custom websites in separate forms; scan selections keep them
+separate),
 **Results** (filters, comparison, exports), **Logs**, **Settings** and **Help**.
 
 The CLI provides the same use cases. A typical session:
@@ -179,7 +181,7 @@ Useful variations:
 
 ```console
 blockprobe scan --portal "ADM" --no-refresh
-blockprobe custom add example.it   # your own websites (never fetched by an update)
+blockprobe custom add example.it   # a personally selected site; never fetched as a feed
 blockprobe scan --custom-only --wait
 blockprobe scan --notify           # desktop notification about new leaks
 blockprobe report -f json --leaks-only
@@ -244,9 +246,9 @@ Fetched pages are treated as hostile input: scripts are never executed, files ar
 
 ## Responsible use
 
-Use BlockProbe only on devices you own or have explicit permission to test. Gambling domains are displayed as plain text, never as clickable links, and the tool does not provide access to gambling services.
+Use BlockProbe only on devices you own or have explicit permission to test. Scanned domains are displayed as plain text, never as clickable links. The app does not provide access to gambling or adult-content services.
 
-Results are indicative. They reflect the network path and resolver of the device at the time of the scan and should not be treated as a guarantee that a blocker is effective in every browser or configuration. BlockProbe is not a medical or legal service and does not provide access to gambling services. If gambling is affecting you or someone close to you, contact the support service for your country.
+Results are indicative. They reflect the network path and resolver of the device at scan time and are not a guarantee that a filter works in every browser, app, profile, or configuration. A domain-level response cannot establish whether all content on a site is blocked. BlockProbe is not a medical, legal, or parental-control service and does not change device restrictions. For gambling-related support, contact a service in your country.
 
 ## Roadmap
 

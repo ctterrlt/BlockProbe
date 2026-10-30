@@ -15,12 +15,15 @@ IssueTracker: https://github.com/ctterrlt/BlockProbe/issues
 Changelog: https://github.com/ctterrlt/BlockProbe/blob/HEAD/CHANGELOG.md
 
 Name: BlockProbe
-Summary: Check whether gambling sites remain reachable through your blocker
+Summary: Check website filters on selected domains
 Description: |-
-  BlockProbe is a local-first Android, desktop and web tool that checks
-  whether gambling websites remain reachable after a blocker or filtering DNS
-  service has been installed. It runs control checks and compares them with
-  selected regulator portals, then reports which sites still respond.
+  BlockProbe is a local-first Android, desktop and web tool for checking
+  whether selected websites are blocked or reachable through the device's
+  network path. It began with gambling-site blockers and includes regulator
+  feeds for that use case. Personalized scans can also check user-selected
+  domains for parental controls, adult-content filters and other website
+  filtering setups. It reports evidence and uncertainty without inspecting
+  every page or certifying a filter.
 
   The app ships with official regulator sources for several jurisdictions and
   lets you add custom portals. Results are stored locally; BlockProbe does not

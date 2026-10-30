@@ -3,18 +3,27 @@
 
 # Portals
 
-A portal is a public regulator page that publishes a list of licensed or
-blocked gambling websites. BlockProbe ships Italy's ADM Concessionari list,
+A portal is a public page that publishes a domain list. BlockProbe currently
+ships regulator feeds for gambling websites: Italy's ADM Concessionari list,
 Spain's DGOJ licensed operator directory, Portugal's SRIJ licensed operator
 list, France's ANJ approved operator list, and Germany's GGL whitelist. It also
 ships the Malta Gaming Authority's international list of URLs falsely claiming
 MGA affiliation. That warning list is not a worldwide licensed-operator
-register. Each source is bundled as TOML and as an app default for packaged
+register. These built-in feeds reflect BlockProbe's origins in testing
+gambling-site blockers; they are not general-purpose parental-control
+blocklists. Each source is bundled as TOML and as an app default for packaged
 installs.
 
-“Custom websites” are user-entered domains, not official portal feeds. The
-Sources screen is where users add those domains. The scan picker supports
-searching portal names, so a longer list stays easy to navigate.
+“Custom websites” are user-entered domains, not official portal feeds. They
+let people create personalized scans for sites relevant to their own filters,
+including adult-content filtering and parental-control checks, or simply add
+sites absent from the built-in feeds. The Sources screen is where users add
+those domains. The scan picker supports searching portal names, so a longer
+list stays easy to navigate.
+
+Scans test whether selected domains respond through this device's network
+path. They do not browse a site or verify that every page or type of content is
+filtered. See [Privacy](PRIVACY.md) for network and data details.
 
 There is no single authoritative international gambling licence list. The MGA
 feed contains URLs named by the Authority as falsely claiming MGA affiliation;

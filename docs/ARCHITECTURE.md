@@ -32,7 +32,9 @@ version fields, and `scripts/build.py` passes it to Flet as the display version
 and derives the Android build code from it. The Flet UI uses a responsive
 Material 3 theme that follows OS brightness by default, with saved light and
 dark overrides. The scan source picker includes every enabled portal definition
-and the user-maintained custom domain list.
+and the user-maintained custom domain list, allowing focused, personalized
+checks. Built-in regulator feeds currently cover gambling domains; custom
+domains can represent other filtering categories.
 
 ```text
 src/
@@ -152,7 +154,7 @@ when the process exits. Values are serialized as JSON, not Python pickle data.
 - Fetched pages are treated as hostile: no JavaScript is executed, no file is
   downloaded, bodies are size-capped, and response bodies are never stored
   (only a hash and key phrases in a captured fingerprint).
-- Gambling domains are rendered as plain text, never as links.
+- Scanned domains are rendered as plain text, never as links.
 - Probing is HTTP-only outbound; no port scanning, no root, no permissions
   beyond network access.
 - The local web UI binds to `127.0.0.1` and is intended for the same machine.

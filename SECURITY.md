@@ -7,6 +7,11 @@ BlockProbe treats fetched web content as hostile input, stores everything
 locally and never executes JavaScript from scanned pages. Security reports are
 welcome, and private disclosure is strongly preferred.
 
+BlockProbe checks selected domains against the network path of the current
+device. It started with gambling-site blockers and also supports personalized
+checks for other website filters. It does not inspect complete site content or
+certify a blocker or parental-control setup.
+
 HTTPS requests verify certificate chains and hostnames. The transient view
 cache stores JSON in process memory and does not deserialize cache files. The
 current locked dependencies passed `pip-audit` on 2026-10-29; this checks known
@@ -58,7 +63,8 @@ In scope:
 - storage corruption, migration failures or bypasses of the append-only and
   guarded-reset protections;
 - classifier logic that can produce a "blocked" verdict without real evidence
-  (a safety property of the tool, not just a bug).
+  or overstate what a domain-level check proves (a safety property of the tool,
+  not just a bug).
 
 Out of scope:
 

@@ -3,6 +3,12 @@
 
 # F-Droid
 
+BlockProbe is a general website-filter checker. Its built-in regulator feeds
+focus on gambling domains, while custom-site scans support other user-selected
+checks such as parental controls and adult-content filtering. The app tests
+domain responses on the device's network path; it does not inspect complete
+sites or certify filtering across every app and browser.
+
 BlockProbe publishes through the official F-Droid repository. F-Droid builds
 the app from the tagged source and signs the published APK with its own key;
 upstream APKs are never uploaded to F-Droid.

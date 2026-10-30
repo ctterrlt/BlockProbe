@@ -6,14 +6,15 @@
 ## Our pledge
 
 BlockProbe is built by and for people who want reliable, private evidence about
-gambling-site blockers. We want participation to be a harassment-free
+website filters, including gambling-site blockers and parental controls. We
+want participation to be a harassment-free
 experience for everyone, regardless of age, body size, visible or invisible
 disability, ethnicity, sex characteristics, gender identity and expression,
 level of experience, education, socio-economic status, nationality, personal
 appearance, race, colour, religion, or sexual identity and orientation.
 
-Gambling harm is personal for many contributors and users. Discuss the code and
-the evidence, never the person.
+Filtering choices and gambling harm can be personal for contributors and
+users. Discuss the code and evidence, never the person or their family.
 
 ## Scope
 
@@ -26,12 +27,13 @@ public.
 - Be respectful of differing viewpoints and experiences; assume good faith.
 - Give and accept constructive technical criticism; critique code and evidence,
   not people.
-- Never post real user data, private contact details or anyone's gambling
-  activity. Evidence in reports is sanitized.
+- Never post real user data, private contact details, anyone's browsing history,
+  or personal details about their filtering or gambling activity. Evidence in
+  reports is sanitized.
 - Respect privacy: never ask someone to reveal more about their network,
   location or habits than a technical report needs.
-- Do not use the project to advertise gambling services, blockers, or any other
-  commercial product.
+- Do not use the project to advertise gambling or adult-content services,
+  blockers, parental-control products, or other commercial products.
 
 ## Unacceptable behaviour
 
@@ -39,7 +41,8 @@ public.
 - Sexualized language or imagery, or unwelcome sexual attention.
 - Trolling, deliberate derailing, or sustained disruption of discussions.
 - Publishing others' private information without explicit permission.
-- Encouraging others to gamble, or shaming people for gambling-related harm.
+- Encouraging others to gamble, or shaming people for gambling-related harm or
+  their family's filtering choices.
 - Any conduct that would reasonably be considered inappropriate in a
   professional setting.
 

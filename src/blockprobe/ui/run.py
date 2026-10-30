@@ -149,8 +149,8 @@ class RunScreen:
                         [
                             text(
                                 t(
-                                    "Add a portal feed or a single website in Sources; "
-                                    "scans keep them separate."
+                                    "Use custom sites for personalized checks, such as "
+                                    "parental controls; scans keep sources separate."
                                 ),
                                 12,
                             ),
@@ -194,7 +194,7 @@ class RunScreen:
             [
                 hero(
                     t("Scan this device's network path"),
-                    t("Choose a source, preview the websites, then start a scan."),
+                    t("Choose regulator lists or custom sites for a focused filter check."),
                     icon=ft.Icons.RADAR,
                 ),
                 sources_card,

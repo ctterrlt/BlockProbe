@@ -6,7 +6,10 @@
 BlockProbe classifies a page from evidence, not from assumptions. Signature
 rules are the last resort after connection-level evidence. **No invented rules
 are shipped**: the repository contains only the two BetBlocker rules reproduced
-from the live block page, plus optional test-only rules. A scan that cannot
+from the live block page, plus optional test-only rules. These signatures are
+specific to the project's gambling-blocker origins; they are not a general
+classifier for adult-content or other parental-control categories. Those use
+cases rely on selected-domain reachability results. A scan that cannot
 justify a verdict reports `opened` with low confidence and
 `needs_review = true` instead of guessing.
 

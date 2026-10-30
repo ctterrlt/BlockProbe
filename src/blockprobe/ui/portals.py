@@ -68,7 +68,10 @@ class SourcesScreen:
             [
                 hero(
                     t("Your scan sources"),
-                    t("Use a regulator list or add domains you want to check."),
+                    t(
+                        "Regulator feeds cover gambling sites; custom domains let "
+                        "you test your own filter setup."
+                    ),
                     icon=ft.Icons.TRAVEL_EXPLORE,
                 ),
                 card(

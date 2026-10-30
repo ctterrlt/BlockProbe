@@ -101,7 +101,7 @@ def test_validate_requires_current_build_commands() -> None:
 
 def test_validate_rejects_a_summary_with_punctuation() -> None:
     data = rendered()
-    data["Summary"] = "Check whether gambling sites remain reachable."
+    data["Summary"] = "Check whether selected websites remain reachable."
 
     with pytest.raises(SystemExit, match="Summary must not end with punctuation"):
         fdroid_submit.validate(data, str(data["CurrentVersion"]), int(data["CurrentVersionCode"]))

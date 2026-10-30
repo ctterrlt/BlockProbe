@@ -22,6 +22,11 @@ from platformdirs import user_data_dir
 
 from blockprobe import APP_NAME, __version__
 from blockprobe.core.compliance import SCOPE_FACTS, scope_summary
+from blockprobe.core.config import (
+    DEFAULT_MAX_SCAN_CONCURRENCY,
+    MOBILE_MAX_SCAN_CONCURRENCY,
+    is_mobile,
+)
 from blockprobe.core.enums import RunStatus
 from blockprobe.core.errors import BlockProbeError, ConsentRequired
 from blockprobe.core.models import Portal, ResultRow, RunComparison, RunSummary, ScanSelection
@@ -70,9 +75,11 @@ class ScanRequest:
 CONSENT_TEXTS: tuple[tuple[str, str], ...] = (
     (
         "What BlockProbe does",
-        "It checks whether the gambling websites on official regulator lists are "
-        "still reachable from this device. It stores the result locally so you can "
-        "see what a blocker, a DNS filter or an ISP blackout is letting through.",
+        "It checks whether websites on built-in regulator lists or a personalized "
+        "list are reachable from this device. This can help assess gambling-site "
+        "blockers, adult-content filters or parental controls. Results are saved "
+        "locally. It tests selected domains on this network path; it does not inspect "
+        "every page or certify a filter.",
     ),
     (
         "What it does not do",
@@ -1061,10 +1068,16 @@ def save_settings(
             )
         config.app.theme_mode = mode
     if concurrency is not None:
-        if concurrency < 1 or concurrency > 100:
+        concurrency_max = (
+            MOBILE_MAX_SCAN_CONCURRENCY if is_mobile() else DEFAULT_MAX_SCAN_CONCURRENCY
+        )
+        if concurrency < 1 or concurrency > concurrency_max:
             return ActionResult(
                 t("Settings not saved"),
-                t("Concurrency must be between 1 and 100."),
+                t(
+                    "Concurrency must be between 1 and {maximum}.",
+                    maximum=concurrency_max,
+                ),
                 ok=False,
             )
         config.probe.concurrency = concurrency

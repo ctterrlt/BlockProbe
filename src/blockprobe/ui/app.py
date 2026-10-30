@@ -33,6 +33,7 @@ from blockprobe.ui.components import (
     SURFACE,
     TEXT,
     apply_page_theme,
+    apply_palette,
     text,
 )
 from blockprobe.ui.consent import consent_view
@@ -125,6 +126,7 @@ class BlockProbeUi(
         self.views: list[ft.Control] = []
         self.current_screen = 0
         self._compact_layout: bool | None = None
+        self._last_results_poll = 0.0
         self.page.on_resize = self._on_resize
 
         self._setup_run()
@@ -418,6 +420,7 @@ class BlockProbeUi(
         self.status_title.size = 15 if compact else 20
         self.refresh_run_layout(compact)
         self.refresh_results_layout(compact)
+        self.refresh_settings_layout(compact)
 
     def _apply_live_theme(self) -> None:
         """Reapply the selected palette after a screen replaces its controls."""
@@ -445,9 +448,23 @@ class BlockProbeUi(
                         and summary is not None
                         and self.current_screen == 2
                     ):
-                        key = (active, summary.total)
-                        if key != self._results_key:
-                            self.refresh_results()
+                        key = (active, summary.total, summary.status.value)
+                        query_active = bool((self.results_search.value or "").strip())
+                        filters_active = (
+                            bool(self.leaks_only_switch.value)
+                            or str(self.verdict_filter.value or "all") != "all"
+                        )
+                        now = time.monotonic()
+                        if (
+                            key != self._results_key
+                            and not query_active
+                            and not filters_active
+                            and not self._results_search_dirty
+                            and self._result_page_index == 0
+                            and now - self._last_results_poll >= 3.0
+                        ):
+                            self.refresh_results(update_page=False)
+                            self._last_results_poll = now
                             self._apply_live_theme()
                     self.page.update()
                 except Exception:
@@ -465,8 +482,16 @@ class BlockProbeUi(
         self._alive = False
         page = self.page
         page.clean()
-        page.add(ft.SafeArea(content=_main_shell(page), expand=True))
-        _apply_saved_theme(page)
+        mode = actions.runtime().settings.config.app.theme_mode
+        _apply_saved_theme(page, update=False)
+        shell = _main_shell(page)
+        dark = mode == "dark" or (
+            mode == "system"
+            and getattr(page, "platform_brightness", None) == ft.Brightness.DARK
+        )
+        apply_palette(shell, dark=dark)
+        page.add(ft.SafeArea(content=shell, expand=True))
+        _apply_saved_theme(page, update=False)
         page.update()
         new_ui = getattr(page, "data", None)
         if isinstance(new_ui, BlockProbeUi):

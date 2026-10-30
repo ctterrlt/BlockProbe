@@ -69,7 +69,7 @@ class SettingsScreen:
             ],
         )
         self.concurrency_field = ft.TextField(
-            label=t("Parallel websites (desktop)"),
+            label=t("Parallel websites"),
             value=str(config.probe.concurrency),
             dense=True,
             keyboard_type=ft.KeyboardType.NUMBER,
@@ -301,7 +301,6 @@ class SettingsScreen:
             control_url=self.control_url_field.value or "",
             auto_refresh_on_run=bool(self.auto_refresh_setting.value),
             refresh_ttl_hours=ttl,
-            theme_mode=str(self.theme_dropdown.value or "system"),
         )
         if (
             result.ok
@@ -339,6 +338,10 @@ class SettingsScreen:
         if more_theme_dropdown is not None:
             more_theme_dropdown.value = value
         apply_page_theme(self.page, value)
+
+    def refresh_settings_layout(self, compact: bool) -> None:
+        """Keep scan concurrency adjustable on both phone and desktop layouts."""
+        self.concurrency_field.visible = True
 
     def _install_schedule(self) -> actions.ActionResult:
         try:

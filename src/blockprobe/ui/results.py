@@ -49,12 +49,19 @@ class ResultsScreen:
 
     def _setup_results(self) -> None:
         self._results_key: tuple[object, ...] | None = None
+        self._all_result_rows: list[ResultRow] = []
+        self._results_data_signature: tuple[object, ...] | None = None
+        self._results_meta_signature: tuple[object, ...] | None = None
+        self._latest_result_health = None
+        self._latest_result_comparison = None
         self._filtered_result_rows: list[ResultRow] = []
         self._result_page_index = 0
+        self._results_search_dirty = False
         self.results_summary = text(t("No results yet."), 13)
         self.results_search = ft.TextField(
             label=t("Search domain"),
             dense=True,
+            on_change=self._on_results_search_change,
             on_submit=lambda _e: self.refresh_results(),
         )
         self.verdict_filter = ft.Dropdown(
@@ -217,11 +224,26 @@ class ResultsScreen:
             expand=True,
         )
 
-    def refresh_results(self) -> actions.ActionResult:
-        rows: list[ResultRow] = actions.load_results(
-            leaks_only=bool(self.leaks_only_switch.value),
-            search=self.results_search.value or "",
+    def _on_results_search_change(self, _event: ft.ControlEvent) -> None:
+        self._results_search_dirty = True
+
+    def refresh_results(self, *, update_page: bool = True) -> actions.ActionResult:
+        self._results_search_dirty = False
+        summary = actions.latest_run_summary()
+        signature: tuple[object, ...] | None = (
+            (summary.run_id, summary.total, summary.status.value)
+            if summary is not None
+            else None
         )
+        if signature != self._results_data_signature:
+            self._all_result_rows = actions.load_results()
+            self._results_data_signature = signature
+        rows = self._all_result_rows
+        if bool(self.leaks_only_switch.value):
+            rows = [row for row in rows if row.verdict is Verdict.OPENED]
+        query = (self.results_search.value or "").strip().casefold()
+        if query:
+            rows = [row for row in rows if query in row.domain.casefold()]
         verdict_value = str(self.verdict_filter.value or "all")
         if verdict_value != "all":
             rows = [row for row in rows if row.verdict.value == verdict_value]
@@ -236,7 +258,12 @@ class ResultsScreen:
         self.results_table.rows = (
             [self._desktop_result_row(row) for row in rows] if not compact else []
         )
-        summary = actions.latest_run_summary()
+        if signature != self._results_meta_signature:
+            self._latest_result_health = (
+                actions.latest_run_health(summary.run_id) if summary is not None else None
+            )
+            self._latest_result_comparison = actions.load_comparison()
+            self._results_meta_signature = signature
         if summary is None:
             self.results_summary.value = t("No run stored yet. Start a scan first.")
         else:
@@ -253,7 +280,7 @@ class ResultsScreen:
                 needs_review=summary.needs_review,
                 percent=summary.blocked_percent,
             )
-            health = actions.latest_run_health(summary.run_id)
+            health = self._latest_result_health
             if health is not None:
                 self.results_summary.value += "\n" + t(
                     "Interference signal: {percent}% ({level})",
@@ -275,7 +302,7 @@ class ResultsScreen:
                         "Recheck these domains after the scan: {domains}",
                         domains=", ".join(health.recheck_domains[:6]),
                     )
-        comparison = actions.load_comparison()
+        comparison = self._latest_result_comparison
         if comparison is None or comparison.previous_run_id is None:
             self.comparison_text.value = t("Comparison appears after two runs.")
         else:
@@ -289,11 +316,16 @@ class ResultsScreen:
                 still_leaking=len(comparison.still_leaking),
                 resolved=len(comparison.resolved),
             )
-        self._results_key = (summary.run_id if summary else None, len(rows))
-        try:
-            self.page.update()
-        except Exception:
-            pass
+        self._results_key = (
+            (summary.run_id, summary.total, summary.status.value)
+            if summary is not None
+            else None
+        )
+        if update_page:
+            try:
+                self.page.update()
+            except Exception:
+                pass
         return actions.ActionResult(
             t("Results refreshed"), t("{count} row(s) shown.", count=len(rows))
         )
@@ -357,7 +389,11 @@ class ResultsScreen:
             cells=[
                 ft.DataCell(text(row.domain, 12, TEXT)),
                 ft.DataCell(
-                    text(row.verdict.label, 12, cls._verdict_color(row.verdict))
+                    text(
+                        cls._result_verdict_label(row),
+                        12,
+                        cls._verdict_color(row.verdict),
+                    )
                 ),
                 ft.DataCell(text(row.reason_label, 12)),
                 ft.DataCell(text(row.confidence.label, 12)),
@@ -387,7 +423,7 @@ class ResultsScreen:
                     ),
                     ft.Row(
                         [
-                            text(row.verdict.label, 12, verdict_color),
+                            text(ResultsScreen._result_verdict_label(row), 12, verdict_color),
                             text(row.confidence.label, 12, MUTED),
                             text(
                                 f"{t('Review')}: {t('yes') if row.needs_review else t('no')}",
@@ -428,3 +464,9 @@ class ResultsScreen:
         if verdict is Verdict.BLOCKED:
             return OK
         return WARN
+
+    @staticmethod
+    def _result_verdict_label(row: ResultRow) -> str:
+        if row.verdict is Verdict.UNREACHABLE and row.needs_review:
+            return t("Could not verify")
+        return row.verdict.label
