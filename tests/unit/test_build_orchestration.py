@@ -32,11 +32,17 @@ def test_build_subprocess_env_preserves_extra_variables() -> None:
 
 def test_build_number_tracks_the_canonical_version() -> None:
     version = build.project_version()
-    parts = tuple(map(int, version.split(".")))
+    parts = tuple(map(int, version.split("-", 1)[0].split(".")))
     assert len(parts) == 3
     assert build.project_build_number() == (
         parts[0] * 1_000_000 + parts[1] * 1_000 + parts[2]
     )
+
+
+def test_build_number_accepts_prerelease_versions(monkeypatch) -> None:
+    monkeypatch.setattr(build, "project_version", lambda: "1.2.1-alpha")
+
+    assert build.project_build_number() == 1_002_001
 
 
 def test_build_number_rejects_unsupported_version_shape(monkeypatch) -> None:

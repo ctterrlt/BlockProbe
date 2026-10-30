@@ -118,6 +118,7 @@ icon_background = "#F4F7F6"
 [tool.flet.app]
 path = "src"
 module = "main"
+assets_dir = "assets"
 
 [tool.flet.splash]
 color = "#F4F7F6"

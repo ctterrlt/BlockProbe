@@ -15,6 +15,10 @@ The project is intended for people who need evidence about whether a blocker is 
 
 ## Status
 
+The current development build is **1.2.1-alpha**. It replaces the broken
+1.2.0 and 1.1.1 GitHub release downloads; both release entries and their
+assets have been withdrawn while the alpha artifacts are rebuilt and checked.
+
 The app version is maintained in [`src/blockprobe/VERSION`](src/blockprobe/VERSION) and is used
 by the package metadata, runtime display and native installer builds. Change this file to
 update the version throughout the project. BlockProbe
@@ -22,12 +26,22 @@ is usable **from source**: the ADM portal refresh, live
 probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
 local web UI all work, and the test suite covers the portal, classifier,
 storage, cache, UI and CLI paths. No signed desktop or mobile release has been
-produced yet (milestone M6 is in progress). The Python wheel and source archive
-build successfully. A universal Android APK and Linux portable tarball build
-locally; the Linux per-user installer and a headless Linux app launch were
-smoke-checked. The project owner has installed the Android debug APK on a
-phone. It is not production-signed. Check the current workflow runs for CI
-status and see [docs/PACKAGING.md](docs/PACKAGING.md) for packaging limits.
+produced yet (milestone M6 is in progress). The shared Flet UI keeps scan
+actions visible while source choices scroll, wraps long source labels, applies
+first-run language changes as soon as they are selected, and uses short success
+messages. Starting a scan immediately shows a preparation message, then keeps
+the result or reason it could not start visible on compact screens. First-run
+language changes use the Flet Dropdown selection event and apply before the
+consent decision across desktop, mobile and web clients. Linux and
+Android debug builds were launched locally; the final Android APK was tapped
+in an Android 35 emulator and visibly reported that the scan started, then
+completed. The Linux desktop bundle stayed open through a 15-second Xvfb
+launch. The web bundle builds and
+loads at narrow and wide browser sizes, but headless Chromium stayed on its
+startup screen, so web interaction still needs verification. These artifacts
+are not production-signed. Windows and macOS native bundles must be built on
+their respective hosts; the release workflow covers those targets. See
+[docs/PACKAGING.md](docs/PACKAGING.md) for current build coverage.
 
 The classifier ships two verified BetBlocker rules and refreshes
 `https://betblocker.org/blocked/` on every run. New visible block-page sentences
@@ -48,7 +62,7 @@ silently doing nothing.
 - **Local storage.** SQLite only, in one local database file. Probe verdicts are never cached; cached portal lists and views are invalidated through a database generation counter. Dynamic BetBlocker patterns live in an append-only table.
 - **Diagnostics.** Reports system DNS configuration, resolver and VPN hints, VPN/proxy usage, hosts-file sinkholes, Private DNS and IPv6 availability, and optionally compares results with a user-configured control resolver.
 - **Cross-platform interfaces.** A Flet desktop and mobile UI, a Typer-based CLI, and a local web UI bound to `127.0.0.1`.
-- **Five languages, light theme.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings; the choice is saved locally. The interface uses a high-contrast Material 3 theme and adapts to narrow phone screens. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
+- **Five languages, light theme.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings; the choice is saved locally and applied immediately. Responsive layouts adapt to available width, long source labels wrap, and the scan action remains visible while source choices scroll. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
 - **Scheduled scans.** Off by default, user-level only (systemd user timer, launchd agent, Task Scheduler XML), with leak-only notifications when a notifier is available.
 - **Privacy by design.** No accounts, telemetry, analytics, or crash reporting. Network traffic is limited to selected portals, probe targets, neutral controls, the BetBlocker block page and opt-in checks.
 
@@ -66,7 +80,7 @@ silently doing nothing.
 | Target | Runtime |
 | --- | --- |
 | Source installs | Python 3.14 or newer |
-| Packaged runtime | Flet bundles Python 3.14 and project dependencies; local Linux x86_64 and Android debug APK artifacts are smoke-checked, other native outputs need verification |
+| Packaged runtime | Flet bundles Python 3.14 and project dependencies; Linux x86_64 and Android 35 emulator builds were launched; Windows/macOS must be built on their native hosts |
 
 Source installs require Python 3.14 or newer and pip installs all runtime
 dependencies declared in `pyproject.toml`. Flet application builds bundle those
@@ -77,13 +91,15 @@ allowlist filter.
 
 ## Installation
 
-The Python wheel and source archive build successfully. A Linux x86_64 bundle
-and Android APK were also built locally; the APK uses a debug certificate.
-Other native targets await CI/toolchain verification:
+Run `python scripts/build.py all` to rebuild every target available on the
+current host, including Python, that host's desktop app, Android APK/AAB and
+web. Windows, macOS and iOS simulator artifacts require their native build
+hosts. The Android APK uses a debug certificate. See the build matrix and
+limitations in [docs/PACKAGING.md](docs/PACKAGING.md).
 
 - **From this repository (supported).** A Python 3.14+ environment with the `desktop` extra installs the declared dependencies and runs the full app and CLI.
 - **Python package.** A locally built wheel or sdist provide the CLI, library, local web UI and FreeBSD support, with optional extras (`desktop`, `dev`).
-- **Packaged applications (M6 in progress).** Linux, Windows, macOS and Android build paths are documented. The project owner has installed the Android debug APK on a phone; production signing, Linux arm64, AppImage/Flatpak, iOS device packaging and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
+- **Packaged applications (M6 in progress).** Linux, Windows, macOS, Android, web and iOS simulator build paths are documented. Android UI was checked in an emulator at two responsive sizes; the project owner has also exercised the app on Android. Production signing, Linux arm64, AppImage/Flatpak, iOS device packaging and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
 - **Container image (optional).** `packaging/Dockerfile` builds a headless web UI image. Docker is not a prerequisite for normal installation; the container's network route may differ from the device's VPN/DNS route.
 
 The application identity is `BlockProbe`, with the package and CLI name
@@ -203,7 +219,7 @@ Further reading: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
 
 ```console
 python -m pip install -e ".[dev]"
-python -m pytest          # 202 passing, 2 live-capture tests skipped by default
+python -m pytest          # 214 passing, 2 live-capture tests skipped by default
 python -m ruff check src tests scripts
 python -m mypy            # strict on blockprobe.core
 ```
@@ -228,7 +244,7 @@ Results are indicative. They reflect the network path and resolver of the device
 - **M3** — cache, 24-hour list refresh, append-only lists, guarded reset. **Done.**
 - **M4** — Flet UI: consent, source selection, custom websites, run, results, logs. **Done.**
 - **M5** — diagnostics and scheduling. **Done** (user-level jobs; no elevation).
-- **M6** — packaging for desktop, mobile, and containers. **In progress**: Python packages, Linux x86_64 bundle and Android debug APK have been built; the project owner has installed the APK on a phone. AppImage/Flatpak, Linux arm64, production signing and store publication remain.
+- **M6** — packaging for desktop, mobile, and containers. **In progress**: Python packages, Linux x86_64 bundle and Android debug APK/AAB builds are supported; local Android UI checks use an emulator. Windows/macOS builds require native CI hosts. AppImage/Flatpak, Linux arm64, production signing and store publication remain.
 - **M7** — documentation and the first usable release. **Docs updated**; the release waits for M6 and native artifact review.
 
 ## Contributing

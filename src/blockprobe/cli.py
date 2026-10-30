@@ -344,8 +344,13 @@ def serve(
     from blockprobe.ui.app import main as flet_main
 
     typer.echo(f"BlockProbe web UI: http://{host}:{port}")
+    assets_dir = Path(__file__).resolve().parent.parent / "assets"
     if headless:
-        asgi_app = ft.run(flet_main, export_asgi_app=True)
+        asgi_app = ft.run(
+            flet_main,
+            assets_dir=str(assets_dir),
+            export_asgi_app=True,
+        )
         try:
             import uvicorn
         except ImportError as exc:
@@ -359,6 +364,7 @@ def serve(
     else:
         ft.run(
             flet_main,
+            assets_dir=str(assets_dir),
             view=ft.AppView.WEB_BROWSER,
             host=host,
             port=port,

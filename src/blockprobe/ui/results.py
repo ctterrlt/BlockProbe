@@ -34,13 +34,11 @@ class ResultsScreen:
         self.results_search = ft.TextField(
             label=t("Search domain"),
             dense=True,
-            width=240,
             on_submit=lambda _e: self.refresh_results(),
         )
         self.verdict_filter = ft.Dropdown(
             label=t("Verdict"),
             value="all",
-            width=180,
             dense=True,
             options=[
                 ft.DropdownOption(key="all", text=t("All verdicts")),
@@ -95,19 +93,30 @@ class ResultsScreen:
                     t("Filters and export"),
                     ft.Column(
                         [
-                            ft.Row(
+                            ft.ResponsiveRow(
                                 [
-                                    self.verdict_filter,
-                                    self.leaks_only_switch,
-                                    self.results_search,
-                                    button(
-                                        t("Apply"),
-                                        ft.Icons.FILTER_ALT,
-                                        self._wrap(self.refresh_results),
+                                    ft.Container(
+                                        content=self.verdict_filter,
+                                        col={"xs": 12, "sm": 6, "md": 3},
+                                    ),
+                                    ft.Container(
+                                        content=self.leaks_only_switch,
+                                        col={"xs": 12, "sm": 6, "md": 3},
+                                    ),
+                                    ft.Container(
+                                        content=self.results_search,
+                                        col={"xs": 12, "sm": 8, "md": 4},
+                                    ),
+                                    ft.Container(
+                                        content=button(
+                                            t("Apply"),
+                                            ft.Icons.FILTER_ALT,
+                                            self._wrap(self.refresh_results),
+                                        ),
+                                        col={"xs": 12, "sm": 4, "md": 2},
                                     ),
                                 ],
-                                wrap=True,
-                                spacing=12,
+                                run_spacing=8,
                             ),
                             ft.Row(
                                 [

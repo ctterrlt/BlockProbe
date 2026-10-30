@@ -6,6 +6,7 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -61,22 +62,31 @@ jobs:
           - target: apk
             runner: ubuntu-latest
             installer: ""
+          - target: aab
+            runner: ubuntu-latest
+            installer: ""
+          - target: web
+            runner: ubuntu-latest
+            installer: ""
+          - target: ios-simulator
+            runner: macos-latest
+            installer: ""
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - if: matrix.target == 'apk'
+      - if: matrix.target == 'apk' || matrix.target == 'aab'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
-      - if: matrix.target == 'apk'
+      - if: matrix.target == 'apk' || matrix.target == 'aab'
         name: Set Android runtime cache
         run: |
           echo "FLET_CACHE_DIR=$HOME/.flet/cache" >> "$GITHUB_ENV"
-      - if: matrix.target == 'apk'
+      - if: matrix.target == 'apk' || matrix.target == 'aab'
         uses: actions/cache@v4
         with:
           path: ~/.flet/cache/python-build
@@ -91,14 +101,14 @@ jobs:
         name: Install Flet Linux build dependencies
         run: python scripts/install-linux-build-deps.py
       - name: Build native package
-        if: matrix.target != 'apk'
+        if: matrix.target != 'apk' && matrix.target != 'aab'
         run: python scripts/build.py ${{ matrix.target }} ${{ matrix.installer }}
-      - if: matrix.target == 'apk'
+      - if: matrix.target == 'apk' || matrix.target == 'aab'
         name: Build Android package (retry a failed runtime archive download)
         shell: bash
         run: |
           for attempt in 1 2; do
-            if python scripts/build.py apk; then
+            if python scripts/build.py ${{ matrix.target }}; then
               exit 0
             fi
             if [[ "$attempt" -eq 1 ]]; then
@@ -120,6 +130,7 @@ jobs:
   publish:
     name: Attach artifacts to GitHub release
     needs: [python-package, native-package]
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -130,3 +141,4 @@ jobs:
         with:
           files: release-artifacts/**
           generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}

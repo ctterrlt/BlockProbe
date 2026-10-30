@@ -21,8 +21,9 @@ dependency advisories only and is not a security certification of the app.
 
 M6 packaging is in progress. A local Android APK signed with the default debug
 certificate and a Linux x86_64 portable archive have been built. The project
-owner installed the APK on a phone; it is not a production release. Reports about source installs,
-Python packages and local artifacts follow the same policy. See
+owner has exercised the Android app; an Android 35 emulator was also used to
+check the UI at two phone sizes. These builds are not production releases.
+Reports about source installs, Python packages and local artifacts follow the same policy. See
 [docs/PACKAGING.md](docs/PACKAGING.md) for verified artifacts and remaining work.
 
 ## How to report

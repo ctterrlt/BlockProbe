@@ -12,8 +12,6 @@ from blockprobe.i18n import DEFAULT_LANGUAGE, available_languages, t
 from blockprobe.ui import actions
 from blockprobe.ui.components import BACKGROUND, BAD, TEXT, button, card, hero, text
 
-_LANGUAGE_FLAGS = {"it": "🇮🇹", "en": "🇬🇧", "fr": "🇫🇷", "es": "🇪🇸", "pt": "🇵🇹"}
-
 
 class SettingsScreen:
     """Mixin with the settings screen and the confirmation dialogs."""
@@ -43,31 +41,27 @@ class SettingsScreen:
         self.language_dropdown = ft.Dropdown(
             label=t("Language"),
             value=config.app.language,
-            width=170,
             dense=True,
             options=[
-                ft.DropdownOption(key=code, text=f"{_LANGUAGE_FLAGS[code]} {name}")
+                ft.DropdownOption(key=code, text=name)
                 for code, name in available_languages().items()
             ],
         )
         self.concurrency_field = ft.TextField(
             label=t("Parallel websites (desktop)"),
             value=str(config.probe.concurrency),
-            width=220,
             dense=True,
             keyboard_type=ft.KeyboardType.NUMBER,
         )
         self.timeout_field = ft.TextField(
             label=t("Timeout (seconds)"),
             value=str(config.probe.timeout_seconds),
-            width=180,
             dense=True,
             keyboard_type=ft.KeyboardType.NUMBER,
         )
         self.control_url_field = ft.TextField(
             label=t("Connectivity control URL"),
             value=config.probe.control_url,
-            width=340,
             dense=True,
         )
         self.auto_refresh_setting = ft.Switch(
@@ -77,14 +71,12 @@ class SettingsScreen:
         self.ttl_field = ft.TextField(
             label=t("Portal update window (hours)"),
             value=str(config.portals.refresh_ttl_hours),
-            width=240,
             dense=True,
             keyboard_type=ft.KeyboardType.NUMBER,
         )
         self.schedule_frequency = ft.Dropdown(
             label=t("Frequency"),
             value="weekly",
-            width=150,
             dense=True,
             options=[
                 ft.DropdownOption(key="weekly", text=t("Weekly")),
@@ -94,13 +86,11 @@ class SettingsScreen:
         self.schedule_time = ft.TextField(
             label=t("Time (HH:MM)"),
             value="20:00",
-            width=150,
             dense=True,
         )
         self.schedule_weekday = ft.TextField(
             label=t("Weekday (1=Mon .. 7=Sun)"),
             value="1",
-            width=200,
             dense=True,
             keyboard_type=ft.KeyboardType.NUMBER,
         )
@@ -134,15 +124,27 @@ class SettingsScreen:
                     ft.Column(
                         [
                             self.debug_switch,
-                            ft.Row(
-                                [self.language_dropdown, self.concurrency_field],
-                                wrap=True,
-                                spacing=12,
+                            ft.ResponsiveRow(
+                                [
+                                    ft.Container(
+                                        content=self.language_dropdown, col={"xs": 12, "md": 6}
+                                    ),
+                                    ft.Container(
+                                        content=self.concurrency_field, col={"xs": 12, "md": 6}
+                                    ),
+                                ],
+                                run_spacing=10,
                             ),
-                            ft.Row(
-                                [self.timeout_field, self.control_url_field],
-                                wrap=True,
-                                spacing=12,
+                            ft.ResponsiveRow(
+                                [
+                                    ft.Container(
+                                        content=self.timeout_field, col={"xs": 12, "md": 6}
+                                    ),
+                                    ft.Container(
+                                        content=self.control_url_field, col={"xs": 12, "md": 6}
+                                    ),
+                                ],
+                                run_spacing=10,
                             ),
                         ],
                         spacing=10,
@@ -177,14 +179,21 @@ class SettingsScreen:
                                 ),
                                 12,
                             ),
-                            ft.Row(
+                            ft.ResponsiveRow(
                                 [
-                                    self.schedule_frequency,
-                                    self.schedule_time,
-                                    self.schedule_weekday,
+                                    ft.Container(
+                                        content=self.schedule_frequency,
+                                        col={"xs": 12, "sm": 4},
+                                    ),
+                                    ft.Container(
+                                        content=self.schedule_time, col={"xs": 12, "sm": 4}
+                                    ),
+                                    ft.Container(
+                                        content=self.schedule_weekday,
+                                        col={"xs": 12, "sm": 4},
+                                    ),
                                 ],
-                                wrap=True,
-                                spacing=12,
+                                run_spacing=10,
                             ),
                             ft.Row(
                                 [
@@ -276,7 +285,11 @@ class SettingsScreen:
         ):
             self.rebuild_ui(result)
         else:
-            self.settings_status.value = result.detail
+            self.settings_status.value = (
+                result.title
+                if result.ok
+                else f"{result.title}: {result.detail.splitlines()[0]}"
+            )
         return result
 
     def _install_schedule(self) -> actions.ActionResult:

@@ -38,7 +38,7 @@ class SourcesScreen:
             text_size=14,
         )
         self.portal_country_input = ft.TextField(
-            label=t("Country code"), value="IT", max_length=2, width=116, text_size=14
+            label=t("Country code"), value="IT", max_length=2, text_size=14
         )
         self.portals_text = text(t("Portals not loaded yet."), 12)
         self.custom_input = ft.TextField(

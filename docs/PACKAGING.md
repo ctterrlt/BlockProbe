@@ -60,7 +60,14 @@ python scripts/build.py apk                   # Android APK
 python scripts/build.py aab                   # Android App Bundle
 python scripts/build.py web                   # web bundle
 python scripts/build.py ios-simulator         # macOS + Xcode simulator app
+python scripts/build.py all                   # every target supported on this host
 ```
+
+`all` rebuilds Python, the host-native desktop app, Android APK/AAB and web.
+On macOS it also builds the iOS simulator app. Windows, macOS and iOS outputs
+cannot be cross-built from Linux; run the command on each native host or use
+the release workflow matrix. Each target's old generated build and artifact
+directories are removed before rebuilding.
 
 Desktop builds must run on their target operating system. Android builds run on
 Linux/macOS/Windows with the Android toolchain Flet installs. iOS simulator
@@ -79,17 +86,15 @@ publishable Play Store build. A debug APK can be installed for local testing.
 | Web | static web bundle | hosting and base URL must be configured by the deployer |
 | iOS | simulator app bundle | physical-device IPA, signing and App Store submission remain unimplemented |
 
-CI is configured to build Python, Windows, macOS, Linux and Android APK
-artifacts on a `v*` tag and attach them to the GitHub release. In the latest tag
-run, Python, Windows, macOS and Linux package jobs passed. The APK job failed
-while downloading the Android Python runtime archive; the workflow now caches
-runtime archives and retries the APK build once after clearing the affected
-arm64 archive. Separately, macOS CI failed because a test assumed a
-refused local connection instead of allowing the timeout returned on macOS; the
-test now accepts either transport failure. A local APK rebuild succeeded using
-the cached runtime. These changes still need a new GitHub run. Release artifacts
-are unsigned and are not published to app stores. Review
-`.github/workflows/release.yaml` before creating a release tag.
+The release workflow builds Python, Windows, macOS, Linux, Android APK/AAB,
+web and iOS simulator artifacts on their supported runners. A manual workflow
+run builds and uploads CI artifacts without publishing a release; a tag push
+builds the matrix and publishes a release, marked as a prerelease when its tag
+contains a hyphen. Android runtime downloads are cached and retried once after
+a failed archive download. The old 1.2.0 and 1.1.1 GitHub release entries were
+withdrawn because their downloads were unusable; their Git tags remain as
+history. Release artifacts are unsigned and are not published to app stores.
+Review `.github/workflows/release.yaml` before creating an alpha tag.
 
 ### Linux installation
 
@@ -168,9 +173,12 @@ started by the user.
 
 ## Milestones
 
-M6 is in progress: Python packages, Linux x86_64 and Android debug APK artifacts
-were built locally, and the latest release run built Windows, macOS and Linux
-packages. Android physical-device installation, Linux arm64, AppImage/Flatpak,
-physical-device iOS packaging, production signing, notarization and store-ready
-releases remain. M7 documentation is updated; the first release waits for M6
-and a completed artifact review.
+M6 is in progress. Local Linux builds cover Python packages, Linux x86_64,
+Android and web; the emulator checks verify the shared Android UI at standard
+and compact widths. The headless web smoke check loads the bundle but remains
+on the Flet startup screen, so web runtime interaction is not yet verified.
+Windows, macOS and iOS simulator artifacts are built by the native-host CI
+matrix. Linux arm64, AppImage/Flatpak, physical-device iOS
+packaging, production signing, notarization and store-ready releases remain.
+M7 documentation is updated; the first stable release waits for M6 and a
+completed artifact review.

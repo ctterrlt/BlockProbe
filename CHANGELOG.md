@@ -7,7 +7,49 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] — 2026-10-29
+## [1.2.1-alpha] — 2026-10-30
+
+This alpha replaces the withdrawn 1.2.0 and 1.1.1 release downloads. It
+focuses on making the shared Flet interface work clearly across compact and
+wide screens and on rebuilding the distribution artifacts.
+
+### Fixed
+
+- Saved the language selected during first-run consent and applied settings
+  changes immediately. Consent now uses Flet 1.x Dropdown's `on_select` event
+  and reads its selected control value; the previous `on_change` callback was
+  never invoked on Linux. Success notices use short, human-readable titles.
+- Kept scan controls visible while source choices scroll, wrapped long source
+  names, and made source labels tappable. Empty selections report why a scan
+  cannot start; pause, resume and cancel visibility follows stored run state.
+- Made Start show an in-context preparation state immediately and keep the
+  success or actionable failure visible on compact screens after the action
+  returns. The poller no longer overwrites a failed-start message when no run
+  was created or when an older completed run exists.
+- Kept consent actions visible beside an independently scrolling consent text,
+  replaced the header initials with the supplied app icon, and removed fixed
+  widths from responsive form controls.
+- Resume now finds a stored paused run when no scan is currently active.
+
+### Build and verification
+
+- `src/blockprobe/VERSION` is `1.2.1-alpha`. The Android/iOS build number is
+  derived from its numeric version core (`1002001`). Build outputs are cleaned
+  before each target so old artifacts cannot be mistaken for the new build.
+- The `all` build target covers Python, the host desktop bundle, Android APK
+  and AAB, web, and iOS simulator when running on macOS. CI builds each native
+  target on its supported runner.
+- Verification: 214 tests passed and 2 live-capture tests were skipped; Ruff,
+  compileall and `git diff --check` passed. Python wheel/sdist, Linux x86_64,
+  Android APK/AAB and web bundle builds completed locally. The Linux desktop
+  stayed open through a 15-second Xvfb launch. On Android 35, the rebuilt APK
+  displayed “Scan started” after tapping Start and retained the completed
+  status. Headless Chromium loaded
+  the web bundle at narrow and wide sizes, but the Flet client remained on its
+  startup screen, so the web runtime was not considered verified. Windows,
+  macOS and iOS simulator builds require their native CI runners.
+
+## [1.2.0] — 2026-10-29
 
 First complete implementation. The current application version is maintained
 in `src/blockprobe/VERSION`; package and runtime version strings are generated
@@ -60,8 +102,8 @@ from it.
   `language` metadata, the internal event bus and two dead UI buttons were
   deleted instead of left as stubs. A config file that still selects a removed
   backend fails to load with an error naming the replacement.
-- **Language selection and light theme.** The interface ships in Italian
-  (default), English, French, Spanish and Portuguese, switchable in Settings
+- **Language selection and light theme.** The interface ships in English
+  (default), Italian, French, Spanish and Portuguese, switchable in Settings
   and applied instantly to every screen, with a consistent light theme and
   responsive phone layouts. Technical logs, diagnostics and exported reports
   stay in English. Translated consent text is a draft pending human legal

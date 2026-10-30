@@ -18,7 +18,19 @@ from blockprobe.i18n import available_languages, t
 from blockprobe.ui import actions
 from blockprobe.ui.components import BACKGROUND, MUTED, TEXT, button, text
 
-_LANGUAGE_FLAGS = {"it": "🇮🇹", "en": "🇬🇧", "fr": "🇫🇷", "es": "🇪🇸", "pt": "🇵🇹"}
+
+def _selected_language(event: Any, dropdown_value: object) -> str:
+    """Read the changed value from the Flet event before stale local state."""
+    languages = available_languages()
+    event_value = getattr(event, "data", None)
+    if event_value in languages:
+        return str(event_value)
+    control_value = getattr(getattr(event, "control", None), "value", None)
+    if control_value in languages:
+        return str(control_value)
+    if dropdown_value in languages:
+        return str(dropdown_value)
+    return "en"
 
 
 def consent_texts() -> tuple[tuple[str, str], ...]:
@@ -47,24 +59,45 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
     language = ft.Dropdown(
         label=t("Language"),
         value=actions.runtime().settings.config.app.language,
-        width=220,
         options=[
-            ft.DropdownOption(key=code, text=f"{_LANGUAGE_FLAGS[code]} {name}")
+            ft.DropdownOption(key=code, text=name)
             for code, name in available_languages().items()
         ],
     )
 
     def change_language(_event: Any) -> None:
-        result = actions.save_settings(language=str(language.value or "en"))
+        # Flet updates the event control before it updates the Python-side
+        # Dropdown.value on some desktop clients. Read the changed control
+        # first; otherwise this callback saves the previous locale and the
+        # new locale only appears when the user later agrees to the terms.
+        selected = _selected_language(_event, language.value)
+        result = actions.save_settings(language=selected)
         if not result.ok:
             return
         page.clean()
         page.add(ft.SafeArea(content=consent_view(page, on_accepted), expand=True))
         page.update()
 
-    language.on_change = change_language
+    # Flet 1.x Dropdown emits selection through on_select. Assigning an
+    # on_change attribute silently leaves this callback disconnected on Linux,
+    # so the locale only appeared to change when Agree saved the value later.
+    language.on_select = change_language
 
     def accept(_event: Any) -> None:
+        # Persist the selected locale again on the explicit continue action.
+        # This also covers mobile clients that do not commit a dropdown change
+        # until the user leaves the first-run screen.
+        saved = actions.save_settings(language=str(language.value or "en"))
+        if not saved.ok:
+            page.show_dialog(
+                ft.AlertDialog(
+                    modal=True,
+                    title=text(saved.title, 16, TEXT, weight=ft.FontWeight.BOLD),
+                    content=text(t("Could not save your language choice."), 13),
+                    actions=[ft.TextButton(content=t("Back"), on_click=lambda _e: page.pop_dialog())],
+                )
+            )
+            return
         result = actions.accept_consent()
         if not result.ok:
             raise RuntimeError(result.detail)
@@ -86,38 +119,52 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
         )
         page.show_dialog(dialog)
 
+    width = getattr(page, "width", None) or 600
+    padding = 16 if width < 600 else 32
     return ft.Container(
         content=ft.Column(
             [
                 text(f"{APP_NAME} {__version__}", 30, TEXT, weight=ft.FontWeight.BOLD),
                 language,
                 text(t("Before the first network request"), 16, MUTED),
-                *blocks,
-                ft.Row(
+                ft.Column(
                     [
-                        button(
-                            t("I understand and agree"),
-                            ft.Icons.CHECK,
-                            accept,
-                            primary=True,
+                        *blocks,
+                        text(
+                            t(
+                                "Translations are drafts pending human legal review; the English "
+                                "wording prevails and none of this is legal advice."
+                            ),
+                            11,
                         ),
-                        button(t("Decline"), ft.Icons.CLOSE, decline),
                     ],
-                    spacing=12,
-                    wrap=True,
+                    spacing=16,
+                    scroll=ft.ScrollMode.AUTO,
+                    expand=True,
                 ),
-                text(
-                    t(
-                        "Translations are drafts pending human legal review; the English "
-                        "wording prevails and none of this is legal advice."
-                    ),
-                    11,
+                ft.ResponsiveRow(
+                    [
+                        ft.Container(
+                            content=button(
+                                t("I understand and agree"),
+                                ft.Icons.CHECK,
+                                accept,
+                                primary=True,
+                            ),
+                            col={"xs": 12, "sm": 8},
+                        ),
+                        ft.Container(
+                            content=button(t("Decline"), ft.Icons.CLOSE, decline),
+                            col={"xs": 12, "sm": 4},
+                        ),
+                    ],
+                    run_spacing=8,
                 ),
             ],
-            spacing=16,
-            scroll=ft.ScrollMode.AUTO,
+            spacing=12,
+            expand=True,
         ),
-        padding=40,
+        padding=padding,
         expand=True,
         bgcolor=BACKGROUND,
     )

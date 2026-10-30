@@ -86,6 +86,30 @@ def test_consent_gates_network_actions(action_env: Path) -> None:
     assert actions.consent_required() is False
 
 
+def test_consent_language_selection_applies_before_acceptance(action_env: Path) -> None:
+    from types import SimpleNamespace
+
+    from blockprobe.i18n import get_language
+    from blockprobe.ui.consent import consent_view
+
+    page = FakePage()
+    consent = consent_view(page, lambda: None)  # type: ignore[arg-type]
+    language = consent.content.controls[1]  # type: ignore[union-attr]
+    assert language.on_select is not None
+    language.value = "it"
+
+    language.on_select(
+        SimpleNamespace(name="select", data=None, control=language)
+    )
+
+    assert actions.runtime().settings.config.app.language == "it"
+    assert get_language() == "it"
+    assert actions.consent_required() is True
+    assert page.updates == 1
+    rebuilt_consent = page.controls[0].content
+    assert rebuilt_consent.content.controls[2].value == "Prima della prima richiesta di rete"
+
+
 def test_custom_domains_flow(action_env: Path) -> None:
     assert actions.consent_required() is True  # custom list needs no consent
     result = actions.add_custom_domains("https://www.one-casino.it/some/path\nnot a domain")
@@ -200,3 +224,21 @@ def test_ui_shell_builds_without_a_window(action_env: Path) -> None:
     preview = ui._start_scan()
     assert preview.ok is False
     assert "No websites" in preview.detail
+    assert ui._run_feedback_visible is True
+    assert ui.progress_text.visible is True
+    assert "No websites" in ui.progress_text.value
+    previous_run = actions.latest_run_summary()
+    assert previous_run is None
+    from blockprobe.core.enums import RunStatus
+    from blockprobe.core.models import RunSummary
+
+    ui._render_summary(
+        RunSummary(
+            run_id="previous",
+            status=RunStatus.COMPLETED,
+            total=1,
+            started_at=1,
+            finished_at=2,
+        )
+    )
+    assert "No websites" in ui.progress_text.value

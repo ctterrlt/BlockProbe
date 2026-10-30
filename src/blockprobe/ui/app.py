@@ -10,6 +10,7 @@ storage logic lives here.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -41,6 +42,8 @@ from blockprobe.ui.portals import SourcesScreen
 from blockprobe.ui.results import ResultsScreen
 from blockprobe.ui.run import RunScreen
 from blockprobe.ui.settings import SettingsScreen
+
+_LOGGER = logging.getLogger("blockprobe.ui.app")
 
 
 class BlockProbeUi(
@@ -89,7 +92,7 @@ class BlockProbeUi(
             elevation=0,
             on_change=self._on_mobile_nav,
         )
-        self.content_area = ft.Container(expand=True, padding=28)
+        self.content_area = ft.Container(expand=True, padding=20)
         self.screen_title = text(t("Run"), 24, TEXT, weight=ft.FontWeight.BOLD)
         self.screen_description = text(
             t("Start with a portal update, then run a scan. Results stay on this device."),
@@ -104,7 +107,7 @@ class BlockProbeUi(
             t("Start with a portal update, then run a scan. Results stay on this device."),
             13,
         )
-        self.snack = ft.SnackBar(content=text("", 13, TEXT))
+        self.snack = ft.SnackBar(content=text("", 14, TEXT))
         self.views: list[ft.Control] = []
         self.current_screen = 0
         self._compact_layout: bool | None = None
@@ -120,8 +123,10 @@ class BlockProbeUi(
 
     def apply(self, result: actions.ActionResult) -> None:
         self.status_title.value = result.title
-        self.status_detail.value = result.detail.splitlines()[0] if result.detail else ""
-        self.snack.content = text(f"{result.title}: {self.status_detail.value}", 13, TEXT)
+        # Keep technical details in the relevant screen. Global feedback should
+        # stay short and never expose filesystem paths or run identifiers.
+        self.status_detail.value = ""
+        self.snack.content = text(result.title, 14, TEXT)
         self.snack.bgcolor = OK if result.ok else BAD
         try:
             self.page.show_dialog(self.snack)
@@ -134,7 +139,17 @@ class BlockProbeUi(
 
     def run_async(self, action: Callable[[], actions.ActionResult]) -> None:
         def work() -> None:
-            self.apply(action())
+            try:
+                result = action()
+            except Exception:
+                _LOGGER.exception("UI action failed")
+                result = actions.ActionResult(
+                    t("Action failed"),
+                    t("The action could not be completed. Check Logs for details."),
+                    ok=False,
+                )
+            self.refresh_run_controls()
+            self.apply(result)
 
         self.page.run_thread(work)
 
@@ -242,12 +257,16 @@ class BlockProbeUi(
             content=ft.Row(
                 [
                     ft.Container(
-                        content=text("BP", 16, BACKGROUND, weight=ft.FontWeight.BOLD),
-                        width=40,
-                        height=40,
+                        content=ft.Image(
+                            src="icon.png",
+                            width=48,
+                            height=48,
+                            fit=ft.BoxFit.CONTAIN,
+                            semantics_label=APP_NAME,
+                        ),
+                        width=48,
+                        height=48,
                         alignment=ft.Alignment.CENTER,
-                        bgcolor=ACCENT,
-                        border_radius=12,
                     ),
                     ft.Column(
                         [
@@ -319,13 +338,13 @@ class BlockProbeUi(
         self.nav.visible = not compact
         self.nav_divider.visible = not compact
         self.mobile_nav.visible = compact
-        self.content_area.padding = 12 if compact else 28
-        self.screen_title.size = 22 if compact else 28
+        self.content_area.padding = 12 if compact else 20
+        self.screen_title.size = 24 if compact else 28
+        self.screen_title.visible = not (compact and self.current_screen == 0)
         self.screen_description.visible = not compact
         self.status_bar.visible = not compact
         self.status_title.size = 15 if compact else 20
-        if hasattr(self, "control_url_field"):
-            self.control_url_field.width = min(340, max(220, width - 64)) if compact else 340
+        self.refresh_run_layout(compact)
 
     # -------------------------------------------------------------------- polls
 
@@ -342,6 +361,7 @@ class BlockProbeUi(
                     summary = actions.latest_run_summary()
                     active = actions.active_run_id()
                     self._render_summary(summary)
+                    self.refresh_run_controls()
                     if (
                         active is not None
                         and summary is not None
@@ -371,17 +391,19 @@ class BlockProbeUi(
         new_ui = getattr(page, "data", None)
         if isinstance(new_ui, BlockProbeUi):
             if result is not None:
-                new_ui.status_title.value = result.title
-                new_ui.status_detail.value = (
-                    result.detail.splitlines()[0] if result.detail else ""
-                )
+                new_ui.apply(result)
             new_ui.start_poller()
 
     def _render_summary(self, summary: RunSummary | None) -> None:
+        # A previously stored run must not replace the result of a failed new
+        # Start request. Keep the current error until the user tries again.
+        if self._run_start_failed:
+            return
         if summary is None:
             self.summary_text.value = t("No run stored yet.")
-            self.progress_text.value = t("No scan is running.")
-            self.progress_bar.value = 0
+            if not self._run_feedback_visible:
+                self.progress_text.value = t("No scan is running.")
+                self.progress_bar.value = 0
             return
         self.summary_text.value = t(
             "{status}: {total} websites — {opened} opened, {blocked} blocked, "

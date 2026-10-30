@@ -567,13 +567,25 @@ def resume_scan(run_id: str | None = None) -> ActionResult:
         return ActionResult(t("Scan resumed"), t("The active run continues."))
     if run_id is None:
         active = app_runtime.scan.active_run
-        if active is None:
+        if active is not None:
+            run_id = active.id
+        else:
+            paused = next(
+                (
+                    run
+                    for run in app_runtime.storage.list_runs(limit=50)
+                    if run.status is RunStatus.PAUSED
+                ),
+                None,
+            )
+            if paused is not None:
+                run_id = paused.id
+        if run_id is None:
             return ActionResult(
                 t("No paused scan"),
                 t("Start a run first, or pass the id of a stored run to resume."),
                 ok=False,
             )
-        run_id = active.id
     try:
         run, remaining = app_runtime.scan.resume_run(run_id)
     except BlockProbeError as exc:
@@ -1069,15 +1081,12 @@ def save_settings(
     if use_control_resolver is not None:
         config.probe.use_control_resolver = use_control_resolver
     try:
-        path = app_runtime.settings.save()
+        app_runtime.settings.save()
     except BlockProbeError as exc:
         return ActionResult(t("Settings not saved"), str(exc), ok=False)
     return ActionResult(
         t("Settings saved"),
-        t(
-            "Configuration written to {path}. Probe settings apply to the next run.",
-            path=path,
-        ),
+        t("Your changes will apply to the next scan."),
     )
 
 

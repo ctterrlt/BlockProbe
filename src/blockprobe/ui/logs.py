@@ -26,7 +26,6 @@ class LogsScreen:
         self.log_level = ft.Dropdown(
             label=t("Level"),
             value="ALL",
-            width=150,
             dense=True,
             options=[
                 ft.DropdownOption(key="ALL", text=t("All levels")),
@@ -38,7 +37,7 @@ class LogsScreen:
             on_select=lambda _e: self.refresh_logs(),
         )
         self.log_search = ft.TextField(
-            label=t("Search"), dense=True, width=220, on_submit=lambda _e: self.refresh_logs()
+            label=t("Search"), dense=True, on_submit=lambda _e: self.refresh_logs()
         )
         self.log_view = ft.ListView(spacing=2, auto_scroll=True, expand=True)
 
@@ -54,37 +53,45 @@ class LogsScreen:
                     t("Logs"),
                     ft.Column(
                         [
-                            ft.Row(
+                            ft.ResponsiveRow(
                                 [
-                                    self.log_level,
-                                    self.log_search,
-                                    button(
-                                        t("Apply"),
-                                        ft.Icons.FILTER_ALT,
-                                        self._wrap(self.refresh_logs),
+                                    ft.Container(content=self.log_level, col={"xs": 12, "sm": 4, "md": 3}),
+                                    ft.Container(content=self.log_search, col={"xs": 12, "sm": 8, "md": 3}),
+                                    ft.Container(
+                                        content=button(
+                                            t("Apply"),
+                                            ft.Icons.FILTER_ALT,
+                                            self._wrap(self.refresh_logs),
+                                        ),
+                                        col={"xs": 12, "sm": 4, "md": 2},
                                     ),
-                                    button(
-                                        t("Export zip"),
-                                        ft.Icons.DOWNLOAD,
-                                        self._wrap(actions.export_logs),
+                                    ft.Container(
+                                        content=button(
+                                            t("Export zip"),
+                                            ft.Icons.DOWNLOAD,
+                                            self._wrap(actions.export_logs),
+                                        ),
+                                        col={"xs": 12, "sm": 4, "md": 2},
                                     ),
-                                    button(
-                                        t("Clear view"),
-                                        ft.Icons.DELETE_SWEEP,
-                                        self._wrap(self._clear_logs),
+                                    ft.Container(
+                                        content=button(
+                                            t("Clear view"),
+                                            ft.Icons.DELETE_SWEEP,
+                                            self._wrap(self._clear_logs),
+                                        ),
+                                        col={"xs": 12, "sm": 4, "md": 2},
                                     ),
                                 ],
-                                wrap=True,
-                                spacing=12,
+                                run_spacing=8,
                             ),
                             ft.Container(
                                 content=self.log_view,
                                 expand=True,
-                                height=360,
                             ),
                         ],
                         spacing=10,
                     ),
+                    expand=True,
                 ),
             ],
             spacing=16,

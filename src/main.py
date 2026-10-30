@@ -5,4 +5,4 @@ import flet as ft
 
 from blockprobe.ui.app import main
 
-ft.run(main)
+ft.run(main, assets_dir="assets")

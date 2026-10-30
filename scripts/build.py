@@ -18,7 +18,17 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist" / "packages"
-TARGETS = ("python", "windows", "macos", "linux", "apk", "aab", "web", "ios-simulator")
+TARGETS = (
+    "python",
+    "windows",
+    "macos",
+    "linux",
+    "apk",
+    "aab",
+    "web",
+    "ios-simulator",
+    "all",
+)
 
 
 def project_version() -> str:
@@ -32,9 +42,9 @@ def project_version() -> str:
 def project_build_number() -> int:
     """Encode a three-part version as a monotonically increasing mobile code."""
     version = project_version()
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:[-+][0-9A-Za-z.-]+)?", version)
     if not match:
-        raise SystemExit("Flet builds require VERSION in major.minor.patch form.")
+        raise SystemExit("Flet builds require VERSION in major.minor.patch[-prerelease] form.")
     parts = tuple(map(int, match.groups()))
     if any(part >= 1000 for part in parts):
         raise SystemExit("Each VERSION component must be less than 1000 for mobile builds.")
@@ -85,7 +95,9 @@ def find_executable(name: str) -> str:
 
 def build_python() -> list[Path]:
     output = DIST / "python"
-    output.mkdir(parents=True, exist_ok=True)
+    if output.exists():
+        shutil.rmtree(output)
+    output.mkdir(parents=True)
     # Run outside ROOT: the generated ROOT/build directory is a namespace
     # package that otherwise shadows the installed ``build`` frontend.
     run(
@@ -115,7 +127,13 @@ def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path
         raise SystemExit("Building an iOS simulator app requires macOS and Xcode.")
 
     output = ROOT / "build" / "flet" / target
+    if output.exists():
+        shutil.rmtree(output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    artifact_dir = DIST / target
+    if artifact_dir.exists():
+        shutil.rmtree(artifact_dir)
+    artifact_dir.mkdir(parents=True)
     flet_target = "ios-simulator" if target == "ios-simulator" else target
     command = [
             find_executable("flet"), "build", flet_target,
@@ -131,8 +149,6 @@ def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path
     if not output.exists():
         raise SystemExit(f"Flet reported success but did not create {output}")
 
-    artifact_dir = DIST / target
-    artifact_dir.mkdir(parents=True, exist_ok=True)
     artifacts: list[Path] = []
     if target in {"apk", "aab"}:
         suffix = ".apk" if target == "apk" else ".aab"
@@ -240,11 +256,35 @@ def main() -> int:
     )
     parser.add_argument("--verbose", action="store_true", help="show native build output")
     args = parser.parse_args()
-    artifacts = (
-        build_python()
-        if args.target == "python"
-        else build_flet(args.target, args.installer, args.verbose)
-    )
+    if args.target == "all":
+        host_target = {
+            "windows": "windows",
+            "darwin": "macos",
+            "linux": "linux",
+        }.get(platform.system().lower())
+        targets = ["python", *( [host_target] if host_target else []), "apk", "aab", "web"]
+        if platform.system().lower() == "darwin":
+            targets.append("ios-simulator")
+        artifacts = []
+        for target in targets:
+            print(f"\n=== Building {target} ===", flush=True)
+            artifacts.extend(
+                build_python()
+                if target == "python"
+                else build_flet(target, args.installer, args.verbose)
+            )
+        omitted = sorted({"windows", "macos", "linux", "ios-simulator"} - set(targets))
+        if omitted:
+            print(
+                "Host-only targets not built here: " + ", ".join(omitted),
+                flush=True,
+            )
+    else:
+        artifacts = (
+            build_python()
+            if args.target == "python"
+            else build_flet(args.target, args.installer, args.verbose)
+        )
     print("Built artifacts:")
     for artifact in artifacts:
         print(f"  {artifact.relative_to(ROOT)}")
