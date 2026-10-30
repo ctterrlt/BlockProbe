@@ -65,6 +65,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "pytest-cov>=5.0",
     "respx>=0.21",
+    "ruamel.yaml>=0.18",
     "ruff>=0.5",
 ]
 
