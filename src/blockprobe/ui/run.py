@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import Any
+
 import flet as ft
 
 from blockprobe.core.models import RunSummary
@@ -47,7 +50,12 @@ class RunScreen:
     run_card: ft.Container | None
     run_card_title: ft.Text | None
 
-    def _wrap(self, action):  # type: ignore[no-untyped-def]
+    def _wrap(
+        self, action: Callable[[], actions.ActionResult]
+    ) -> Callable[[Any], Any]:
+        raise NotImplementedError
+
+    def _show_screen(self, index: int) -> None:
         raise NotImplementedError
 
     def _setup_run(self) -> None:
@@ -203,6 +211,9 @@ class RunScreen:
                 sources_card,
                 run_card,
                 card(t("Latest stored run"), self.summary_text),
+                # Keep the last card fully reachable above the mobile
+                # navigation and rounded window edges.
+                ft.Container(height=16),
             ],
             spacing=12,
             scroll=ft.ScrollMode.AUTO,
@@ -311,7 +322,7 @@ class RunScreen:
         preview = actions.preview_scan(self._request())
         self.preview_text.value = preview.detail
 
-    def _filter_sources(self, event: ft.ControlEvent) -> None:
+    def _filter_sources(self, event: Any) -> None:
         query = str(event.control.value or "").strip().casefold()
         for key, row in self._source_rows.items():
             if key in {"all", "custom"}:
@@ -324,7 +335,7 @@ class RunScreen:
     def _source_choice_row(
         self, key: str, checkbox: ft.Checkbox, label: str
     ) -> ft.Control:
-        def toggle(_event: ft.ControlEvent) -> None:
+        def toggle(_event: Any) -> None:
             checkbox.value = not bool(checkbox.value)
             self._apply_source_change(key, bool(checkbox.value))
 
@@ -344,7 +355,7 @@ class RunScreen:
             border_radius=10,
         )
 
-    def _on_source_change(self, event: ft.ControlEvent) -> None:
+    def _on_source_change(self, event: Any) -> None:
         changed = str(event.control.data or "")
         self._apply_source_change(changed, bool(event.control.value))
 
@@ -368,9 +379,13 @@ class RunScreen:
             actions.runtime().settings.config.app.theme_mode,
             update=False,
         )
+        self._refresh_preview()
         self.page.update()
 
     def _preview(self) -> actions.ActionResult:
+        return self._refresh_preview()
+
+    def _refresh_preview(self) -> actions.ActionResult:
         result = actions.preview_scan(self._request())
         self.preview_text.value = result.detail
         return result

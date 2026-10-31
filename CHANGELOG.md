@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.3.0-alpha] — 2026-10-31
 
 ### Changed
 
@@ -16,6 +16,35 @@ All notable changes to this project are documented here. The format follows
   regulator feeds remain focused on gambling domains.
 - Made scan concurrency configurable in Settings within platform limits:
   three on Android/iOS and eight elsewhere.
+- Added a global System/Light/Dark appearance menu and improved scrolling and
+  bottom clearance at narrow window sizes.
+- Distinguished consent storage errors from missing or outdated consent, and
+  return to consent only after an action explicitly clears the record. Startup,
+  scan start, resume and CLI status surface failed consent reads as storage
+  errors; resume cannot bypass the consent gate.
+- Replaced the prior action banner immediately and showed clear scan-start errors.
+- Refreshed the scan preview whenever source selection changes, so portal
+  refresh warnings match the current selection.
+- Let users choose export paths with the platform save dialog. If it fails, a
+  uniquely named copy is kept in the local reports folder and its path is
+  shown; cancellation does not create a fallback copy. Preparation and
+  readback errors also try to recover generated output before temporary cleanup.
+- Fixed custom-site listing so regulator portal domains are not included as
+  personal sites.
+- Preserved one-command F-Droid build recipes as YAML lists so rendered
+  metadata passes the release workflow's validation step.
+- Sent probes, portal feed requests, control-resolver requests and optional
+  curl checks with the same Chrome-for-Windows User-Agent. This is a request
+  header, not Chrome browser or network-fingerprint emulation.
+- Stopped requesting or enforcing `robots.txt` during portal refresh. The
+  legacy `respect_robots` field is ignored; configured request rate limits and
+  retry backoff remain active.
+- Added an optional bounded `curl` cross-check after HTTPX reports block
+  evidence. Curl checks content type with HEAD before fetching an HTML body;
+  when curl opens a site successfully, the result remains marked for review
+  and displays “Warning: curl opened the website successfully.” Curl absence
+  or errors do not prevent a scan, including on Android where curl is not
+  bundled.
 
 ## [1.2.4-alpha] — 2026-10-31
 

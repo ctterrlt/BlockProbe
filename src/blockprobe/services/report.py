@@ -22,7 +22,15 @@ from blockprobe.core.compliance import scope_lines, scope_payload, scope_summary
 from blockprobe.core.config import Settings
 from blockprobe.core.enums import RunStatus, Verdict
 from blockprobe.core.errors import ValidationError
-from blockprobe.core.models import ResultRow, RunComparison, RunRecord, RunSummary, utc_iso, utc_now
+from blockprobe.core.models import (
+    ResultRow,
+    RunComparison,
+    RunRecord,
+    RunSummary,
+    curl_open_warning,
+    utc_iso,
+    utc_now,
+)
 from blockprobe.probe.health import ProbeHealth, assess_probe_health
 from blockprobe.storage.base import ResultFilter, Storage
 
@@ -213,6 +221,7 @@ class ReportService:
                 "interference_risk_percent",
                 "interference_risk_level",
                 "first_control_failure_after",
+                "warnings",
                 "scope",
             ]
         )
@@ -242,6 +251,7 @@ class ReportService:
                     health.risk_percent if health else "",
                     health.risk_level if health else "",
                     health.first_failure_after if health else "",
+                    curl_open_warning(result.evidence) or "",
                     scope_summary(),
                 ]
             )
@@ -271,6 +281,9 @@ class ReportService:
                     notes.append("needs review")
                 if row.title:
                     notes.append(escape(row.title[:80]))
+                warning = curl_open_warning(row.evidence)
+                if warning:
+                    notes.append(escape(warning))
                 lines.append(
                     "| {domain} | {verdict} | {reason} | {confidence} | {sources} | {notes} |".format(
                         domain=escape(row.domain),

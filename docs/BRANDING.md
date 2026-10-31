@@ -30,6 +30,11 @@ uses the same branded artwork as the app icon so the white shield remains
 visible on a light background. Splash colors and boot-screen theme are
 configured in `pyproject.toml`.
 
+The global header provides System, Light and Dark choices on every main screen.
+Responsive layouts keep the navigation and scroll surface usable at narrow
+window widths; custom controls must use the shared semantic palette so theme
+changes recolor them consistently.
+
 ## App icon
 
 Place the source artwork at `src/assets/icon.png`:

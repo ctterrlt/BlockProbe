@@ -3,13 +3,16 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from pathlib import Path
+from typing import Any
 
 import flet as ft
 
 from blockprobe.core.enums import Verdict
-from blockprobe.core.models import ResultRow
+from blockprobe.core.models import ResultRow, RunComparison, curl_open_warning
 from blockprobe.i18n import t
+from blockprobe.probe.health import ProbeHealth
 from blockprobe.ui import actions
 from blockprobe.ui.components import (
     BAD,
@@ -45,7 +48,18 @@ class ResultsScreen:
     results_page_label: ft.Text
     export_status: ft.Text
 
-    def _wrap(self, action):  # type: ignore[no-untyped-def]
+    def _wrap(self, action: Callable[[], actions.ActionResult]) -> Callable[[Any], Any]:
+        raise NotImplementedError
+
+    def _export_to_file(
+        self,
+        action: Callable[[Path], actions.ActionResult],
+        extension: str,
+        *,
+        file_stem: str = "blockprobe",
+        failure_title: str | None = None,
+        on_result: Callable[[actions.ActionResult], None] | None = None,
+    ) -> Callable[[Any], Awaitable[None]]:
         raise NotImplementedError
 
     def _setup_results(self) -> None:
@@ -53,8 +67,8 @@ class ResultsScreen:
         self._all_result_rows: list[ResultRow] = []
         self._results_data_signature: tuple[object, ...] | None = None
         self._results_meta_signature: tuple[object, ...] | None = None
-        self._latest_result_health = None
-        self._latest_result_comparison = None
+        self._latest_result_health: ProbeHealth | None = None
+        self._latest_result_comparison: RunComparison | None = None
         self._filtered_result_rows: list[ResultRow] = []
         self._result_page_index = 0
         self._results_search_dirty = False
@@ -166,34 +180,48 @@ class ResultsScreen:
                                     button(
                                         t("Markdown"),
                                         ft.Icons.DESCRIPTION,
-                                        self._wrap(
-                                            lambda: self._export(
-                                                lambda: actions.export_report("markdown")
-                                            )
+                                        self._export_to_file(
+                                            lambda destination: actions.export_report(
+                                                "markdown", destination=destination
+                                            ),
+                                            "md",
+                                            file_stem="blockprobe-report",
+                                            on_result=self._update_export_status,
                                         ),
                                     ),
                                     button(
                                         t("CSV"),
                                         ft.Icons.TABLE_VIEW,
-                                        self._wrap(
-                                            lambda: self._export(
-                                                lambda: actions.export_report("csv")
-                                            )
+                                        self._export_to_file(
+                                            lambda destination: actions.export_report(
+                                                "csv", destination=destination
+                                            ),
+                                            "csv",
+                                            file_stem="blockprobe-report",
+                                            on_result=self._update_export_status,
                                         ),
                                     ),
                                     button(
                                         t("JSON"),
                                         ft.Icons.DATA_OBJECT,
-                                        self._wrap(
-                                            lambda: self._export(
-                                                lambda: actions.export_report("json")
-                                            )
+                                        self._export_to_file(
+                                            lambda destination: actions.export_report(
+                                                "json", destination=destination
+                                            ),
+                                            "json",
+                                            file_stem="blockprobe-report",
+                                            on_result=self._update_export_status,
                                         ),
                                     ),
                                     button(
                                         t("Domain list (txt)"),
                                         ft.Icons.LIST_ALT,
-                                        self._wrap(lambda: self._export(actions.export_domain_list)),
+                                        self._export_to_file(
+                                            actions.export_domain_list,
+                                            "txt",
+                                            file_stem="blockprobe-domains",
+                                            on_result=self._update_export_status,
+                                        ),
                                     ),
                                 ],
                                 wrap=True,
@@ -205,6 +233,10 @@ class ResultsScreen:
                     ),
                 ),
                 card(t("Comparison with the previous run"), self.comparison_text),
+                # This screen is a single outer scroll surface. An expanding
+                # card inside a scrollable Column has no bounded height and
+                # clipped the last rows on phones, especially with many
+                # results. Let the card grow naturally and scroll the page.
                 card(
                     t("Results (domains are never links)"),
                     ft.Column(
@@ -214,10 +246,10 @@ class ResultsScreen:
                             self.results_pager,
                             self.results_scroll,
                         ],
-                        expand=True,
+                        spacing=8,
                     ),
-                    expand=True,
                 ),
+                ft.Container(height=16),
             ],
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
@@ -225,7 +257,7 @@ class ResultsScreen:
             expand=True,
         )
 
-    def _on_results_search_change(self, _event: ft.ControlEvent) -> None:
+    def _on_results_search_change(self, _event: Any) -> None:
         self._results_search_dirty = True
 
     def refresh_results(self, *, update_page: bool = False) -> actions.ActionResult:
@@ -399,15 +431,23 @@ class ResultsScreen:
             )
             self.page.update()
 
-    def _export(self, action: Callable[[], actions.ActionResult]) -> actions.ActionResult:
-        result = action()
+    def _update_export_status(self, result: actions.ActionResult) -> None:
         self.export_status.value = (
             f"{result.title}: {result.detail}" if result.detail else result.title
         )
-        return result
 
     @classmethod
     def _desktop_result_row(cls, row: ResultRow) -> ft.DataRow:
+        warning = curl_open_warning(row.evidence)
+        reason_content: ft.Control = text(row.reason_label, 12)
+        if warning:
+            reason_content = ft.Column(
+                [
+                    text(row.reason_label, 12),
+                    text(t(warning), 11, WARN, selectable=True),
+                ],
+                spacing=3,
+            )
         return ft.DataRow(
             cells=[
                 ft.DataCell(text(row.domain, 12, TEXT)),
@@ -418,7 +458,7 @@ class ResultsScreen:
                         cls._verdict_color(row.verdict),
                     )
                 ),
-                ft.DataCell(text(row.reason_label, 12)),
+                ft.DataCell(reason_content),
                 ft.DataCell(text(row.confidence.label, 12)),
                 ft.DataCell(
                     text(
@@ -434,6 +474,27 @@ class ResultsScreen:
     @staticmethod
     def _mobile_result_card(row: ResultRow) -> ft.Control:
         verdict_color = ResultsScreen._verdict_color(row.verdict)
+        warning = curl_open_warning(row.evidence)
+        details: list[ft.Control] = [
+            text(
+                t("{label}: {value}", label=t("Why"), value=row.reason_label),
+                12,
+                MUTED,
+            )
+        ]
+        if warning:
+            details.append(text(t(warning), 12, WARN, selectable=True))
+        details.append(
+            text(
+                t(
+                    "{label}: {value}",
+                    label=t("Source"),
+                    value=", ".join(row.sources) or "—",
+                ),
+                12,
+                MUTED,
+            )
+        )
         return ft.Container(
             content=ft.Column(
                 [
@@ -457,20 +518,7 @@ class ResultsScreen:
                         wrap=True,
                         spacing=8,
                     ),
-                    text(
-                        t("{label}: {value}", label=t("Why"), value=row.reason_label),
-                        12,
-                        MUTED,
-                    ),
-                    text(
-                        t(
-                            "{label}: {value}",
-                            label=t("Source"),
-                            value=", ".join(row.sources) or "—",
-                        ),
-                        12,
-                        MUTED,
-                    ),
+                    *details,
                 ],
                 spacing=6,
             ),

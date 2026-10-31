@@ -12,5 +12,4 @@ start_url = "https://www.mga.org.mt/player-hub/unauthorised-urls/"
 strategy = "auto"
 max_pages = 20
 rate_limit_per_sec = 1.0
-respect_robots = true
 exclude_domains = ["mga.org.mt"]

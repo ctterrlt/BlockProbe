@@ -62,6 +62,9 @@ path. It never executes JavaScript and never keeps the response body. It then:
 
 A failed fetch is recorded in run health; the static rules and previously
 learned patterns remain active. Normal runs never remove or rewrite a pattern.
+Signature capture and refresh also require a successful consent-record check;
+a storage error is reported separately and does not trigger a false consent
+prompt.
 
 ## Capturing a fingerprint
 

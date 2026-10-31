@@ -11,6 +11,5 @@ start_url = "https://www.gluecksspiel-behoerde.de/de/fuer-spielende/uebersicht-e
 strategy = "auto"
 max_pages = 10
 rate_limit_per_sec = 1.0
-respect_robots = true
 exclude_domains = ["gluecksspiel-behoerde.de"]
 include_regex = ["\\.de$"]

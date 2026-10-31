@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
+from typing import Any
 
 import flet as ft
 
@@ -36,10 +38,12 @@ class SourcesScreen:
     portal_url_input: ft.TextField
     portal_country_input: ft.TextField
 
-    def _wrap(self, action):  # type: ignore[no-untyped-def]
+    def _wrap(
+        self, action: Callable[[], actions.ActionResult]
+    ) -> Callable[[Any], Any]:
         raise NotImplementedError
 
-    def run_async(self, action):  # type: ignore[no-untyped-def]
+    def run_async(self, action: Callable[[], actions.ActionResult]) -> None:
         raise NotImplementedError
 
     def _setup_sources(self) -> None:
@@ -151,6 +155,7 @@ class SourcesScreen:
                         spacing=10,
                     ),
                 ),
+                ft.Container(height=16),
             ],
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
@@ -205,7 +210,7 @@ class SourcesScreen:
             self.custom_list.controls.append(row)
         return result
 
-    def _remove_custom(self, event: ft.ControlEvent) -> None:
+    def _remove_custom(self, event: Any) -> None:
         domain = str(event.control.data or "")
         self.run_async(lambda: self._remove_and_reload(domain))
 

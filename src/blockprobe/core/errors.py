@@ -24,10 +24,6 @@ class PortalError(BlockProbeError):
     """A portal definition cannot be loaded or used."""
 
 
-class RobotsDenied(PortalError):
-    """robots.txt denies access to the portal page."""
-
-
 class FetchError(PortalError):
     """A portal page could not be fetched."""
 

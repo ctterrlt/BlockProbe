@@ -1,25 +1,14 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Polite robots.txt handling for the portal fetcher.
+"""Legacy robots.txt parser kept for compatibility; the app does not use it.
 
-Implements the small subset of RFC 9309 that a read-only list fetcher needs:
-user-agent groups, ``Allow``/``Disallow`` with longest-match precedence and
-``Crawl-delay``. A missing robots.txt allows access; a server error treats the
-site as temporarily disallowed so BlockProbe never hammers a struggling host.
+Portal refreshes never request or enforce robots.txt. This parser remains for
+external callers that need to inspect previously saved robots text.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
-
-import httpx
-
-from blockprobe import APP_NAME
-
-USER_AGENT = (
-    f"{APP_NAME}/1.0 (+https://github.com/ctterrlt/BlockProbe; "
-    "local-first website-filter check)"
-)
 
 
 @dataclass(slots=True)
@@ -116,40 +105,3 @@ def parse_robots(text: str, user_agent_token: str = "blockprobe") -> RobotsPolic
     if isinstance(delay, float):
         policy.crawl_delay = delay
     return policy
-
-
-def fetch_robots(base_url: str, client: httpx.Client, timeout: float = 10.0) -> RobotsPolicy:
-    """Fetch and parse ``/robots.txt`` for the URL's host."""
-    parts = urlsplit(base_url)
-    if not parts.scheme or not parts.hostname:
-        return RobotsPolicy(allowed=False, note="invalid portal URL")
-    robots_url = f"{parts.scheme}://{parts.netloc}/robots.txt"
-    try:
-        response = client.get(
-            robots_url,
-            headers={"User-Agent": USER_AGENT, "Accept": "text/plain,*/*;q=0.1"},
-            timeout=timeout,
-        )
-    except httpx.HTTPError as exc:
-        return RobotsPolicy(
-            allowed=False,
-            source=robots_url,
-            note=f"robots.txt unreachable: {exc.__class__.__name__}",
-        )
-    if 200 <= response.status_code < 300:
-        policy = parse_robots(response.text)
-        policy.source = robots_url
-        return policy
-    if response.status_code in {401, 403} or 400 <= response.status_code < 500:
-        return RobotsPolicy(
-            allowed=True,
-            source=robots_url,
-            note=f"robots.txt returned HTTP {response.status_code}; treating as unavailable",
-        )
-    if response.status_code >= 500:
-        return RobotsPolicy(
-            allowed=False,
-            source=robots_url,
-            note=f"robots.txt returned HTTP {response.status_code}; backing off",
-        )
-    return RobotsPolicy(allowed=True, source=robots_url, note="robots.txt treated as absent")

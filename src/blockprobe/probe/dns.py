@@ -32,7 +32,7 @@ def is_sinkhole_ip(value: str) -> bool:
     if address.is_private or address.is_reserved or address.is_multicast:
         return True
     # IPv4-mapped IPv6 addresses inherit the mapped address's properties.
-    if getattr(address, "ipv4_mapped", None) is not None:
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
         return is_sinkhole_ip(str(address.ipv4_mapped))
     return False
 
@@ -59,7 +59,13 @@ def _system_resolve(host: str) -> DnsResult | None:
         records = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
     except (OSError, socket.gaierror):
         return None
-    ips = list(dict.fromkeys(record[4][0] for record in records if record[4]))
+    ips = list(
+        dict.fromkeys(
+            record[4][0]
+            for record in records
+            if record[4] and isinstance(record[4][0], str)
+        )
+    )
     if not ips:
         return None
     sinkholes = [ip for ip in ips if is_sinkhole_ip(ip)]

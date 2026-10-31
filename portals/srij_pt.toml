@@ -11,6 +11,5 @@ start_url = "https://www.srij.turismodeportugal.pt/pt/jogos-e-apostas-online/ent
 strategy = "auto"
 max_pages = 10
 rate_limit_per_sec = 1.0
-respect_robots = true
 exclude_domains = ["srij.turismodeportugal.pt", "turismodeportugal.pt"]
 include_regex = ["\\.pt$"]

@@ -37,13 +37,18 @@ class SettingsScreen:
     settings_status: ft.Text
     theme_dropdown: ft.Dropdown
 
-    def _wrap(self, action):  # type: ignore[no-untyped-def]
+    def _wrap(
+        self, action: Callable[[], actions.ActionResult]
+    ) -> Callable[[Any], Any]:
         raise NotImplementedError
 
-    def run_async(self, action):  # type: ignore[no-untyped-def]
+    def run_async(self, action: Callable[[], actions.ActionResult]) -> None:
         raise NotImplementedError
 
     def rebuild_ui(self, result: actions.ActionResult | None = None) -> None:
+        raise NotImplementedError
+
+    def _sync_responsive_layout(self) -> None:
         raise NotImplementedError
 
     def _setup_settings(self) -> None:
@@ -282,6 +287,7 @@ class SettingsScreen:
                         spacing=10,
                     ),
                 ),
+                ft.Container(height=16),
             ],
             spacing=16,
             scroll=ft.ScrollMode.AUTO,
@@ -331,12 +337,18 @@ class SettingsScreen:
             )
         return result
 
-    def _change_theme(self, event: ft.ControlEvent) -> None:
+    def _change_theme(self, event: Any) -> None:
         value = str(
             event.data
             if event.data in {"system", "light", "dark"}
             else self.theme_dropdown.value or "system"
         )
+        self._set_theme(value)
+
+    def _set_theme(self, value: str) -> None:
+        """Persist an appearance choice made from any screen or menu."""
+        if value not in {"system", "light", "dark"}:
+            return
         result = actions.save_settings(theme_mode=value)
         if not result.ok:
             self.settings_status.value = f"{result.title}: {result.detail}"
@@ -346,6 +358,16 @@ class SettingsScreen:
         more_theme_dropdown = getattr(self, "more_theme_dropdown", None)
         if more_theme_dropdown is not None:
             more_theme_dropdown.value = value
+        for choice, item in getattr(self, "_theme_menu_items", {}).items():
+            item.checked = choice == value
+        theme_menu = getattr(self, "theme_menu", None)
+        if theme_menu is not None:
+            label = {
+                "system": t("System default"),
+                "light": t("Light"),
+                "dark": t("Dark"),
+            }[value]
+            theme_menu.tooltip = f"{t('Appearance')}: {label}"
         self._sync_responsive_layout()
         apply_page_theme(self.page, value)
 

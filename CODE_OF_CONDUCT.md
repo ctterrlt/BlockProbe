@@ -32,6 +32,9 @@ public.
   reports is sanitized.
 - Respect privacy: never ask someone to reveal more about their network,
   location or habits than a technical report needs.
+- Exported reports and diagnostic logs can contain checked domains, timestamps
+  and local network details. Do not request public attachments when a minimal,
+  sanitized reproduction is enough.
 - Do not use the project to advertise gambling or adult-content services,
   blockers, parental-control products, or other commercial products.
 

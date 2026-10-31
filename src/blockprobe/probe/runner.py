@@ -18,6 +18,7 @@ from dataclasses import dataclass, field
 from blockprobe.core.enums import Confidence, Verdict
 from blockprobe.core.models import (
     Classification,
+    DnsResult,
     ProbeAttemptRecord,
     ProbeObservation,
     SignatureRule,
@@ -26,6 +27,7 @@ from blockprobe.core.models import (
 )
 from blockprobe.probe.classifier import classify
 from blockprobe.probe.connect import connect
+from blockprobe.probe.curl_fetch import fetch_with_curl
 from blockprobe.probe.dns import resolve
 from blockprobe.probe.health import ControlCheck
 from blockprobe.probe.http_fetch import fetch, looks_like_block_target
@@ -184,6 +186,94 @@ class ProbeEngine:
                 continue
         return None
 
+    async def _curl_cross_check(
+        self,
+        observation: ProbeObservation,
+        classification: Classification,
+    ) -> None:
+        """Use system curl as an optional second opinion on blocked results."""
+        if classification.verdict is not Verdict.BLOCKED:
+            return
+
+        url = f"{observation.scheme}://{observation.host}/"
+        try:
+            fetched = await fetch_with_curl(
+                url,
+                timeout=self.config.timeout,
+                max_redirects=self.config.max_redirects,
+                max_bytes=self.config.body_cap_bytes,
+            )
+        except Exception as exc:  # optional diagnostics must never fail a scan
+            _LOGGER.warning("curl cross-check failed for %s: %s", observation.host, exc)
+            classification.evidence["curl_cross_check"] = {
+                "status": "error",
+                "error": f"{type(exc).__name__}: {exc}"[:240],
+            }
+            return
+
+        if fetched is None:
+            classification.evidence["curl_cross_check"] = {
+                "status": "unavailable",
+                "reason": "curl executable was not found on this device",
+            }
+            return
+
+        mime_type = fetched.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        known_blocker_target = known_blocker_for_url(fetched.final_url) is not None or any(
+            known_blocker_for_url(target) is not None for target in fetched.redirect_chain
+        )
+        if fetched.status is None:
+            classification.evidence["curl_cross_check"] = {
+                "status": "inconclusive",
+                "error": (fetched.error or fetched.error_kind or "no HTTP response")[:240],
+            }
+            return
+        if mime_type not in {"text/html", "application/xhtml+xml"} and not known_blocker_target:
+            classification.evidence["curl_cross_check"] = {
+                "status": "inconclusive",
+                "http_status": fetched.status,
+                "content_type": mime_type,
+                "final_url": fetched.final_url,
+                "reason": "curl did not receive an HTML block page",
+            }
+            return
+
+        curl_observation = ProbeObservation(
+            domain=observation.domain,
+            host=observation.host,
+            scheme=observation.scheme,
+            dns=DnsResult(host=observation.host, status="ok"),
+            fetch=fetched,
+        )
+        curl_classification = classify(
+            curl_observation,
+            self.rules,
+            self.config.debug,
+        )
+        confirmed = curl_classification.verdict is Verdict.BLOCKED
+        partial = fetched.error_kind is not None or fetched.truncated
+        outcome = "confirmed" if confirmed else "conflict"
+        if partial and not confirmed:
+            outcome = "inconclusive"
+        classification.evidence["curl_cross_check"] = {
+            "status": outcome,
+            "verdict": curl_classification.verdict.value,
+            "reason_code": curl_classification.reason_code,
+            "rule_id": curl_classification.rule_id,
+            "http_status": fetched.status,
+            "final_url": fetched.final_url,
+            "body_sha256": fetched.body_sha256,
+            "truncated": fetched.truncated,
+        }
+        if outcome == "conflict":
+            # Keep the primary verdict and its evidence, but surface the
+            # disagreement instead of presenting the result as settled.
+            classification.needs_review = True
+            if curl_classification.verdict is Verdict.OPENED:
+                classification.evidence["curl_cross_check"]["warning"] = (
+                    "Warning: curl opened the website successfully."
+                )
+
     async def probe_once(
         self,
         domain: str,
@@ -199,6 +289,7 @@ class ProbeEngine:
         )
         if dns_result.sinkhole:
             classification = classify(observation, self.rules, self.config.debug)
+            await self._curl_cross_check(observation, classification)
             _LOGGER.debug(
                 "dns sinkhole",
                 extra={"event": "probe_dns", "domain": host, "run_id": None},
@@ -247,6 +338,7 @@ class ProbeEngine:
                     max_bytes=min(self.config.body_cap_bytes, 131_072),
                 )
         classification = classify(observation, self.rules, self.config.debug)
+        await self._curl_cross_check(observation, classification)
         _LOGGER.debug(
             "probe result",
             extra={

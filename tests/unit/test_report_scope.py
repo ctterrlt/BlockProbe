@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import csv
 import json
 
 import pytest
@@ -70,6 +71,12 @@ def test_reports_include_scope_controls_risk_and_interception(
     )
     opened = _row(run.id, "one.example", Verdict.OPENED, "unclassified")
     blocked = _row(run.id, "two.example", Verdict.BLOCKED, "blocker_redirect")
+    blocked.needs_review = True
+    blocked.evidence["curl_cross_check"] = {
+        "status": "conflict",
+        "verdict": Verdict.OPENED.value,
+        "warning": "Warning: curl opened the website successfully.",
+    }
     storage.save_site_result(opened, [])
     storage.save_site_result(blocked, [])
     storage.update_run_status(run.id, RunStatus.COMPLETED, utc_now())
@@ -122,13 +129,25 @@ def test_reports_include_scope_controls_risk_and_interception(
     assert "302_or_equivalent" in markdown
     assert "reopens_on_return" in markdown
     assert "Dynamic BetBlocker patterns" in markdown
+    assert "Warning: curl opened the website successfully." in markdown
 
     payload = json.loads(service.render_json(saved, summary, [opened, blocked]))
     assert payload["scope"]["age_verification"]["status"] == "not asked"
     assert payload["run"]["health"]["risk_percent"] == health.risk_percent
     assert payload["summary"]["interference_risk_percent"] == health.risk_percent
     assert payload["summary"]["first_control_failure_after"] == "one.example"
+    exported_blocked = next(
+        item for item in payload["results"] if item["domain"] == blocked.domain
+    )
+    assert (
+        exported_blocked["evidence"]["curl_cross_check"]["warning"]
+        == "Warning: curl opened the website successfully."
+    )
 
     csv_text = service.render_csv([opened, blocked], saved)
     assert "scope" in csv_text.splitlines()[0]
+    csv_blocked = next(
+        row for row in csv.DictReader(csv_text.splitlines()) if row["domain"] == blocked.domain
+    )
+    assert csv_blocked["warnings"] == "Warning: curl opened the website successfully."
     assert "filtering dns" in markdown.lower()

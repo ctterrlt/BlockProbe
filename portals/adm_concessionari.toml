@@ -17,6 +17,5 @@ start_url = "https://www.adm.gov.it/portale/monopoli/giochi/gioco_distanza/gioco
 strategy = "auto"
 max_pages = 50
 rate_limit_per_sec = 1.0
-respect_robots = true
 exclude_domains = ["adm.gov.it", "mef.gov.it", "sogei.it", "aaws-aanalytics.sogei.it"]
 include_regex = []

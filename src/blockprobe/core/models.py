@@ -62,6 +62,29 @@ def to_json(value: Any) -> str:
     return json.dumps(value, default=json_default, ensure_ascii=False)
 
 
+def curl_open_warning(evidence: dict[str, Any]) -> str | None:
+    """Return the user-facing warning when curl found a successful open page."""
+    candidates: list[Any] = []
+    direct = evidence.get("curl_cross_check")
+    if isinstance(direct, dict):
+        candidates.append(direct)
+    aggregate = evidence.get("curl_cross_checks")
+    if isinstance(aggregate, list):
+        candidates.extend(item for item in aggregate if isinstance(item, dict))
+    warnings = evidence.get("curl_warnings")
+    if isinstance(warnings, list):
+        warning = next((item for item in warnings if isinstance(item, str) and item), None)
+        if warning:
+            return warning
+    for item in candidates:
+        warning = item.get("warning")
+        if isinstance(warning, str) and warning:
+            return warning
+        if item.get("status") == "conflict" and item.get("verdict") == "opened":
+            return "Warning: curl opened the website successfully."
+    return None
+
+
 @dataclass(slots=True)
 class Portal:
     """A portal definition plus its local refresh state."""
@@ -75,7 +98,9 @@ class Portal:
     strategy: str = "auto"
     max_pages: int = 50
     rate_limit_per_sec: float = 1.0
-    respect_robots: bool = True
+    # Legacy serialized field retained for existing databases and TOML files.
+    # RefreshService deliberately ignores robots.txt and never fetches it.
+    respect_robots: bool = False
     exclude_domains: tuple[str, ...] = ()
     include_regex: tuple[str, ...] = ()
     last_refreshed_at: int = 0
@@ -144,7 +169,7 @@ class Portal:
             strategy=str(source.get("strategy") or "auto"),
             max_pages=max(1, int(source.get("max_pages") or 50)),
             rate_limit_per_sec=max(0.1, float(source.get("rate_limit_per_sec") or 1.0)),
-            respect_robots=bool(source.get("respect_robots", True)),
+            respect_robots=False,
             exclude_domains=tuple(str(item).lower() for item in exclude),
             include_regex=tuple(str(item) for item in include),
             source_path=source_path,
@@ -166,7 +191,6 @@ class Portal:
             f"strategy = {self.strategy!r}",
             f"max_pages = {self.max_pages}",
             f"rate_limit_per_sec = {self.rate_limit_per_sec:g}",
-            f"respect_robots = {str(self.respect_robots).lower()}",
             f"exclude_domains = {json.dumps(list(self.exclude_domains))}",
             f"include_regex = {json.dumps(list(self.include_regex))}",
             "",
@@ -202,7 +226,6 @@ def builtin_regulator_portals() -> list[Portal]:
             strategy="auto",
             max_pages=30,
             rate_limit_per_sec=1.0,
-            respect_robots=True,
             exclude_domains=("ordenacionjuego.es", "administracion.gob.es"),
             include_regex=(r"\.es$",),
         ),
@@ -217,7 +240,6 @@ def builtin_regulator_portals() -> list[Portal]:
             strategy="auto",
             max_pages=10,
             rate_limit_per_sec=1.0,
-            respect_robots=True,
             exclude_domains=(
                 "srij.turismodeportugal.pt",
                 "turismodeportugal.pt",
@@ -232,7 +254,6 @@ def builtin_regulator_portals() -> list[Portal]:
             strategy="auto",
             max_pages=10,
             rate_limit_per_sec=1.0,
-            respect_robots=True,
             exclude_domains=("anj.fr",),
             include_regex=(r"\.fr$",),
         ),
@@ -247,7 +268,6 @@ def builtin_regulator_portals() -> list[Portal]:
             strategy="auto",
             max_pages=10,
             rate_limit_per_sec=1.0,
-            respect_robots=True,
             exclude_domains=("gluecksspiel-behoerde.de",),
             include_regex=(r"\.de$",),
         ),
@@ -259,7 +279,6 @@ def builtin_regulator_portals() -> list[Portal]:
             strategy="auto",
             max_pages=20,
             rate_limit_per_sec=1.0,
-            respect_robots=True,
             exclude_domains=("mga.org.mt",),
         ),
     ]

@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Portal list updates (FR-5).
 
-One portal at a time, one process-wide lock, robots.txt respected, one request
-per second per host, exponential backoff on 403/429 and an append-only result.
-A failed or empty update never clears the stored list and never stops a scan.
+One portal at a time, one process-wide lock, a configurable per-host request
+rate, exponential backoff on 403/429 and an append-only result. Portal refreshes
+do not request or enforce robots.txt. A failed or empty update never clears the
+stored list and never stops a scan.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ import httpx
 
 from blockprobe.core.config import Settings
 from blockprobe.core.enums import RefreshStatus
-from blockprobe.core.errors import FetchError, RobotsDenied
+from blockprobe.core.errors import FetchError
 from blockprobe.core.models import (
     ExtractedDomain,
     Portal,
@@ -28,6 +29,7 @@ from blockprobe.core.models import (
     RefreshSummary,
     utc_now,
 )
+from blockprobe.http_user_agent import CHROME_USER_AGENT
 from blockprobe.portals.generic_extractor import extract_page, find_ajax_content_url
 from blockprobe.portals.loader import load_portals
 from blockprobe.portals.pagination import (
@@ -35,7 +37,6 @@ from blockprobe.portals.pagination import (
     discover_form_pagination,
     discover_next_links,
 )
-from blockprobe.portals.robots import USER_AGENT, fetch_robots
 from blockprobe.storage.base import Storage
 
 _LOGGER = logging.getLogger("blockprobe.services.refresh")
@@ -155,7 +156,10 @@ class RefreshService:
                 summary.finished_at = utc_now()
                 return summary
             with httpx.Client(
-                headers={"User-Agent": USER_AGENT, "Accept": "text/html,*/*;q=0.1"},
+                headers={
+                    "User-Agent": CHROME_USER_AGENT,
+                    "Accept": "text/html,*/*;q=0.1",
+                },
                 follow_redirects=True,
                 timeout=httpx.Timeout(20.0, connect=10.0),
                 trust_env=True,
@@ -225,15 +229,6 @@ class RefreshService:
         )
         state = PaginationState()
         try:
-            if portal.respect_robots:
-                policy = fetch_robots(portal.start_url, client)
-                if not policy.allowed:
-                    raise RobotsDenied(policy.note or "robots.txt disallows this page")
-                if policy.crawl_delay:
-                    limiter.rate_per_sec = min(limiter.rate_per_sec, 1.0 / max(0.1, policy.crawl_delay))
-                if policy.note:
-                    warnings.append(policy.note)
-
             start_url = portal.start_url
             queue: list[str] = [start_url]
             visited: set[str] = set()
@@ -326,7 +321,7 @@ class RefreshService:
                     f"refresh found {found_count} domains, more than 30% fewer than the "
                     f"{previous_count} already stored; the stored list was kept"
                 )
-            new_domains, known_domains = self.storage.add_portal_domains(
+            added_domains, known_domains = self.storage.add_portal_domains(
                 portal.uuid, list(found.values()), start_url
             )
             return RefreshDiff(
@@ -335,15 +330,15 @@ class RefreshService:
                 status=RefreshStatus.OK,
                 pages=pages,
                 found=found_count,
-                added=len(new_domains),
-                new_domains=new_domains,
+                added=len(added_domains),
+                new_domains=added_domains,
                 already_known=known_domains,
                 warnings=warnings,
                 started_at=started,
                 finished_at=utc_now(),
                 duration_ms=int((time.monotonic() - started_monotonic) * 1000),
             )
-        except (RobotsDenied, FetchError) as exc:
+        except FetchError as exc:
             return RefreshDiff(
                 portal_id=portal.uuid,
                 portal_name=portal.name,

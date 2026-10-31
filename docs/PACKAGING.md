@@ -7,9 +7,11 @@ BlockProbe supports source/Python-package installation and builds desktop and
 Android artifacts through Flet. The Python wheel and source archive, a Linux
 portable tarball and a universal Android APK were built locally. The Linux
 installer helper and a headless Linux app launch were smoke-checked. The
-locally built APK uses Flet's default Android debug certificate; the project
-owner has installed it on a physical phone. Tagged release builds now use the
-configured Android release keystore and fail if its secrets are missing. M6
+locally built APK uses Flet's default Android debug certificate; Android UI
+verification for this work uses the configured emulator only. The current
+source build is `1.3.0-alpha` / version code `100300010`, installed on that
+AVD for UI checks. Tagged release builds use the configured Android release
+keystore and fail if its secrets are missing. M6
 remains open until a signed release has been built and verified with the
 owner's long-term key.
 
@@ -18,7 +20,8 @@ owner's long-term key.
 Python 3.14 or newer is required. pip installs the runtime dependencies declared
 in the package metadata; the `desktop` extra adds Flet's desktop runtime.
 Python installs require Python and pip on the device. They are not standalone
-installers.
+installers. The optional curl cross-check uses a system `curl` executable when
+available; it is not a required dependency and is not bundled in Android builds.
 
 ```console
 python -m pip install blockprobe
@@ -40,11 +43,15 @@ web UI. The wheel and sdist include the bundled BetBlocker fallback signatures.
 
 ## Build artifacts
 
-The current release version is `1.2.4-alpha`. Mobile startup colors follow the
+The current development version is `1.3.0-alpha`. Mobile startup colors follow the
 system appearance, and the splash screen uses the BlockProbe app icon. Android
 and iOS use a three-site scan concurrency default; other platforms use eight.
 Users can change scan concurrency in Settings, and the value is saved with the
 other local settings.
+
+`src/blockprobe/VERSION` is canonical. An installed emulator app can lag behind
+the working tree, so inspect the APK's manifest before treating a run as
+current-source verification.
 
 Install Python 3.14, then install the build extra:
 
@@ -189,9 +196,12 @@ desktop to use it; the smoke test did not exercise the full UI or network scan.
 The local APK is `dist/packages/apk/blockprobe.apk`. It is a release-mode,
 universal APK containing `arm64-v8a`, `armeabi-v7a` and `x86_64` native
 libraries. Flet's default single APK targets all supported Android ABIs, which
-increases download size; the current build is about 156 MB. It is signed with
-the Android debug certificate for sideload testing. Production distribution
-requires a privately managed release key and a device-install/runtime check.
+increases download size; the current build is about 159 MiB (167 MB decimal).
+It is signed with the Android debug certificate for emulator testing.
+Production distribution requires the protected release key and Release
+workflow validation.
+For local UI verification, install only on the configured AVD and pin ADB
+commands to `emulator-5554`. A debug APK is a smoke-test artifact, not a release.
 
 ## Optional container
 

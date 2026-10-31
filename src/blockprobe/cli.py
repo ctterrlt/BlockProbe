@@ -74,7 +74,12 @@ def scope() -> None:
 def consent_status() -> None:
     """Show whether the first-run consent was recorded."""
     version = actions.consent_version()
-    if actions.consent_required():
+    try:
+        required = actions.consent_required()
+    except Exception as exc:
+        _emit(actions.ActionResult(i18n.t("Could not check the consent record"), str(exc), ok=False))
+        return
+    if required:
         typer.echo(
             i18n.t("Consent version {version} has not been accepted yet.", version=version)
         )

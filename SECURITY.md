@@ -31,6 +31,12 @@ check the UI at two phone sizes. These builds are not production releases.
 Reports about source installs, Python packages and local artifacts follow the same policy. See
 [docs/PACKAGING.md](docs/PACKAGING.md) for verified artifacts and remaining work.
 
+Consent storage failures must remain distinct from a missing or outdated
+consent record. A failed check does not authorize network activity, including
+resuming a paused scan, or show a false consent prompt. File-picker failures
+retain a local export copy where possible and display its location; export
+errors must not be hidden.
+
 ## How to report
 
 Use GitHub's private vulnerability reporting on the repository

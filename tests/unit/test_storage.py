@@ -138,6 +138,25 @@ def test_exclusion_is_reversible_and_keeps_the_row(storage) -> None:
     assert len(storage.select_sites(ScanSelection(all_sources=True))) == 1
 
 
+def test_custom_site_list_excludes_portal_domains(storage) -> None:
+    portal = make_portal()
+    storage.upsert_portals([portal])
+    storage.add_portal_domains(
+        portal.uuid,
+        [
+            candidate("portal-one.example.com", "portal-one.example.com"),
+            candidate("portal-two.example.com", "portal-two.example.com"),
+        ],
+        portal.start_url,
+    )
+    storage.add_custom_domains([("my-custom.example.com", "my-custom.example.com")])
+
+    custom = storage.list_custom_sites()
+    assert [site.domain for site in custom] == ["my-custom.example.com"]
+    assert all(site.is_custom for site in custom)
+    assert len(storage.list_sites(None, with_custom=True)) == 3
+
+
 def test_custom_domains_are_tracked_and_removable(storage) -> None:
     diff = storage.add_custom_domains(
         [("custom.example.com", "www.custom.example.com")], note="manual"

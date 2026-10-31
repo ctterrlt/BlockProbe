@@ -22,6 +22,14 @@ verdict is worse than a "needs review".
   its value into code, package metadata, installer templates or documentation.
 - Keep every visible interface string in `blockprobe.i18n`; add and verify it
   in all supported language catalogs when changing a screen.
+- Android UI verification must use the configured AVD and an explicit
+  `emulator-5554` ADB selector. Never use a physical-device serial for project
+  verification.
+- A `curl` cross-check runs only after HTTPX reports block evidence. A
+  successful curl response must keep the result marked for review and show
+  “Warning: curl opened the website successfully.” Unreachable results do not
+  trigger the app's curl check. When manually comparing a host and emulator,
+  record which network path each request used.
 
 ## Development setup
 
@@ -44,6 +52,10 @@ python -m ruff check src tests scripts
 python -m mypy                    # strict on blockprobe.core
 python -m pytest                  # includes hypothesis and respx tests
 ```
+
+For UI and file-picker changes, include a current-source emulator build in the
+verification record. Confirm the embedded version from the APK manifest; the
+installed app version can lag behind `src/blockprobe/VERSION`.
 
 - Tests live in `tests/unit`, `tests/integration` and `tests/regression`.
   Fixtures under `tests/fixtures/` follow the rule that the expected result is

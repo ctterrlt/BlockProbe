@@ -7,6 +7,7 @@ import httpx
 import respx
 
 from blockprobe.probe.http_fetch import (
+    PROBE_USER_AGENT,
     detect_reopen_behaviour,
     extract_embedded_redirects,
     fetch,
@@ -79,6 +80,8 @@ async def test_302_chain_is_recorded_and_cookies_are_not_replayed() -> None:
     assert result.redirect_statuses == [302]
     assert result.redirect_chain == ["https://final.example/blocked/"]
     assert result.embedded_redirects == []
+    assert start.calls[0].request.headers["user-agent"] == PROBE_USER_AGENT
+    assert final.calls[0].request.headers["user-agent"] == PROBE_USER_AGENT
     assert final.calls[0].request.headers.get("cookie") is None
     assert "set-cookie" not in result.headers
 

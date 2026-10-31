@@ -11,6 +11,5 @@ start_url = "https://www.anj.fr/offre-de-jeu-et-marche/operateurs-agrees"
 strategy = "auto"
 max_pages = 10
 rate_limit_per_sec = 1.0
-respect_robots = true
 exclude_domains = ["anj.fr"]
 include_regex = ["\\.fr$"]

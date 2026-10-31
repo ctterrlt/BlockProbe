@@ -100,6 +100,24 @@ def aggregate(domain: str, classifications: list[Classification]) -> Classificat
     else:
         chosen = best
     evidence = dict(chosen.evidence)
+    curl_checks = [
+        {
+            "primary_verdict": item.verdict.value,
+            **item.evidence["curl_cross_check"],
+        }
+        for item in classifications
+        if isinstance(item.evidence.get("curl_cross_check"), dict)
+    ]
+    if curl_checks:
+        evidence["curl_cross_checks"] = curl_checks
+        curl_warnings = [
+            str(item["warning"])
+            for item in curl_checks
+            if isinstance(item.get("warning"), str) and item["warning"]
+        ]
+        if curl_warnings:
+            evidence["curl_warnings"] = list(dict.fromkeys(curl_warnings))
+    curl_conflict = any(item.get("status") == "conflict" for item in curl_checks)
     evidence["variants"] = [
         {
             "verdict": item.verdict.value,
@@ -117,7 +135,7 @@ def aggregate(domain: str, classifications: list[Classification]) -> Classificat
         reason_code=chosen.reason_code,
         confidence=chosen.confidence,
         blocker_hint=chosen.blocker_hint,
-        needs_review=chosen.needs_review,
+        needs_review=chosen.needs_review or curl_conflict,
         rule_id=chosen.rule_id,
         title=chosen.title,
         snippet=chosen.snippet,

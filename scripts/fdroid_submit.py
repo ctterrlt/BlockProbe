@@ -347,10 +347,6 @@ def dump_yaml(data: dict[str, Any]) -> str:
                 current = CommentedMap(
                     (field, build[field]) for field in build_order if field in build
                 )
-                for field in ("build", "prebuild", "postbuild", "init", "patch", "sudo"):
-                    commands = current.get(field)
-                    if isinstance(commands, list) and len(commands) == 1:
-                        current[field] = commands[0]
                 builds.append(current)
             value = builds
         ordered[key] = value

@@ -17,6 +17,16 @@ from blockprobe.services import reset_runtime
 from blockprobe.ui import actions
 
 
+class FakeDialogs:
+    """Minimal dialog stack so banner replacement can be asserted."""
+
+    def __init__(self) -> None:
+        self.controls: list = []
+
+    def update(self) -> None:
+        pass
+
+
 class FakePage:
     """Minimal stand-in for ft.Page: records calls instead of rendering."""
 
@@ -30,6 +40,8 @@ class FakePage:
         self.controls: list = []
         self.updates = 0
         self.dialog = None
+        self.web = False
+        self._dialogs = FakeDialogs()
 
     def add(self, *controls) -> None:  # type: ignore[no-untyped-def]
         self.controls.extend(controls)
@@ -42,9 +54,12 @@ class FakePage:
 
     def show_dialog(self, dialog) -> None:  # type: ignore[no-untyped-def]
         self.dialog = dialog
+        self._dialogs.controls.append(dialog)
 
     def pop_dialog(self):  # type: ignore[no-untyped-def]
         dialog, self.dialog = self.dialog, None
+        if dialog in self._dialogs.controls:
+            self._dialogs.controls.remove(dialog)
         return dialog
 
     def run_thread(self, handler, *args, **kwargs):  # type: ignore[no-untyped-def]
@@ -84,6 +99,27 @@ def test_consent_gates_network_actions(action_env: Path) -> None:
     accepted = actions.accept_consent()
     assert accepted.ok is True
     assert actions.consent_required() is False
+
+
+def test_consent_storage_failure_is_not_reported_as_missing_consent(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken_consent() -> bool:
+        raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(actions.runtime().scan, "consent_required", broken_consent)
+    with pytest.raises(RuntimeError, match="database is locked"):
+        actions.consent_required()
+    result = actions.refresh_portals()
+    assert result.ok is False
+    assert "Consent required" not in result.title
+    assert "consent" in result.title.casefold()
+    scan_result = actions.start_scan(actions.ScanRequest(all_sources=True))
+    assert scan_result.ok is False
+    assert scan_result.title == "Could not check the consent record"
+    resume_result = actions.resume_scan()
+    assert resume_result.ok is False
+    assert resume_result.title == "Could not check the consent record"
 
 
 def test_consent_language_selection_applies_before_acceptance(action_env: Path) -> None:
@@ -143,6 +179,25 @@ def test_custom_website_and_portal_feed_are_separate_sources(action_env: Path) -
     assert app_runtime.storage.list_portals()
 
 
+def test_scan_preview_tracks_custom_only_selection(action_env: Path) -> None:
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    assert actions.add_custom_domains("example.com").ok is True
+    page = FakePage()
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+    assert "Portal lists older than the refresh window" in ui.preview_text.value
+
+    ui.source_checkboxes["custom"].value = True
+    ui._apply_source_change("custom", True)
+
+    assert ui.source_checkboxes["all"].value is False
+    assert "Sources: none" in ui.preview_text.value
+    assert "Portal lists older than the refresh window" not in ui.preview_text.value
+
+
 def test_rejected_input_never_silently_passes(action_env: Path) -> None:
     result = actions.add_custom_domains("localhost\n192.168.1.1\n")
     assert result.ok is False
@@ -173,8 +228,10 @@ def test_reset_and_delete_need_the_exact_word(action_env: Path) -> None:
 
     refused_delete = actions.delete_all_data("nope")
     assert refused_delete.ok is False
+    assert refused_delete.consent_cleared is False
     deleted = actions.delete_all_data("RESET ALL")
     assert deleted.ok is True
+    assert deleted.consent_cleared is True
 
 
 def test_portals_and_diagnostics_work_offline(action_env: Path) -> None:
@@ -242,3 +299,205 @@ def test_ui_shell_builds_without_a_window(action_env: Path) -> None:
         )
     )
     assert "No websites" in ui.progress_text.value
+
+
+def test_new_action_banner_replaces_the_previous_one(action_env: Path) -> None:
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    page = FakePage()
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+
+    ui.apply(actions.ActionResult("first", ""))
+    first = ui.snack
+    assert first is not None
+    assert page._dialogs.controls == [first]
+
+    ui.apply(actions.ActionResult("second", ""))
+    assert ui.snack is not None
+    assert ui.snack is not first
+    assert page._dialogs.controls == [ui.snack]
+    assert first.open is False
+
+
+def test_normal_actions_do_not_reenter_consent(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    page = FakePage()
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+
+    shown: list[bool] = []
+    monkeypatch.setattr(actions, "consent_required", lambda: True)
+    monkeypatch.setattr(ui, "_show_consent", lambda: shown.append(True))
+    ui.run_async(lambda: actions.ActionResult("done", ""))
+    assert shown == []
+    assert ui.snack is not None
+    assert ui.snack.content.value == "done"
+
+
+def _export_ui(action_env: Path, monkeypatch: pytest.MonkeyPatch):
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    page = FakePage()
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+    return ui_app, ui
+
+
+class _FailingPicker:
+    def __init__(self) -> None:
+        pass
+
+    async def save_file(self, **_kwargs) -> str | None:
+        raise RuntimeError("platform picker unavailable")
+
+
+class _CancellingPicker:
+    def __init__(self) -> None:
+        pass
+
+    async def save_file(self, **_kwargs) -> str | None:
+        return None
+
+
+class _AndroidDocumentPicker:
+    """Android SAF returns an opaque document id, not a filesystem path."""
+
+    def __init__(self) -> None:
+        pass
+
+    async def save_file(self, **_kwargs) -> str | None:
+        return "/document/5"
+
+
+def test_global_theme_choice_updates_every_menu(action_env: Path) -> None:
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    page = FakePage()
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+    assert ui.theme_menu is not None
+
+    ui._set_theme("dark")
+    assert actions.runtime().settings.config.app.theme_mode == "dark"
+    assert ui.theme_dropdown.value == "dark"
+    assert ui._theme_menu_items["dark"].checked is True
+    assert ui._theme_menu_items["system"].checked is False
+    assert "Dark" in (ui.theme_menu.tooltip or "")
+
+
+def test_export_picker_failure_keeps_unique_local_copies(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    ui_app, ui = _export_ui(action_env, monkeypatch)
+    monkeypatch.setattr(ui_app.ft, "FilePicker", _FailingPicker)
+    statuses: list[actions.ActionResult] = []
+
+    def write_export(destination: Path) -> actions.ActionResult:
+        destination.write_text("export payload", encoding="utf-8")
+        return actions.ActionResult("Report written", str(destination))
+
+    export = ui._export_to_file(
+        write_export, "txt", file_stem="fallback-test", on_result=statuses.append
+    )
+    asyncio.run(export(None))
+    asyncio.run(export(None))
+
+    reports = actions.runtime().settings.reports_dir
+    files = sorted(reports.glob("fallback-test-*.txt"))
+    assert len(files) == 2
+    assert {path.read_text(encoding="utf-8") for path in files} == {"export payload"}
+    assert len(statuses) == 2
+    for status in statuses:
+        assert str(reports) in status.detail
+        assert "reports folder" in status.detail
+    assert ui.snack is not None
+    assert ui.snack.content.value == "Report written"
+
+
+def test_export_hides_android_document_ids(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    ui_app, ui = _export_ui(action_env, monkeypatch)
+    monkeypatch.setattr(ui_app.ft, "FilePicker", _AndroidDocumentPicker)
+    statuses: list[actions.ActionResult] = []
+
+    def write_export(destination: Path) -> actions.ActionResult:
+        destination.write_text("export payload", encoding="utf-8")
+        return actions.ActionResult("Report written", str(destination))
+
+    export = ui._export_to_file(
+        write_export, "txt", file_stem="android-test", on_result=statuses.append
+    )
+    asyncio.run(export(None))
+
+    assert statuses
+    detail = statuses[-1].detail
+    assert "android-test-" in detail
+    assert "Saved to the selected location." in detail
+    assert "/document/5" not in detail
+
+
+def test_export_cancel_does_not_create_a_fallback(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    ui_app, ui = _export_ui(action_env, monkeypatch)
+    monkeypatch.setattr(ui_app.ft, "FilePicker", _CancellingPicker)
+    statuses: list[actions.ActionResult] = []
+
+    def write_export(destination: Path) -> actions.ActionResult:
+        destination.write_text("export payload", encoding="utf-8")
+        return actions.ActionResult("Report written", str(destination))
+
+    export = ui._export_to_file(
+        write_export, "txt", file_stem="cancelled-test", on_result=statuses.append
+    )
+    asyncio.run(export(None))
+
+    reports = actions.runtime().settings.reports_dir
+    assert not list(reports.glob("cancelled-test-*.txt"))
+    assert statuses
+    assert statuses[-1].title == "Export cancelled"
+
+
+def test_export_preparation_error_recovers_generated_output(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import asyncio
+
+    _, ui = _export_ui(action_env, monkeypatch)
+    statuses: list[actions.ActionResult] = []
+
+    def broken_export(destination: Path) -> actions.ActionResult:
+        destination.write_text("partial output", encoding="utf-8")
+        raise RuntimeError("renderer stopped after writing")
+
+    export = ui._export_to_file(
+        broken_export, "txt", file_stem="recovered-test", on_result=statuses.append
+    )
+    asyncio.run(export(None))
+
+    reports = actions.runtime().settings.reports_dir
+    files = list(reports.glob("recovered-test-*.txt"))
+    assert len(files) == 1
+    assert files[0].read_text(encoding="utf-8") == "partial output"
+    assert statuses
+    assert statuses[-1].ok is False
+    assert "preparation error" in statuses[-1].detail

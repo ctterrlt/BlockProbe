@@ -14,7 +14,7 @@ import logging
 import sqlite3
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -655,7 +655,11 @@ class SQLiteStorage(Storage):
         return diff
 
     def list_custom_sites(self) -> list[Site]:
-        return self.list_sites(None, with_custom=True)
+        # An empty portal selection with with_custom=True restricts the query
+        # to rows present in custom_sites. Passing None here would return every
+        # portal domain and make the Sources screen look like it imported the
+        # whole regulator feed as personal websites.
+        return self.list_sites([], with_custom=True)
 
     def remove_custom_site(self, domain: str) -> bool:
         with self._write() as connection:
@@ -876,7 +880,7 @@ class SQLiteStorage(Storage):
             ).fetchone()
             self._generation = int(row["value"]) if row else self._generation + 1
 
-    def _result_from_row(self, row: sqlite3.Row) -> ResultRow:
+    def _result_from_row(self, row: Mapping[str, Any]) -> ResultRow:
         evidence = _json_loads(row["evidence_json"], {})
         return ResultRow(
             run_id=str(row["run_id"]),
@@ -1212,11 +1216,8 @@ class SQLiteStorage(Storage):
         return path
 
 
-class _RowProxy(dict):
+class _RowProxy(dict[str, Any]):
     """sqlite3.Row-like mapping for the portable result fallback."""
-
-    def __getitem__(self, key: str) -> Any:  # type: ignore[override]
-        return super().__getitem__(key)
 
 
 def build_sqlite_storage(path: Path) -> SQLiteStorage:

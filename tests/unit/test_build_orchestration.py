@@ -42,9 +42,9 @@ def test_build_number_tracks_the_canonical_version() -> None:
 
 
 def test_build_number_accepts_prerelease_versions(monkeypatch) -> None:
-    monkeypatch.setattr(build, "project_version", lambda: "1.2.1-alpha")
+    monkeypatch.setattr(build, "project_version", lambda: "1.3.0-alpha")
 
-    assert build.project_build_number() == 100_200_110
+    assert build.project_build_number() == 100_300_010
 
 
 def test_prerelease_build_codes_increase_through_stable_release(monkeypatch) -> None:
@@ -54,7 +54,7 @@ def test_prerelease_build_codes_increase_through_stable_release(monkeypatch) -> 
         "1.2.3-gamma",
         "1.2.3-rc",
         "1.2.3",
-        "1.2.4-alpha",
+        "1.3.0-alpha",
     ]
     codes = []
     for version in versions:

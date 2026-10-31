@@ -28,7 +28,7 @@ from blockprobe.core.config import (
     is_mobile,
 )
 from blockprobe.core.enums import RunStatus
-from blockprobe.core.errors import BlockProbeError, ConsentRequired
+from blockprobe.core.errors import BlockProbeError, ConsentRequired, ProbeError, StorageError
 from blockprobe.core.models import Portal, ResultRow, RunComparison, RunSummary, ScanSelection
 from blockprobe.i18n import LANGUAGES, set_language, t
 from blockprobe.logging_setup import export_logs_zip
@@ -48,6 +48,10 @@ class ActionResult:
     title: str
     detail: str
     ok: bool = True
+    # Actions that erase the consent record ask the UI to return to the
+    # first-run flow. Ordinary actions must not re-check consent afterwards:
+    # a transient storage read error there used to look like missing consent.
+    consent_cleared: bool = False
 
 
 @dataclass(frozen=True)
@@ -219,10 +223,37 @@ def consent_version() -> str:
 
 
 def consent_required() -> bool:
+    """Return True only when the consent record is definitely absent.
+
+    A storage or runtime failure is not proof that the user declined the
+    notice. Reporting it as missing consent made the app ask for consent again
+    after unrelated actions such as a portal update or a scan start.
+    """
     try:
         return runtime().scan.consent_required()
     except Exception:
-        return True
+        _LOGGER.exception("could not read the consent record")
+        raise
+
+
+def _consent_block() -> ActionResult | None:
+    """Return a failure for the first-run gate, or None when it is accepted.
+
+    Unlike :func:`consent_required`, this helper does not hide storage errors:
+    it reports that the record could not be checked instead of falsely saying
+    that the user never consented.
+    """
+    try:
+        required = consent_required()
+    except Exception as exc:
+        return _failure(t("Could not check the consent record"), exc)
+    if not required:
+        return None
+    return ActionResult(
+        t("Consent required"),
+        t("Accept the first-run notice before scanning or updating websites."),
+        ok=False,
+    )
 
 
 def accept_consent() -> ActionResult:
@@ -280,15 +311,9 @@ def list_portals() -> ActionResult:
 
 def refresh_portals(portal_id: str | None = None) -> ActionResult:
     """Manual 'Update website list' action; never starts a test run."""
-    if consent_required():
-        return ActionResult(
-            t("Consent required"),
-            t(
-                "Open the app and accept the first-run notice before any network "
-                "activity, including a portal update."
-            ),
-            ok=False,
-        )
+    blocked = _consent_block()
+    if blocked is not None:
+        return blocked
     app_runtime = runtime()
     portal_ids = [portal_id] if portal_id else None
     if portal_id and app_runtime.storage.get_portal(portal_id) is None:
@@ -392,6 +417,9 @@ def preview_scan(request: ScanRequest) -> ActionResult:
 
 
 def start_scan(request: ScanRequest) -> ActionResult:
+    blocked = _consent_block()
+    if blocked is not None:
+        return blocked
     try:
         run, total = runtime().scan.start_run(
             request.to_selection(), auto_refresh=request.auto_refresh
@@ -404,14 +432,20 @@ def start_scan(request: ScanRequest) -> ActionResult:
                 t("Accept the first-run notice before scanning or updating websites."),
                 ok=False,
             )
-        detail = (
-            t(
+        if "No websites are selected." in str(exc):
+            detail = t(
                 "No websites are selected. Refresh a portal or add a custom website, "
                 "then start the scan again."
             )
-            if "No websites are selected." in str(exc)
-            else t("Could not start the scan. Check the selected sources and try again.")
-        )
+        elif isinstance(exc, StorageError):
+            detail = t(
+                "BlockProbe could not read or write its local database. "
+                "Check Logs and try again."
+            )
+        elif isinstance(exc, ProbeError):
+            detail = t(str(exc))
+        else:
+            detail = t("Could not start the scan. Check the selected sources and try again.")
         return ActionResult(
             t("Scan not started"),
             detail,
@@ -575,6 +609,9 @@ def pause_scan() -> ActionResult:
 
 
 def resume_scan(run_id: str | None = None) -> ActionResult:
+    blocked = _consent_block()
+    if blocked is not None:
+        return blocked
     app_runtime = runtime()
     if run_id is None and app_runtime.scan.resume():
         return ActionResult(t("Scan resumed"), t("The active run continues."))
@@ -788,15 +825,9 @@ def set_site_excluded(domain: str, excluded: bool) -> ActionResult:
 
 
 def capture_signature(domain: str) -> ActionResult:
-    if consent_required():
-        return ActionResult(
-            t("Consent required"),
-            t(
-                "Open the app and accept the first-run notice before any network "
-                "activity, including a signature capture."
-            ),
-            ok=False,
-        )
+    blocked = _consent_block()
+    if blocked is not None:
+        return blocked
     try:
         result = runtime().signature.capture(domain)
     except BlockProbeError as exc:
@@ -835,15 +866,9 @@ def list_signatures() -> ActionResult:
 
 def refresh_betblocker_signatures() -> ActionResult:
     """Fetch the live BetBlocker page now and append any new patterns."""
-    if consent_required():
-        return ActionResult(
-            t("Consent required"),
-            t(
-                "Open the app and accept the first-run notice before any network "
-                "activity, including a signature refresh."
-            ),
-            ok=False,
-        )
+    blocked = _consent_block()
+    if blocked is not None:
+        return blocked
     try:
         refresh = asyncio.run(runtime().scan.refresh_dynamic_signatures())
     except Exception as exc:
@@ -1183,4 +1208,8 @@ def delete_all_data(confirm: str) -> ActionResult:
         t("Removed websites: {count}", count=report.removed_sites),
         t("The consent record was cleared, so the first-run flow appears again."),
     ]
-    return ActionResult(t("All local data deleted"), "\n".join(lines))
+    return ActionResult(
+        t("All local data deleted"),
+        "\n".join(lines),
+        consent_cleared=True,
+    )

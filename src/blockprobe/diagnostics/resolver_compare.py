@@ -13,6 +13,7 @@ import logging
 
 import httpx
 
+from blockprobe.http_user_agent import CHROME_USER_AGENT
 from blockprobe.probe.dns import resolve_sync
 
 _LOGGER = logging.getLogger("blockprobe.diagnostics.resolver_compare")
@@ -28,7 +29,10 @@ async def control_resolve(host: str, endpoint: str, timeout: float = 5.0) -> boo
             response = await client.get(
                 endpoint,
                 params=payload,
-                headers={"Accept": "application/dns-json"},
+                headers={
+                    "Accept": "application/dns-json",
+                    "User-Agent": CHROME_USER_AGENT,
+                },
             )
             response.raise_for_status()
             data = response.json()

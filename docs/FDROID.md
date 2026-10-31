@@ -29,7 +29,7 @@ its archive; it does not delete the old source tag, commit or GitHub release.
 
 1. Update `src/blockprobe/VERSION`, `CHANGELOG.md` and the source.
 2. Commit and push the release changes to the repository's default branch.
-3. Tag with `v-<version>` (for example `v-1.2.4-alpha`) and push the tag.
+3. Tag with `v-<version>` (for example `v-1.3.0-alpha`) and push the tag.
 4. After the GitHub `Release` workflow completes successfully for the tag, the
    `F-Droid` workflow renders and validates the metadata, then opens or updates
    one `fdroiddata` merge request using `GITLAB_TOKEN`. Both the recipe and
@@ -122,11 +122,17 @@ and SDK setup.
 
 ## Risks and limits
 
+`src/blockprobe/VERSION` is the canonical source version. Confirm the build
+version and monotonically increasing Android version code from the produced
+APK before submitting metadata; an older installed APK does not identify the
+current source revision.
+
 - This is the first Flet/`serious_python` app submitted to `fdroiddata`. The
   Android recipe may need changes during F-Droid review.
-- The universal APK is about 163 MB because it contains Python, Flutter and
-  the `arm64-v8a`, `armeabi-v7a` and `x86_64` ABIs. Per-ABI splits would reduce
-  each download but require a different metadata recipe.
+- The universal APK is large because it contains Python, Flutter and the
+  `arm64-v8a`, `armeabi-v7a` and `x86_64` ABIs. The current local debug build
+  is about 159 MiB; per-ABI splits would reduce each download but require a
+  different metadata recipe.
 - F-Droid signs the published APK. The debug signature on local builds is not
   the publication signature.
 - F-Droid has no upload, replace or delete API. Publication is always a

@@ -13,12 +13,19 @@ Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
 `src/blockprobe/VERSION` is the single version source for runtime display,
 Flet build version/build code, Windows installer and Arch package artifact.
 Hatchling converts SemVer-style prerelease labels to PEP 440 package metadata
-(`1.2.4-alpha` becomes `1.2.4a0`).
+(`1.3.0-alpha` becomes `1.3.0a0`).
 Android build codes reserve ordered slots for alpha, beta, gamma, release
 candidates and stable versions, so a later prerelease can update an earlier
 one without changing the package identity or signing key.
 
-The current local development version is `1.2.4-alpha`. `python
+For an emulator smoke build, verify `versionName` and `versionCode` in the APK
+manifest against this source version and the build-code mapping. A previous
+APK left installed on an emulator may report an older version; it does not
+change the repository's canonical version.
+
+The current local development version is `1.3.0-alpha`; its Android code is
+`100300010`. The debug APK was installed on the configured emulator for UI
+verification. `python
 scripts/build.py all` rebuilds the targets available on the current host and
 cleans target-specific previous artifacts first.
 

@@ -29,7 +29,7 @@ MIGRATIONS: dict[int, list[str]] = {
             strategy TEXT NOT NULL DEFAULT 'auto',
             max_pages INTEGER NOT NULL DEFAULT 50,
             rate_limit_per_sec REAL NOT NULL DEFAULT 1.0,
-            respect_robots INTEGER NOT NULL DEFAULT 1,
+            respect_robots INTEGER NOT NULL DEFAULT 0,
             exclude_domains_json TEXT NOT NULL DEFAULT '[]',
             include_regex_json TEXT NOT NULL DEFAULT '[]',
             last_refreshed_at INTEGER NOT NULL DEFAULT 0,

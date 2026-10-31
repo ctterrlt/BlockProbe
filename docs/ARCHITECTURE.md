@@ -43,7 +43,7 @@ src/
 └── blockprobe/
     ├── core/                     # models, enums, errors, config
     ├── i18n.py                   # translation catalogs (it, en, fr, es, pt)
-    ├── portals/                  # normalisation, generic extractor, pagination, robots, loader
+    ├── portals/                  # normalisation, generic extractor, pagination, loader
     ├── probe/                    # DNS, TCP/TLS, HTTP fetch, interception, classifier, health, runner
     ├── diagnostics/              # system DNS, resolver comparison, VPN/proxy/DNS-filter detection
     ├── storage/                  # backend interface, SQLite, migrations
@@ -59,9 +59,9 @@ src/
 ### Portal refresh (`blockprobe.services.refresh`)
 
 1. The portal definition (TOML file in `portals/`) is loaded and stored in the
-   SQLite `portals` table; the file defines the start URL, rate limit, robots
-   policy and exclusion list.
-2. The page is fetched once, `robots.txt` is respected when available, and the
+   SQLite `portals` table; the file defines the start URL, rate limit and
+   exclusion list. A legacy `respect_robots` value is ignored.
+2. Portal pages are fetched without requesting or enforcing `robots.txt`; the
    generic extractor discovers candidate hosts in three passes: table cells,
    visible text, and quoted hostnames inside `<script>` blocks (JSON arrays).
    Bare JavaScript property chains are rejected; URL-pattern matches and
@@ -95,8 +95,17 @@ decodes JavaScript escapes (`\x3d`, `\u003d`). No fragment URL is hard-coded.
 2. For each stored website the runner builds variant targets (host as listed,
    apex, `www`) and records DNS plus a TCP/TLS diagnostic using the OS resolver
    and `asyncio` sockets. It makes the actual bounded HTTP request through
-   HTTPX. A failed socket diagnostic does not suppress the HTTP request;
-   successful HTTP evidence takes precedence over DNS diagnostic errors.
+   HTTPX with a shared Chrome-for-Windows User-Agent, also used for portal
+   refresh, control-resolver and curl requests. Portal refresh never requests
+   `robots.txt`. This header does not emulate Chrome's browser or network
+   fingerprint. A failed socket diagnostic does not suppress the HTTP request;
+   successful HTTP evidence takes precedence over DNS diagnostic errors. If
+   the HTTPX classification is blocked,
+   the runner optionally fetches the same URL with the system `curl` executable
+   and classifies that bounded response independently. If curl opens a site,
+   the primary verdict remains and the result is marked for review with the
+   warning “Warning: curl opened the website successfully.” A missing curl
+   executable is recorded as unavailable and does not affect the scan.
 3. The classifier turns observations into a verdict with `ReasonCode`,
    confidence and evidence. A blocked signature, a DNS sinkhole or a known
    blocker/regulator redirect can support `BLOCKED`; HTTP status codes alone
@@ -119,6 +128,16 @@ Reports are generated from stored rows only — never by re-probing. Markdown,
 CSV and JSON exports include the run context (app version, OS, network
 context), the per-domain verdicts and a comparison with the previous run
 (newly leaking, newly blocked, still leaking, resolved).
+
+The Flet shell owns responsive navigation, global appearance selection and
+action feedback. The Run screen refreshes its local scan preview whenever the
+source selection changes. Scan start, scan resume, portal refresh and signature
+network actions check the consent record before entering the service layer; a
+storage error is surfaced separately from missing consent.
+Report and log buttons render to a temporary file, ask the platform file picker
+for a destination, and retain a uniquely named file under the local reports
+directory if the picker fails. A normal picker cancellation does not create a
+fallback file.
 
 ## Storage
 
@@ -163,9 +182,11 @@ when the process exits. Values are serialized as JSON, not Python pickle data.
 
 ## Security and hostile input
 
-- Fetched pages are treated as hostile: no JavaScript is executed, no file is
-  downloaded, bodies are size-capped, and response bodies are never stored
-  (only a hash and key phrases in a captured fingerprint).
+- Fetched pages are treated as hostile: no JavaScript is executed, linked
+  assets are not fetched, website files are never saved, bodies are size-capped,
+  and response bodies are never stored (only a hash and key phrases in a
+  captured fingerprint). The optional curl check uses HEAD before a capped HTML
+  GET.
 - Scanned domains are rendered as plain text, never as links.
 - Probing is HTTP-only outbound; no port scanning, no root, no permissions
   beyond network access.

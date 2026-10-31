@@ -28,6 +28,11 @@ consent leaves everything untouched; the app will not refresh or scan until the
 texts are accepted. Bumping the version (when the wording changes) makes the
 app ask again.
 
+If the local consent record cannot be read, the app reports that check failure
+and blocks network actions, including resuming a paused scan, until it can
+determine the record's state. It does not treat a storage error as either
+acceptance or a missing consent record.
+
 ## What is stored, and where
 
 All paths are inside the configured data directory (default: the platform data
@@ -36,11 +41,11 @@ directory, overridable with `BLOCKPROBE_DATA_DIR`; config with
 
 | Data | Location | Notes |
 | --- | --- | --- |
-| Website list, runs, verdicts, evidence | `blockprobe.sqlite3` | Sites are append-only; evidence includes IPs, timings, HTTP status, redirect chains and body hashes — not bodies |
+| Website list, runs, verdicts, evidence | `blockprobe.sqlite3` | Sites are append-only; evidence includes IPs, timings, HTTP status, redirect chains, body hashes and optional curl cross-check status — not bodies |
 | Dynamic BetBlocker patterns | same database, `dynamic_signatures` table | Escaped visible sentences from the live block page, append-only; inspect with `signature list` |
 | Consent version | same database, `consents` table | Version + timestamp only |
 | Logs | `logs/blockprobe.jsonl` + in-memory ring buffer | Structured events; may contain domain names and errors |
-| Reports | `reports/` when you export | Markdown/CSV/JSON/text you chose to write |
+| Reports | The path you choose in the platform save dialog; `reports/` under the app data directory if that dialog fails | Markdown/CSV/JSON/text you chose to write. A picker failure saves a uniquely named local copy and displays its path; cancelling the picker does not save a fallback copy. |
 | Captured fingerprints | `signatures/<domain>.toml` | Only when you run `signature capture`; hash and key phrases, no body |
 | Backups | `backups/` | Written before a guarded reset |
 | Cache | process memory only (embedded, in-process) | JSON list views only; probe verdicts are never cached; cleared on exit; no cache directory is created |
@@ -68,8 +73,10 @@ Every report and the `blockprobe scope` command state the same facts:
   or an analytics service.
 - **No website terms accepted.** No terms of service, age gate, cookie wall or
   login is accepted on the user's behalf.
-- **No images or files downloaded.** Only bounded HTML responses are fetched
-  for classification; assets, media and archives are ignored.
+- **No website files saved.** Linked assets, media and archives are not
+  requested or inspected. Response bodies are capped; only HTML is inspected.
+  The optional curl cross-check may receive bounded bytes before it knows the
+  content type, then discards non-HTML bodies without inspection or storage.
 - **No GDPR or US privacy-law claim.** This is a technical statement, not legal
   advice or a compliance certification.
 
@@ -77,8 +84,8 @@ Every report and the `blockprobe scope` command state the same facts:
 
 Only requests you start:
 
-- the regulator portal pages you refresh, their paginated pages, the
-  asynchronous table fragment, and `robots.txt` when respected;
+- the regulator portal pages you refresh, their paginated pages and the
+  asynchronous table fragment; portal refresh does not request `robots.txt`;
 - the domains being probed — as listed, plus their apex and `www` variants,
   over HTTPS/HTTP, through the system resolver;
 - the neutral control sites during a scan (Google, Wikipedia and Cloudflare
@@ -87,13 +94,36 @@ Only requests you start:
 - `https://betblocker.org/blocked/` on every user-started scan, so the shipped
   BetBlocker wording does not silently go stale;
 - an optional control-resolver comparison, only when you run that diagnostic;
-- the domain you explicitly pass to `signature capture`.
+- the domain you explicitly pass to `signature capture`;
+- an additional check of the same URL when HTTPX has found block evidence,
+  using the system `curl` executable if available. Curl sends a bodyless HEAD
+  first, then retrieves a capped body only when that response declares HTML.
+  This check is optional, uses the same common User-Agent and is not bundled
+  on Android.
+
+Outbound HTTP requests use one common Chrome-for-Windows User-Agent, including
+website probes, portal refresh, the optional control-resolver request and
+system `curl` checks. This is only a request header: HTTPX and curl do not
+emulate Chrome's browser, TLS or network fingerprint and cannot prevent all
+bot detection. Portal refresh does not request or enforce `robots.txt`; its
+configured request-rate limit and retry backoff remain active.
+
+After an HTTPX blocked result, the app optionally checks the same URL with the
+system `curl` executable. A matching block signal is recorded as confirmation;
+a different successful result keeps the primary verdict marked for review and
+shows “Warning: curl opened the website successfully.” in results and exports.
+A missing or failed `curl` check is recorded as unavailable or inconclusive and
+leaves the primary HTTPX verdict intact. `curl` is not bundled, and the Android
+app image used here has no curl executable.
 
 No cookies are stored, no browser engine is used, JavaScript is never executed,
-image or file URLs are not fetched, and response bodies are capped and
-discarded. A `Set-Cookie` header is discarded with the response and is not kept
-in evidence. DNS queries go through the system resolver, so a DNS-based blocker
-or VPN sees them as it would any other app.
+linked image or file URLs are not fetched, and response bodies are capped and
+discarded after classification. The curl HEAD check reads no body; its bounded
+GET is attempted only when HEAD reports HTML. A non-HTML response body is
+discarded without inspection or storage. A `Set-Cookie` header is discarded
+with the response and is not kept in evidence. DNS queries go through the
+system resolver, so a DNS-based blocker or VPN sees them as it would any other
+app.
 
 ## Logs and debug mode
 

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import flet as ft
 
@@ -41,6 +41,29 @@ def apply_palette(controls: object, *, dark: bool) -> None:
     colors = _DARK_PALETTE if dark else _LIGHT_PALETTE
     seen: set[int] = set()
 
+    def recolor_border(border: ft.Border) -> ft.Border:
+        """Return a new border model so Flet sends the color change to clients."""
+
+        def recolor_side(side: ft.BorderSide | None) -> ft.BorderSide | None:
+            if side is None:
+                return None
+            color = colors.get(side.color, side.color)
+            if color == side.color:
+                return side
+            return ft.BorderSide(
+                width=side.width,
+                color=color,
+                stroke_align=side.stroke_align,
+                style=side.style,
+            )
+
+        return ft.Border(
+            top=cast(ft.BorderSide, recolor_side(border.top)),
+            right=cast(ft.BorderSide, recolor_side(border.right)),
+            bottom=cast(ft.BorderSide, recolor_side(border.bottom)),
+            left=cast(ft.BorderSide, recolor_side(border.left)),
+        )
+
     def visit(value: object) -> None:
         if id(value) in seen:
             return
@@ -55,13 +78,7 @@ def apply_palette(controls: object, *, dark: bool) -> None:
             for item in value.values():
                 visit(item)
             return
-        if isinstance(value, ft.BorderSide):
-            if value.color in colors:
-                value.color = colors[value.color]
-            return
-        if isinstance(value, ft.Border):
-            for side in (value.top, value.right, value.bottom, value.left):
-                visit(side)
+        if isinstance(value, (ft.BorderSide, ft.Border)):
             return
         if isinstance(value, ft.Control):
             for name in ("color", "bgcolor", "indicator_color", "icon_color"):
@@ -70,7 +87,7 @@ def apply_palette(controls: object, *, dark: bool) -> None:
                     setattr(value, name, colors[current])
             border = getattr(value, "border", None)
             if isinstance(border, ft.Border):
-                visit(border)
+                value.border = recolor_border(border)  # type: ignore[attr-defined]
             for child in vars(value).values():
                 if isinstance(child, (ft.Control, list, tuple, dict)):
                     visit(child)
@@ -196,7 +213,7 @@ def hero(title: str, description: str, *, icon: ft.IconData) -> ft.Container:
 def button(
     label: str,
     icon: ft.IconData,
-    on_click: Callable[[Any], None],
+    on_click: Callable[[Any], Any],
     *,
     primary: bool = False,
 ) -> ft.Button:

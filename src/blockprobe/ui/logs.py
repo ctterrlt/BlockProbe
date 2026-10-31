@@ -3,6 +3,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from pathlib import Path
+from typing import Any
+
 import flet as ft
 
 from blockprobe.i18n import t
@@ -19,7 +23,20 @@ class LogsScreen:
     log_search: ft.TextField
     log_view: ft.ListView
 
-    def _wrap(self, action):  # type: ignore[no-untyped-def]
+    def _wrap(
+        self, action: Callable[[], actions.ActionResult]
+    ) -> Callable[[Any], Any]:
+        raise NotImplementedError
+
+    def _export_to_file(
+        self,
+        action: Callable[[Path], actions.ActionResult],
+        extension: str,
+        *,
+        file_stem: str = "blockprobe",
+        failure_title: str | None = None,
+        on_result: Callable[[actions.ActionResult], None] | None = None,
+    ) -> Callable[[Any], Awaitable[None]]:
         raise NotImplementedError
 
     def _setup_logs(self) -> None:
@@ -40,6 +57,7 @@ class LogsScreen:
             label=t("Search"), dense=True, on_submit=lambda _e: self.refresh_logs()
         )
         self.log_view = ft.ListView(spacing=2, auto_scroll=False, expand=True)
+        self.log_export_status = text("", 12, MUTED, selectable=True)
 
     def _logs_view(self) -> ft.Control:
         return ft.Column(
@@ -69,7 +87,13 @@ class LogsScreen:
                                         content=button(
                                             t("Export zip"),
                                             ft.Icons.DOWNLOAD,
-                                            self._wrap(actions.export_logs),
+                                            self._export_to_file(
+                                                actions.export_logs,
+                                                "zip",
+                                                file_stem="blockprobe-logs",
+                                                failure_title=t("Log export failed"),
+                                                on_result=self._update_log_export_status,
+                                            ),
                                         ),
                                         col={"xs": 6, "sm": 4, "md": 2},
                                     ),
@@ -84,6 +108,7 @@ class LogsScreen:
                                 ],
                                 run_spacing=6,
                             ),
+                            self.log_export_status,
                             ft.Container(
                                 content=self.log_view,
                                 expand=True,
@@ -138,6 +163,15 @@ class LogsScreen:
         return actions.ActionResult(
             t("Logs refreshed"), t("{count} entry(ies).", count=len(entries))
         )
+
+    def _update_log_export_status(self, result: actions.ActionResult) -> None:
+        self.log_export_status.value = (
+            f"{result.title}: {result.detail}" if result.detail else result.title
+        )
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _clear_logs(self) -> actions.ActionResult:
         clear_logs()

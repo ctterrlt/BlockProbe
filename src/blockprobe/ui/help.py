@@ -42,7 +42,7 @@ def help_view() -> ft.Control:
         text(
             t(
                 "Scope: no age verification, no cookies, no uploads, no website "
-                "terms, no images, no GDPR/US-law claim."
+                "terms, no image or file saves, no GDPR/US-law claim."
             ),
             12,
         )

@@ -63,7 +63,6 @@ start_url = "https://www.adm.gov.it/portale/..."  # required, http(s)
 strategy = "auto"                                 # auto | table | text | script
 max_pages = 50                                    # pagination cap
 rate_limit_per_sec = 1.0                          # one request per second
-respect_robots = true                             # honour robots.txt when available
 exclude_domains = ["adm.gov.it", "mef.gov.it", "sogei.it"]
 include_regex = []                                # optional host allowlist patterns
 ```
@@ -77,10 +76,11 @@ Notes:
   always applies.
 - `include_regex` is an optional list of regular expressions; when set, a host
   must match at least one pattern to be kept.
-- `rate_limit_per_sec` is enforced between page requests, not per host.
-- `respect_robots = true` means a disallowed path stops the refresh with a
-  clear message. A `robots.txt` that cannot be fetched (for example HTTP 403)
-  is treated as *unavailable* and logged as a warning, not as a failure.
+- `rate_limit_per_sec` limits requests per host during a refresh.
+- Portal refresh does not request or enforce `robots.txt`. The old
+  `respect_robots` setting is accepted when loading existing TOML but ignored
+  and omitted when writing new definitions. Request rate limits and retry
+  backoff still apply.
 
 ## How pages are parsed
 
@@ -145,3 +145,6 @@ when the user updates it; each custom website is added directly and is never
 fetched as a source or removed by a portal update. The scan source picker keeps
 portal-derived and custom domains distinct, and users can select either or
 both.
+
+The custom-sites view queries only entries recorded in `custom_sites`; it must
+not present all portal-derived domains as user-entered websites.

@@ -11,10 +11,15 @@ storage logic lives here.
 from __future__ import annotations
 
 import logging
+import shutil
+import tempfile
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
+from datetime import datetime
+from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import flet as ft
 
@@ -34,6 +39,7 @@ from blockprobe.ui.components import (
     TEXT,
     apply_page_theme,
     apply_palette,
+    button,
     dark_for_mode,
     text,
 )
@@ -116,12 +122,14 @@ class BlockProbeUi(
             13,
         )
         self.snack: ft.SnackBar | None = None
+        self.theme_menu: ft.PopupMenuButton | None = None
+        self._theme_menu_items: dict[str, ft.PopupMenuItem] = {}
         self._action_sequence = 0
         self._last_poll_signature: tuple[object, ...] | None = None
         self._last_controls_signature: tuple[object, ...] | None = None
         self.views: list[ft.Control] = []
         self.current_screen = 0
-        self._compact_layout: bool | None = None
+        self._compact_layout = False
         self._last_results_poll = 0.0
         self.page.on_resize = self._on_resize
 
@@ -139,6 +147,29 @@ class BlockProbeUi(
         if getattr(_event, "control", None) is self.snack:
             self.snack = None
 
+    def _dismiss_snack(self) -> None:
+        """Remove the current snackbar before a newer result is shown.
+
+        ``pop_dialog()`` only marks the snackbar closed; Flutter can keep the
+        old snackbar in its queue until the dismiss animation finishes, so the
+        next result appeared behind or after the previous one. Remove the
+        tracked control from Flet's dialog stack immediately as well.
+        """
+        previous = self.snack
+        self.snack = None
+        if previous is None:
+            return
+        previous.open = False
+        dialogs = getattr(self.page, "_dialogs", None)
+        try:
+            if dialogs is not None and previous in dialogs.controls:
+                dialogs.controls.remove(previous)
+                dialogs.update()
+            else:
+                self.page.update()
+        except Exception:
+            _LOGGER.exception("could not remove the previous action banner")
+
     def apply(self, result: actions.ActionResult, sequence: int | None = None) -> None:
         if sequence is None:
             self._action_sequence += 1
@@ -152,9 +183,7 @@ class BlockProbeUi(
         self._apply_live_theme()
         mode = actions.runtime().settings.config.app.theme_mode
         dark = dark_for_mode(self.page, mode)
-        previous_snack = self.snack
-        if previous_snack is not None and previous_snack.open:
-            self.page.pop_dialog()
+        self._dismiss_snack()
         snack = ft.SnackBar(
             content=text(
                 result.title,
@@ -191,17 +220,33 @@ class BlockProbeUi(
                     t("The action could not be completed. Check Logs for details."),
                     ok=False,
                 )
-            if actions.consent_required():
+            # Only an action that explicitly cleared the consent record returns
+            # to the first-run flow. Re-checking consent after every action
+            # could turn a transient storage read error into a false prompt.
+            if result.consent_cleared:
                 self._show_consent()
                 return
-            self.refresh_run_controls()
-            self.apply(result, sequence)
+            try:
+                self.refresh_run_controls()
+            except Exception:
+                _LOGGER.exception("could not refresh run controls after an action")
+            try:
+                self.apply(result, sequence)
+            except Exception:
+                _LOGGER.exception("could not display the completed action result")
+                try:
+                    self.status_title.value = result.title
+                    self.status_detail.value = ""
+                    self.page.update()
+                except Exception:
+                    _LOGGER.exception("could not show the action result fallback")
 
         self.page.run_thread(work)
 
     def _show_consent(self) -> None:
         """Return to first-run consent if local data deletion cleared it."""
         self._alive = False
+        self._dismiss_snack()
         self.page.clean()
         self.page.add(
             ft.SafeArea(
@@ -218,12 +263,253 @@ class BlockProbeUi(
 
         return on_click
 
-    def _on_nav(self, event: ft.ControlEvent) -> None:
-        index = int(event.control.selected_index or 0)
+    def _unique_export_path(self, folder: Path, file_name: str) -> Path:
+        """Return a non-destructive destination inside ``folder``."""
+        destination = folder / file_name
+        if not destination.exists():
+            return destination
+        stem = destination.stem
+        suffix = destination.suffix
+        for index in range(2, 10000):
+            candidate = folder / f"{stem}-{index}{suffix}"
+            if not candidate.exists():
+                return candidate
+        # A directory with 10,000 exports of the same name is unlikely, but a
+        # random suffix still avoids replacing an existing file.
+        return folder / f"{stem}-{uuid4().hex[:12]}{suffix}"
+
+    def _finish_export(
+        self,
+        result: actions.ActionResult,
+        on_result: Callable[[actions.ActionResult], None] | None,
+    ) -> None:
+        """Publish an export result without letting a status label break it."""
+        if on_result is not None:
+            try:
+                on_result(result)
+            except Exception:
+                _LOGGER.exception("could not update the export status label")
+        self.apply(result)
+
+    def _save_export_fallback(
+        self,
+        file_name: str,
+        payload: bytes | None,
+        result: actions.ActionResult,
+        on_result: Callable[[actions.ActionResult], None] | None,
+        *,
+        failure_title: str,
+        cause: BaseException | None = None,
+        source_path: Path | None = None,
+        recovery_note: str | None = None,
+    ) -> None:
+        """Save an export in the local reports folder when the picker fails.
+
+        Desktop/mobile file pickers are platform services and can be missing,
+        blocked by the OS or fail mid-save. Keeping a copy in the app's own
+        reports folder means a finished export is never lost silently.
+        """
+        destination: Path | None = None
+        try:
+            folder = actions.runtime().settings.reports_dir
+            folder.mkdir(parents=True, exist_ok=True)
+            # Use exclusive creation to avoid replacing a previous export if
+            # two requests have the same timestamp or arrive concurrently.
+            for _attempt in range(10_001):
+                candidate = self._unique_export_path(folder, file_name)
+                try:
+                    output = candidate.open("xb")
+                except FileExistsError:
+                    continue
+                try:
+                    with output:
+                        if payload is not None:
+                            output.write(payload)
+                        elif source_path is not None:
+                            with source_path.open("rb") as source:
+                                shutil.copyfileobj(source, output)
+                        else:
+                            raise OSError("No export data was available for fallback")
+                    destination = candidate
+                    break
+                except BaseException:
+                    # A short write or copy failure must not leave a corrupt
+                    # file that looks like a completed fallback export.
+                    try:
+                        candidate.unlink()
+                    except OSError:
+                        _LOGGER.exception("could not remove a partial export fallback")
+                    raise
+            if destination is None:
+                raise OSError("Could not reserve a unique export path")
+        except Exception as exc:
+            _LOGGER.exception("could not save the export fallback")
+            detail = f"{type(exc).__name__}: {exc}"
+            if cause is not None:
+                detail += f"\n{type(cause).__name__}: {cause}"
+            self._finish_export(
+                actions.ActionResult(failure_title, detail, ok=False), on_result
+            )
+            return
+
+        note = recovery_note or t(
+            "The save dialog failed, so the file was kept in the app's "
+            "reports folder."
+        )
+        completed = actions.ActionResult(result.title, f"{destination}\n{note}", ok=result.ok)
+        self._finish_export(completed, on_result)
+
+    def _export_to_file(
+        self,
+        action: Callable[[Path], actions.ActionResult],
+        extension: str,
+        *,
+        file_stem: str = "blockprobe",
+        failure_title: str | None = None,
+        on_result: Callable[[actions.ActionResult], None] | None = None,
+    ) -> Callable[[Any], Awaitable[None]]:
+        """Run an export and let the platform save dialog choose its destination."""
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        file_name = f"{file_stem}-{timestamp}.{extension}"
+        failed_title = failure_title or t("Report not written")
+
+        async def on_click(_event: Any) -> None:
+            result: actions.ActionResult | None = None
+            payload = b""
+            source: Path | None = None
+            try:
+                # The native picker needs bytes, so the report is rendered to a
+                # short-lived private folder first and removed afterwards.
+                with tempfile.TemporaryDirectory(
+                    prefix="blockprobe-export-", ignore_cleanup_errors=True
+                ) as folder:
+                    source = Path(folder) / file_name
+                    try:
+                        result = action(source)
+                        if not result.ok:
+                            if source.is_file():
+                                self._save_export_fallback(
+                                    file_name,
+                                    None,
+                                    result,
+                                    on_result,
+                                    failure_title=failed_title,
+                                    source_path=source,
+                                    recovery_note=t(
+                                        "The export action reported a failure; a copy of its "
+                                        "output was kept for inspection."
+                                    ),
+                                )
+                            else:
+                                self._finish_export(result, on_result)
+                            return
+                        payload = source.read_bytes()
+                    except Exception as exc:
+                        _LOGGER.exception("could not prepare the export file")
+                        try:
+                            has_output = source.is_file()
+                        except Exception:
+                            _LOGGER.exception("could not inspect the temporary export")
+                            has_output = False
+                        if has_output:
+                            interrupted = actions.ActionResult(
+                                result.title if result is not None else failed_title,
+                                f"{type(exc).__name__}: {exc}",
+                                ok=False,
+                            )
+                            self._save_export_fallback(
+                                file_name,
+                                None,
+                                interrupted,
+                                on_result,
+                                failure_title=failed_title,
+                                cause=exc,
+                                source_path=source,
+                                recovery_note=t(
+                                    "The export was recovered to the reports folder after a "
+                                    "preparation error."
+                                ),
+                            )
+                        else:
+                            failed = actions.ActionResult(
+                                failed_title, f"{type(exc).__name__}: {exc}", ok=False
+                            )
+                            self._finish_export(failed, on_result)
+                        return
+            except Exception as exc:
+                _LOGGER.exception("could not create the temporary export file")
+                failed = actions.ActionResult(
+                    failed_title, f"{type(exc).__name__}: {exc}", ok=False
+                )
+                self._finish_export(failed, on_result)
+                return
+
+            if result is None:  # defensive: action() must return a result
+                _LOGGER.error("export action returned no result")
+                return
+            saved_path: str | None = None
+            picker_error: BaseException | None = None
+            try:
+                saved_path = await ft.FilePicker().save_file(
+                    dialog_title=t("Export file"),
+                    file_name=file_name,
+                    file_type=ft.FilePickerFileType.CUSTOM,
+                    allowed_extensions=[extension],
+                    src_bytes=payload,
+                )
+            except Exception as exc:
+                # Missing plugin, unsupported platform, permission denied or a
+                # picker crash: keep the export in the app's reports folder.
+                _LOGGER.exception("could not save the export through the platform picker")
+                picker_error = exc
+
+            if picker_error is not None:
+                self._save_export_fallback(
+                    file_name,
+                    payload,
+                    result,
+                    on_result,
+                    failure_title=failed_title,
+                    cause=picker_error,
+                )
+                return
+
+            # Web saves trigger a browser download and do not return a path.
+            # A missing native path means the user cancelled the dialog.
+            if not saved_path and not self.page.web:
+                cancelled = actions.ActionResult(t("Export cancelled"), "")
+                if on_result is not None:
+                    try:
+                        on_result(cancelled)
+                    except Exception:
+                        _LOGGER.exception("could not update the export status label")
+                try:
+                    self.page.update()
+                except Exception:
+                    _LOGGER.exception("could not update the page after export cancellation")
+                return
+            if not saved_path or saved_path == file_name:
+                destination_detail = file_name
+            elif saved_path.startswith(("/document/", "content://")):
+                # Android's Storage Access Framework returns an opaque document
+                # id rather than a user-visible path. The filename and the
+                # selected location are the useful information there.
+                destination_detail = (
+                    f"{file_name}\n{t('Saved to the selected location.')}"
+                )
+            else:
+                destination_detail = f"{file_name}\n{saved_path}"
+            completed = actions.ActionResult(result.title, destination_detail)
+            self._finish_export(completed, on_result)
+
+        return on_click
+
+    def _on_nav(self, _event: Any) -> None:
+        index = int(self.nav.selected_index or 0)
         self._show_screen(index)
 
-    def _on_mobile_nav(self, event: ft.ControlEvent) -> None:
-        index = int(event.control.selected_index or 0)
+    def _on_mobile_nav(self, _event: Any) -> None:
+        index = int(self.mobile_nav.selected_index or 0)
         self._show_screen(6 if index == 4 else index)
 
     def _show_screen(self, index: int) -> None:
@@ -260,6 +546,33 @@ class BlockProbeUi(
             self.refresh_logs()
         self._apply_live_theme()
         self.page.update()
+
+    def _build_theme_menu(self) -> ft.PopupMenuButton:
+        """Expose the appearance choice on every tool, not only in Settings."""
+        mode = actions.runtime().settings.config.app.theme_mode
+        self._theme_menu_items.clear()
+        choices = (
+            ("system", t("System default"), ft.Icons.BRIGHTNESS_AUTO),
+            ("light", t("Light"), ft.Icons.LIGHT_MODE),
+            ("dark", t("Dark"), ft.Icons.DARK_MODE),
+        )
+        for value, label, icon in choices:
+            item = ft.PopupMenuItem(
+                content=label,
+                icon=icon,
+                checked=value == mode,
+                on_click=lambda _event, choice=value: self._set_theme(choice),
+            )
+            self._theme_menu_items[value] = item
+        self.theme_menu = ft.PopupMenuButton(
+            icon=ft.Icons.PALETTE_OUTLINED,
+            icon_color=TEXT,
+            icon_size=22,
+            tooltip=t("Appearance"),
+            menu_position=ft.PopupMenuPosition.UNDER,
+            items=list(self._theme_menu_items.values()),
+        )
+        return self.theme_menu
 
     def _more_view(self) -> ft.Control:
         from blockprobe.ui.components import button, card, hero
@@ -302,6 +615,7 @@ class BlockProbeUi(
                         spacing=10,
                     ),
                 ),
+                ft.Container(height=16),
             ],
             spacing=16,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -330,6 +644,12 @@ class BlockProbeUi(
         self.refresh_portal_texts()
         self.refresh_results()
         self.refresh_logs()
+        self.version_badge = ft.Container(
+            content=text(f"v{__version__}", 11, MUTED, mono=True),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+            bgcolor=SURFACE,
+            border_radius=8,
+        )
         header = ft.Container(
             content=ft.Row(
                 [
@@ -353,14 +673,10 @@ class BlockProbeUi(
                         spacing=1,
                         expand=True,
                     ),
-                    ft.Container(
-                        content=text(f"v{__version__}", 11, MUTED, mono=True),
-                        padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-                        bgcolor=SURFACE,
-                        border_radius=8,
-                    ),
+                    self._build_theme_menu(),
+                    self.version_badge,
                 ],
-                spacing=12,
+                spacing=8,
             ),
             padding=ft.Padding.symmetric(horizontal=22, vertical=12),
             border=ft.Border.only(bottom=ft.BorderSide(1, BORDER)),
@@ -401,7 +717,7 @@ class BlockProbeUi(
         self._sync_responsive_layout()
         return root
 
-    def _on_resize(self, _event: ft.ControlEvent) -> None:
+    def _on_resize(self, _event: Any) -> None:
         self._sync_responsive_layout()
         try:
             self.page.update()
@@ -420,6 +736,7 @@ class BlockProbeUi(
         self.screen_title.visible = not (compact and self.current_screen == 0)
         self.screen_description.visible = not compact
         self.status_bar.visible = not compact
+        self.version_badge.visible = not compact
         self.status_title.size = 15 if compact else 20
         self.refresh_run_layout(compact)
         self.refresh_results_layout(compact)
@@ -572,9 +889,44 @@ class BlockProbeUi(
 
 def build_app(page: ft.Page) -> ft.Control:
     """Build the consent flow or the main shell for the given page."""
-    if actions.consent_required():
-        return consent_view(page, lambda: _enter_main(page))
+    try:
+        if actions.consent_required():
+            return consent_view(page, lambda: _enter_main(page))
+    except Exception as exc:
+        _LOGGER.exception("could not check the consent record during startup")
+        return _consent_error_view(page, exc)
     return _main_shell(page)
+
+
+def _consent_error_view(page: ft.Page, error: BaseException) -> ft.Control:
+    """Show a retryable storage error instead of presenting false consent."""
+
+    def retry(_event: Any) -> None:
+        page.clean()
+        main(page)
+
+    return ft.Container(
+        content=ft.Column(
+            [
+                ft.Icon(ft.Icons.ERROR_OUTLINE, size=36, color=BAD),
+                text(t("Could not check the consent record"), 20, TEXT, weight=ft.FontWeight.BOLD),
+                text(
+                    t("Check Logs and retry. No network action can run until the consent record is checked."),
+                    14,
+                    MUTED,
+                    selectable=True,
+                ),
+                text(f"{type(error).__name__}: {error}", 12, MUTED, selectable=True),
+                button(t("Retry"), ft.Icons.REFRESH, retry, primary=True),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            alignment=ft.MainAxisAlignment.CENTER,
+            spacing=14,
+        ),
+        expand=True,
+        alignment=ft.Alignment.CENTER,
+        padding=24,
+    )
 
 
 def _enter_main(page: ft.Page) -> None:
@@ -597,18 +949,28 @@ def main(page: ft.Page) -> None:
     """Build the BlockProbe window and connect its controls to actions."""
     page.title = f"{APP_NAME} {__version__}"
     # Apply the saved palette before Flet paints the consent or app screen.
-    _apply_saved_theme(page, update=False)
     page.on_platform_brightness_change = lambda _event: _apply_saved_theme(
         page, update=True
     )
     page.padding = 0
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
-    page.add(ft.SafeArea(content=build_app(page), expand=True))
-    _apply_saved_theme(page)
-    page.update()
-    ui = getattr(page, "data", None)
-    if isinstance(ui, BlockProbeUi):
-        ui.start_poller()
+    try:
+        _apply_saved_theme(page, update=False)
+        root = build_app(page)
+        page.add(ft.SafeArea(content=root, expand=True))
+        _apply_saved_theme(page)
+        page.update()
+        ui = getattr(page, "data", None)
+        if isinstance(ui, BlockProbeUi):
+            ui.start_poller()
+    except Exception as exc:
+        _LOGGER.exception("application startup could not read local settings")
+        try:
+            page.clean()
+            page.add(ft.SafeArea(content=_consent_error_view(page, exc), expand=True))
+            page.update()
+        except Exception:
+            _LOGGER.exception("could not display the local storage error")
 
 
 def _apply_saved_theme(page: ft.Page, *, update: bool = False) -> None:

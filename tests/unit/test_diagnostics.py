@@ -5,9 +5,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
+import respx
+
 from blockprobe.core.models import NetworkContext
-from blockprobe.diagnostics import system_dns
+from blockprobe.diagnostics import resolver_compare, system_dns
 from blockprobe.diagnostics import vpn_proxy_detect as vpn
+from blockprobe.http_user_agent import CHROME_USER_AGENT
 
 
 def test_filtering_dns_is_separated_from_ordinary_resolvers() -> None:
@@ -83,3 +87,18 @@ def test_system_proxy_is_included_without_credentials(monkeypatch) -> None:
 
     assert "HTTPS_PROXY=proxy.example:8080" in context.proxies
     assert "HTTP proxy enabled" in context.proxies
+
+
+@respx.mock
+async def test_control_resolver_uses_the_shared_chrome_user_agent() -> None:
+    route = respx.get("https://resolver.example/dns-query").mock(
+        return_value=httpx.Response(
+            200,
+            json={"Answer": [{"type": 1, "data": "192.0.2.1"}]},
+        )
+    )
+
+    assert await resolver_compare.control_resolve(
+        "example.com", "https://resolver.example/dns-query"
+    )
+    assert route.calls[0].request.headers["user-agent"] == CHROME_USER_AGENT

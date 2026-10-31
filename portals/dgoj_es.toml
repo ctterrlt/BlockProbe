@@ -11,6 +11,5 @@ start_url = "https://www.ordenacionjuego.es/gl/operadores-juego/operadores-licen
 strategy = "auto"
 max_pages = 30
 rate_limit_per_sec = 1.0
-respect_robots = true
 exclude_domains = ["ordenacionjuego.es", "administracion.gob.es"]
 include_regex = ["\\.es$"]

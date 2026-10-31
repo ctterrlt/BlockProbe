@@ -72,11 +72,14 @@ SCOPE_FACTS: tuple[ScopeFact, ...] = (
     ScopeFact(
         key="images_and_downloads",
         title="Images and downloads",
-        status="not fetched, not sent",
+        status="not saved; only HTML inspected",
         statement=(
-            "Images, media, fonts, scripts and files are not downloaded, and no "
-            "image, file, form value or archive is uploaded. Only bounded HTML "
-            "responses are fetched for classification."
+            "The probe does not request linked images, media, fonts or scripts, "
+            "and never saves website files or uploads image, file, form or archive "
+            "data. Response sizes are capped and only HTML is inspected. The "
+            "optional curl check sends a bodyless HEAD first and retrieves a "
+            "bounded body only when the response declares HTML; non-HTML bodies "
+            "are discarded without inspection or storage."
         ),
     ),
     ScopeFact(
@@ -106,5 +109,5 @@ def scope_summary() -> str:
     """One-line summary used in scan results and the UI."""
     return (
         "Scope: no age verification, no cookies, no uploads, no website terms, "
-        "no images, no GDPR/US-law claim."
+        "no image or file saves, no GDPR/US-law claim."
     )
