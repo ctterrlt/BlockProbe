@@ -66,24 +66,30 @@ jobs:
               echo "Release workflow head is not a supported version tag." >&2
               exit 1
             fi
-            git fetch --no-tags --depth=1 origin \
-              "refs/tags/${RELEASE_TAG}:refs/tags/${RELEASE_TAG}"
-            tag_sha="$(git rev-parse "${RELEASE_TAG}^{commit}")"
-            if [[ "$tag_sha" != "$RELEASE_SHA" ]]; then
-              echo "Release tag does not resolve to the completed Release workflow commit." >&2
+            if [[ ! "$RELEASE_SHA" =~ ^[0-9a-fA-F]{40}$ ]]; then
+              echo "Release workflow head SHA is invalid." >&2
               exit 1
             fi
-            version="$(git show "${RELEASE_TAG}:src/blockprobe/VERSION" | tr -d '[:space:]')"
+            # A tag can be corrected or moved after Release starts. Build the
+            # metadata for the exact source commit that Release completed, not
+            # whichever commit the mutable tag happens to reference now.
+            git fetch --no-tags --depth=1 origin "$RELEASE_SHA"
+            release_sha="$(git rev-parse "${RELEASE_SHA}^{commit}")"
+            if [[ "$release_sha" != "$RELEASE_SHA" ]]; then
+              echo "Release workflow commit could not be resolved exactly." >&2
+              exit 1
+            fi
+            version="$(git show "${RELEASE_SHA}:src/blockprobe/VERSION" | tr -d '[:space:]')"
             tag_version="${RELEASE_TAG#v}"
             tag_version="${tag_version#-}"
             if [[ "$tag_version" != "$version" ]]; then
               echo "Release tag and its source VERSION do not match." >&2
               exit 1
             fi
-            git show "${RELEASE_TAG}:fdroid/io.github.ctterrlt.blockprobe.yaml" \
+            git show "${RELEASE_SHA}:fdroid/io.github.ctterrlt.blockprobe.yaml" \
               > build/fdroid/io.github.ctterrlt.blockprobe.yaml
             printf 'FDROID_VERSION=%s\n' "$version" >> "$GITHUB_ENV"
-            printf 'FDROID_COMMIT=%s\n' "$RELEASE_TAG" >> "$GITHUB_ENV"
+            printf 'FDROID_COMMIT=%s\n' "$RELEASE_SHA" >> "$GITHUB_ENV"
             printf '%s\n' \
               'FDROID_METADATA=build/fdroid/io.github.ctterrlt.blockprobe.yaml' \
               >> "$GITHUB_ENV"

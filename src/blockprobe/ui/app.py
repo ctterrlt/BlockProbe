@@ -304,6 +304,7 @@ class BlockProbeUi(
                 ),
             ],
             spacing=16,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             scroll=ft.ScrollMode.AUTO,
             expand=True,
         )

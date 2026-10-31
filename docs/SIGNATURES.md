@@ -19,8 +19,8 @@ These outcomes are detected directly and never need a signature:
 
 | Observation | Verdict | Reason |
 | --- | --- | --- |
-| DNS answer is `0.0.0.0`, `::`, loopback, private, link-local or reserved | blocked | `dns_sinkhole` |
-| DNS failure, refused/reset/timed-out connection, TLS failure | blocked or unreachable, according to the failure class | `dns_failure`, `connect_refused`, … |
+| DNS answer is `0.0.0.0`, `::`, loopback, private, link-local or reserved, with no successful HTTP response | blocked | `dns_sinkhole` |
+| DNS failure, refused/reset/timed-out connection, TLS failure, with no HTTP response | uncertain/unreachable; DNS alone is not proof of a filter | `dns_failure`, `connect_refused`, … |
 | Redirect chain or embedded target is `betblocker.org/blocked/` | blocked, immediately | `blocker_redirect` |
 | Redirect chain ends on `adm.gov.it` / `mef.gov.it` | blocked | `regulator_redirect` |
 | HTTP challenge page (Cloudflare, cookie wall) | needs review | `challenge_page` |

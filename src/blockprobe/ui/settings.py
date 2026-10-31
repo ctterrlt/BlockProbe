@@ -346,6 +346,7 @@ class SettingsScreen:
         more_theme_dropdown = getattr(self, "more_theme_dropdown", None)
         if more_theme_dropdown is not None:
             more_theme_dropdown.value = value
+        self._sync_responsive_layout()
         apply_page_theme(self.page, value)
 
     def refresh_settings_layout(self, compact: bool) -> None:

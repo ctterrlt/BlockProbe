@@ -454,7 +454,7 @@ def classify(
             title=fetch.title if fetch else "",
             evidence=evidence,
         )
-    if not observation.dns.ok:
+    if not observation.dns.ok and not (fetch and fetch.status is not None):
         if observation.control_resolves:
             return Classification(
                 verdict=Verdict.BLOCKED,

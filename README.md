@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.2.3--gamma-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-1.2.4--alpha-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
@@ -15,13 +15,13 @@ The project is for people and families who want local evidence about website fil
 
 ## Status
 
-The current development build is **1.2.3-gamma**. The earlier 1.2.0 and 1.1.1
-GitHub release downloads were withdrawn. This gamma build includes the current
+The current development build is **1.2.4-alpha**. The earlier 1.2.0 and 1.1.1
+GitHub release downloads were withdrawn. This alpha includes the current
 regulator sources.
 
 The app version is maintained in [`src/blockprobe/VERSION`](src/blockprobe/VERSION) and is used
 by the runtime display and native installer builds. The Python package metadata
-uses its PEP 440 equivalent (`1.2.3rc0` for this gamma build). Change the
+uses its PEP 440 equivalent (`1.2.4a0` for this alpha build). Change the
 version file to update the version throughout the project. BlockProbe
 is usable **from source**: the ADM, DGOJ, SRIJ, ANJ, GGL and MGA portal refreshes,
 live probing, SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and
@@ -73,7 +73,8 @@ silently doing nothing.
 
 - **Built-in gambling sources.** Downloads regulator-published gambling-domain lists from Italy (ADM), Spain (DGOJ), Portugal (SRIJ), France (ANJ), Germany (GGL), and the Malta Gaming Authority (MGA). The MGA source is its international list of URLs falsely claiming MGA affiliation, not a worldwide licence list. Updates respect robots.txt, use rate limits and pagination, and append new domains without deleting existing ones.
 - **Personalized scans.** Add domains that matter to your own filtering setup, then select only those custom sites or combine them with built-in sources. This supports checks of adult-content filtering, parental controls, and other user-selected website categories; custom domains are never fetched as a feed. A domain-level probe can show whether a site responds on this device's network path, but cannot confirm that all pages or content within that site are filtered.
-- **Local probing.** Resolves each domain through the system resolver, checks TCP/TLS connectivity, and fetches a bounded HTTP response. Tests the host as listed plus its apex and `www` variants.
+- **Portal scans.** Updating a portal fetches its published list pages and extracts the listed domains. A scan of that source probes every imported website individually; checking that the portal homepage responds is not a substitute. Pagination is followed up to its configured page limit, with a warning if more pages remain.
+- **Local probing.** Resolves each domain through the system resolver, records TCP/TLS diagnostics with Python sockets, and fetches a bounded HTTP response through HTTPX. A failed socket diagnostic does not prevent the HTTP request. Tests the host as listed plus its apex and `www` variants.
 - **Redirect and new-window evidence.** Records 302/307/308 chains, static `<meta refresh>`, `window.open`, `location` targets and reopen-on-return hints without executing JavaScript or downloading assets. A target on a known blocker landing page is blocked from the URL alone.
 - **Evidence-based classification.** Applies ordered signature rules to page content, headers, and redirect chains. Verdicts carry a reason code, confidence, and evidence; no verdict is inferred from an HTTP status code alone.
 - **Neutral controls and interference signal.** Requests Google, Wikipedia and Cloudflare before and between probes, reports the first control failure and the domains to recheck, and reports a transparent heuristic VPN/DNS interference signal. A locally detected content-filtering resolver is shown as context, but it does not by itself raise that signal.

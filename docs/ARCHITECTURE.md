@@ -69,13 +69,20 @@ src/
 3. Hosts are normalised to a registered domain plus host list
    (`blockprobe.portals.domain_normalizer`) and filtered through the built-in
    and per-portal exclusion lists (`adm.gov.it`, `mef.gov.it`, `sogei.it`, …).
-4. Pagination links are followed with `_resolve_page_url`: the link's own query
-   is merged over the base query (link wins when the host and path match), so
-   `p_p_id` and filters survive `?pager=N` links. Extraction stops at
-   `max_pages` and on repeated signatures.
+4. Discovered pagination links are followed with `_resolve_page_url`: the
+   link's own query is merged over the base query (link wins when the host and
+   path match), so `p_p_id` and filters survive `?pager=N` links. Pages with
+   no new domains do not stop pagination. The configured `max_pages` limit
+   bounds requests; if more pages remain at that limit, the refresh warns that
+   the imported list may be incomplete.
 5. New hosts are **appended** to `sites`/`site_hosts`/`site_portals`. Rows are
    never deleted by a refresh; SQLite triggers abort any raw `DELETE` that would
    remove portal-linked rows unless the guarded reset set `reset_unlocked`.
+
+Refreshing a portal downloads its list pages and extracts the websites they
+publish. Selecting that portal for a scan then probes every imported website;
+the portal homepage's own reachability is not used as a substitute for
+checking its listed websites.
 
 The ADM Liferay site renders its table through an asynchronous fragment; the
 loader discovers the fragment URL from the page itself (`p_p_lifecycle=2`) and
@@ -86,8 +93,10 @@ decodes JavaScript escapes (`\x3d`, `\u003d`). No fragment URL is hard-coded.
 1. `ScanService.start()` records a `runs` row (`pending`), then spawns a worker
    thread. The UI and CLI never block: they poll storage.
 2. For each stored website the runner builds variant targets (host as listed,
-   apex, `www`) and probes in order: DNS resolution → TCP/TLS connect →
-   bounded HTTP fetch with redirects.
+   apex, `www`) and records DNS plus a TCP/TLS diagnostic using the OS resolver
+   and `asyncio` sockets. It makes the actual bounded HTTP request through
+   HTTPX. A failed socket diagnostic does not suppress the HTTP request;
+   successful HTTP evidence takes precedence over DNS diagnostic errors.
 3. The classifier turns observations into a verdict with `ReasonCode`,
    confidence and evidence. A blocked signature, a DNS sinkhole or a known
    blocker/regulator redirect can support `BLOCKED`; HTTP status codes alone

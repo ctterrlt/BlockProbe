@@ -17,6 +17,24 @@ All notable changes to this project are documented here. The format follows
 - Made scan concurrency configurable in Settings within platform limits:
   three on Android/iOS and eight elsewhere.
 
+## [1.2.4-alpha] — 2026-10-31
+
+### Fixed
+
+- Let HTTPX perform the website request even when the preliminary DNS or TCP
+  diagnostic fails. A successful HTTP response now takes precedence over a
+  conflicting diagnostic, avoiding false unreachable results for live sites.
+- Follow portal pagination through pages that contain no new domains, and warn
+  when the configured page limit leaves discovered list pages unvisited.
+- Reject F-Droid metadata rendering if the top-level `Builds` list or current
+  recipe commands are empty.
+- Stretch the appearance and settings panels across the available width after
+  theme changes, and give the log list the remaining screen height so it can
+  scroll above the navigation on phones and narrow windows.
+- Keep the latest action banner visible when actions overlap.
+- Build F-Droid metadata against the exact successful Release workflow commit,
+  so a later move of its tag does not invalidate that completed run.
+
 ## [1.2.3-gamma] — 2026-10-30
 
 ### Fixed

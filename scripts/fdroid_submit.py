@@ -260,8 +260,15 @@ def validate(data: dict[str, Any], version: str, code: int) -> None:
                 errors.append(f"Builds[{index}].output must end with .apk")
             for field in ("prebuild", "build"):
                 commands = build.get(field)
-                if not isinstance(commands, list) or not commands:
-                    errors.append(f"Builds[{index}].{field} must be a non-empty list")
+                non_empty_list = isinstance(commands, list) and any(
+                    isinstance(command, str) and command.strip()
+                    for command in commands
+                )
+                non_empty_scalar = isinstance(commands, str) and bool(commands.strip())
+                if not (non_empty_list or non_empty_scalar):
+                    errors.append(
+                        f"Builds[{index}].{field} must contain at least one command"
+                    )
 
     current = [
         build
@@ -298,6 +305,8 @@ _BlockDumper.add_representer(str, _represent_string)
 
 def dump_yaml(data: dict[str, Any]) -> str:
     """Return stable, readable YAML for the fdroiddata commit."""
+    if not isinstance(data.get("Builds"), list) or not data["Builds"]:
+        raise SystemExit("Refusing to render F-Droid metadata with an empty Builds list.")
     try:
         from ruamel.yaml import YAML
         from ruamel.yaml.comments import CommentedMap
@@ -362,7 +371,14 @@ def dump_yaml(data: dict[str, Any]) -> str:
 
     stream = StringIO()
     dumper.dump(ordered, stream)
-    return stream.getvalue()
+    content = stream.getvalue()
+    rendered = yaml.safe_load(content)
+    if not isinstance(rendered, dict):
+        raise SystemExit("Rendered F-Droid metadata is not a YAML mapping.")
+    builds = rendered.get("Builds")
+    if not isinstance(builds, list) or not builds:
+        raise SystemExit("Rendered F-Droid metadata has an empty Builds list.")
+    return content
 
 
 class GitLabClient:

@@ -29,10 +29,11 @@ its archive; it does not delete the old source tag, commit or GitHub release.
 
 1. Update `src/blockprobe/VERSION`, `CHANGELOG.md` and the source.
 2. Commit and push the release changes to the repository's default branch.
-3. Tag with `v-<version>` (for example `v-1.2.2-alpha`) and push the tag.
+3. Tag with `v-<version>` (for example `v-1.2.4-alpha`) and push the tag.
 4. After the GitHub `Release` workflow completes successfully for the tag, the
    `F-Droid` workflow renders and validates the metadata, then opens or updates
-   one `fdroiddata` merge request using `GITLAB_TOKEN`.
+   one `fdroiddata` merge request using `GITLAB_TOKEN`. Both the recipe and
+   source commit come from the completed Release workflow's exact commit SHA.
 5. F-Droid maintainers review, build, sign and publish. The workflow cannot
    merge the merge request or upload, replace or delete an F-Droid release.
 
@@ -57,9 +58,11 @@ The separate `Release` workflow owns GitHub release assets.
 4. Run the `F-Droid` workflow manually from the default branch, or push a
    release tag and let the successful `Release` workflow trigger it.
 
-The automatic submission job fails with a clear setup error when
-`GITLAB_TOKEN` is absent. It executes the trusted default-branch script and
-reads the release tag's metadata as data before contacting GitLab.
+The automatic submission job binds metadata and the F-Droid source commit to
+the exact commit reported by the successful Release workflow. This remains
+consistent if the release tag is later moved. The job fails with a clear setup
+error when `GITLAB_TOKEN` is absent. It executes the trusted default-branch
+script and reads the release commit's metadata as data before contacting GitLab.
 
 ## Local checks
 

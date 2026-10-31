@@ -40,7 +40,7 @@ web UI. The wheel and sdist include the bundled BetBlocker fallback signatures.
 
 ## Build artifacts
 
-The current release version is `1.2.3-gamma`. Mobile startup colors follow the
+The current release version is `1.2.4-alpha`. Mobile startup colors follow the
 system appearance, and the splash screen uses the BlockProbe app icon. Android
 and iOS use a three-site scan concurrency default; other platforms use eight.
 Users can change scan concurrency in Settings, and the value is saved with the

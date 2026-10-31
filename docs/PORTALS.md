@@ -25,6 +25,12 @@ Scans test whether selected domains respond through this device's network
 path. They do not browse a site or verify that every page or type of content is
 filtered. See [Privacy](PRIVACY.md) for network and data details.
 
+Updating a portal fetches its published list pages and imports the discovered
+website domains. Selecting that portal for a scan checks each imported website
+individually; a reachable portal homepage does not count as checking its list.
+The crawler follows discovered pagination through the configured page limit
+and warns when that limit leaves more discovered pages unvisited.
+
 There is no single authoritative international gambling licence list. The MGA
 feed contains URLs named by the Authority as falsely claiming MGA affiliation;
 it covers various international domains but is not a complete illegal-site

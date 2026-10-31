@@ -217,7 +217,6 @@ class RefreshService:
         pages = 0
         found: dict[str, ExtractedDomain] = {}
         warnings: list[str] = []
-        empty_streak = 0
         limiter = _Limiter(
             rate_per_sec=min(
                 portal.rate_limit_per_sec or 1.0,
@@ -242,7 +241,10 @@ class RefreshService:
             previous_count = len(
                 self.storage.list_sites(portal_ids=[portal.uuid], with_custom=False)
             )
-            while queue and pages < min(portal.max_pages, self.settings.config.portals.max_pages):
+            page_limit = min(
+                portal.max_pages, self.settings.config.portals.max_pages
+            )
+            while queue and pages < page_limit:
                 current = queue.pop(0)
                 if current in visited or state.already_visited(current):
                     continue
@@ -292,11 +294,16 @@ class RefreshService:
                                 "are read unless the portal supports GET pagination"
                             )
                             break
-                if not state.register(page.final_url, extraction.content_hash, new_domains):
-                    break
-                empty_streak = state.empty_pages
-                if empty_streak >= 2:
-                    break
+                # Keep following discovered pagination even when a page adds
+                # no domains; some portals have blank pages before later pages
+                # containing actual website entries.
+                state.register(page.final_url, extraction.content_hash, new_domains)
+
+            if pages >= page_limit and any(url not in visited for url in queue):
+                warnings.append(
+                    f"portal page limit ({page_limit}) reached; the imported list "
+                    "may be incomplete"
+                )
 
             if pages == 0:
                 raise FetchError("no pages could be read")

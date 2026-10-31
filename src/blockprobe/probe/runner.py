@@ -207,20 +207,24 @@ class ProbeEngine:
 
         if not dns_result.ok:
             observation.control_resolves = await self._control_resolves(host)
-            classification = classify(observation, self.rules, self.config.debug)
-            return observation, classification
-
-        ip = dns_result.ips[0]
-        port = 443 if scheme == "https" else 80
-        observation.connect = await connect(
-            host,
-            ip,
-            port,
-            timeout=self.config.connect_timeout,
-            retries=self.config.retries,
-            use_tls=scheme == "https",
-        )
-        if observation.connect.ok or observation.connect.error_kind == "tls_failure":
+        else:
+            port = 443 if scheme == "https" else 80
+            if dns_result.ips:
+                observation.connect = await connect(
+                    host,
+                    dns_result.ips[0],
+                    port,
+                    timeout=self.config.connect_timeout,
+                    retries=self.config.retries,
+                    use_tls=scheme == "https",
+                )
+        # Retry transient resolver failures through the platform HTTP stack;
+        # it can use a different resolver path. Definitive NXDOMAIN/no-answer
+        # results need no second full request timeout.
+        if dns_result.ok or dns_result.status in {"timeout", "servfail", "error"}:
+            # The raw socket probe is diagnostic evidence only. HTTPX may
+            # succeed through a different address or network path, so never
+            # let one socket failure suppress the real website request.
             observation.fetch = await fetch(
                 f"{scheme}://{host}/",
                 timeout=self.config.timeout,

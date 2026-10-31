@@ -153,6 +153,8 @@ def card(title: str, body: ft.Control, *, expand: bool = False) -> ft.Container:
         content=ft.Column(
             [text(title, 12, MUTED, weight=ft.FontWeight.W_600), body],
             spacing=14,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+            expand=expand,
         ),
         padding=ft.Padding.symmetric(horizontal=16, vertical=14),
         bgcolor=CARD,

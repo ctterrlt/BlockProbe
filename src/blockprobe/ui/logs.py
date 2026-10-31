@@ -39,7 +39,7 @@ class LogsScreen:
         self.log_search = ft.TextField(
             label=t("Search"), dense=True, on_submit=lambda _e: self.refresh_logs()
         )
-        self.log_view = ft.ListView(spacing=2, auto_scroll=True, expand=True)
+        self.log_view = ft.ListView(spacing=2, auto_scroll=False, expand=True)
 
     def _logs_view(self) -> ft.Control:
         return ft.Column(
@@ -63,7 +63,7 @@ class LogsScreen:
                                             ft.Icons.FILTER_ALT,
                                             self._wrap(self.refresh_logs),
                                         ),
-                                        col={"xs": 12, "sm": 4, "md": 2},
+                                        col={"xs": 6, "sm": 4, "md": 2},
                                     ),
                                     ft.Container(
                                         content=button(
@@ -71,7 +71,7 @@ class LogsScreen:
                                             ft.Icons.DOWNLOAD,
                                             self._wrap(actions.export_logs),
                                         ),
-                                        col={"xs": 12, "sm": 4, "md": 2},
+                                        col={"xs": 6, "sm": 4, "md": 2},
                                     ),
                                     ft.Container(
                                         content=button(
@@ -82,7 +82,7 @@ class LogsScreen:
                                         col={"xs": 12, "sm": 4, "md": 2},
                                     ),
                                 ],
-                                run_spacing=8,
+                                run_spacing=6,
                             ),
                             ft.Container(
                                 content=self.log_view,
@@ -90,6 +90,7 @@ class LogsScreen:
                             ),
                         ],
                         spacing=10,
+                        expand=True,
                     ),
                     expand=True,
                 ),
