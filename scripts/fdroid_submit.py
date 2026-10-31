@@ -264,10 +264,9 @@ def validate(data: dict[str, Any], version: str, code: int) -> None:
                     isinstance(command, str) and command.strip()
                     for command in commands
                 )
-                non_empty_scalar = isinstance(commands, str) and bool(commands.strip())
-                if not (non_empty_list or non_empty_scalar):
+                if not non_empty_list:
                     errors.append(
-                        f"Builds[{index}].{field} must contain at least one command"
+                        f"Builds[{index}].{field} must be a non-empty list of commands"
                     )
 
     current = [
