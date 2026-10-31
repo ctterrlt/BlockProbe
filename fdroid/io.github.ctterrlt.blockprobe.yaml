@@ -29,7 +29,7 @@ Description: |-
   lets you add custom portals. Results are stored locally; BlockProbe does not
   require an account and does not send scan results to a server.
 
-  BlockProbe is an alpha release. It is intended for self-exclusion and
+  BlockProbe is a beta release. It is intended for self-exclusion and
   harm-reduction checks, not as a replacement for a blocker or for clinical
   advice.
 

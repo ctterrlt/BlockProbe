@@ -9,7 +9,7 @@ portable tarball and a universal Android APK were built locally. The Linux
 installer helper and a headless Linux app launch were smoke-checked. The
 locally built APK uses Flet's default Android debug certificate; Android UI
 verification for this work uses the configured emulator only. The current
-source build is `1.3.0-alpha` / version code `100300010`, installed on that
+source build is `1.3.0-beta` / version code `100300020`, installed on that
 AVD for UI checks. Tagged release builds use the configured Android release
 keystore and fail if its secrets are missing. M6
 remains open until a signed release has been built and verified with the
@@ -43,7 +43,7 @@ web UI. The wheel and sdist include the bundled BetBlocker fallback signatures.
 
 ## Build artifacts
 
-The current development version is `1.3.0-alpha`. Mobile startup colors follow the
+The current development version is `1.3.0-beta`. Mobile startup colors follow the
 system appearance, and the splash screen uses the BlockProbe app icon. Android
 and iOS use a three-site scan concurrency default; other platforms use eight.
 Users can change scan concurrency in Settings, and the value is saved with the
@@ -141,7 +141,7 @@ its own APK independently.
 
 The old 1.2.1-alpha GitHub release entry was removed while its tag and commit
 were preserved. Other historical Git tags remain unchanged.
-Review `.github/workflows/release.yaml` before creating an alpha tag.
+Review `.github/workflows/release.yaml` before creating a prerelease tag.
 
 The separate `F-Droid` workflow renders the official metadata and opens or
 updates the `fdroiddata` merge request. It never creates, edits or deletes

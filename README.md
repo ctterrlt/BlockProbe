@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.3.0--alpha-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-1.3.0--beta-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
@@ -15,16 +15,16 @@ The project is for people and families who want local evidence about website fil
 
 ## Status
 
-The current development build is **1.3.0-alpha**. The earlier 1.2.0 and 1.1.1
-GitHub release downloads were withdrawn. This alpha includes the current
+The current development build is **1.3.0-beta**. The earlier 1.2.0 and 1.1.1
+GitHub release downloads were withdrawn. This beta includes the current
 regulator sources.
 
 The app version is maintained in [`src/blockprobe/VERSION`](src/blockprobe/VERSION)
 and drives runtime display, native installer builds and Flet build metadata.
-Python package metadata uses its PEP 440 equivalent (`1.3.0a0`). The canonical
-source version for this tree is **1.3.0-alpha**; an already installed APK can
+Python package metadata uses its PEP 440 equivalent (`1.3.0b0`). The canonical
+source version for this tree is **1.3.0-beta**; an already installed APK can
 report an older version and does not change the repository version.
-The current local debug APK uses Android version code `100300010`; it is for
+The current local debug APK uses Android version code `100300020`; it is for
 emulator verification and is not a signed release.
 
 BlockProbe is usable **from source**: the portal refreshes, local probing,

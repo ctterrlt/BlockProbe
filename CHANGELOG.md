@@ -7,7 +7,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.3.0-alpha] — 2026-10-31
+## [1.3.0-beta] — 2026-10-31
 
 ### Changed
 
@@ -45,6 +45,12 @@ All notable changes to this project are documented here. The format follows
   and displays “Warning: curl opened the website successfully.” Curl absence
   or errors do not prevent a scan, including on Android where curl is not
   bundled.
+- Treated an HTML page that curl opens successfully as a disagreement even
+  when it exceeds the response-size cap, so oversized pages that open now get
+  the review flag and the curl warning. Timeouts and other partial fetches
+  remain inconclusive.
+- Limited the Release workflow's default token to read-only contents access;
+  only the job that attaches assets to the GitHub release can write.
 
 ## [1.2.4-alpha] — 2026-10-31
 

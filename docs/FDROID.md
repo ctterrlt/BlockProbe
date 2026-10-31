@@ -29,7 +29,8 @@ its archive; it does not delete the old source tag, commit or GitHub release.
 
 1. Update `src/blockprobe/VERSION`, `CHANGELOG.md` and the source.
 2. Commit and push the release changes to the repository's default branch.
-3. Tag with `v-<version>` (for example `v-1.3.0-alpha`) and push the tag.
+3. Tag with `v<version>` (for example `v1.3.0-beta`; the older `v-<version>`
+   form is also accepted) and push the tag.
 4. After the GitHub `Release` workflow completes successfully for the tag, the
    `F-Droid` workflow renders and validates the metadata, then opens or updates
    one `fdroiddata` merge request using `GITLAB_TOKEN`. Both the recipe and

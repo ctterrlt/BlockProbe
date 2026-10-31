@@ -353,3 +353,39 @@ def test_curl_open_warning_is_shown_in_desktop_and_mobile_results() -> None:
     desktop = ResultsScreen._desktop_result_row(row)
     assert warning in text_values(mobile)
     assert warning in text_values(desktop.cells[2].content)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error_kind", "expect_conflict"),
+    [(None, True), ("body_too_large", True), ("timeout", False)],
+)
+async def test_oversized_open_page_still_warns_and_marks_review(
+    monkeypatch: pytest.MonkeyPatch, error_kind: str | None, expect_conflict: bool
+) -> None:
+    observation, classification = _blocked_observation()
+    fetched = HttpFetchResult(
+        url="https://example.com/",
+        final_url="https://example.com/",
+        status=200,
+        headers={"content-type": "text/html; charset=utf-8"},
+        body="Welcome to Example",
+        title="Welcome",
+        truncated=True,
+        error_kind=error_kind,
+        error="partial" if error_kind else None,
+    )
+
+    async def fake_curl(*_args: Any, **_kwargs: Any) -> HttpFetchResult:
+        return fetched
+
+    monkeypatch.setattr(runner, "fetch_with_curl", fake_curl)
+    await runner.ProbeEngine(runner.EngineConfig())._curl_cross_check(
+        observation, classification
+    )
+
+    check = classification.evidence["curl_cross_check"]
+    assert classification.verdict is Verdict.BLOCKED
+    assert classification.needs_review is expect_conflict
+    assert check["status"] == ("conflict" if expect_conflict else "inconclusive")
+    assert ("warning" in check) is expect_conflict

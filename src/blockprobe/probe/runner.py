@@ -253,7 +253,12 @@ class ProbeEngine:
         confirmed = curl_classification.verdict is Verdict.BLOCKED
         partial = fetched.error_kind is not None or fetched.truncated
         outcome = "confirmed" if confirmed else "conflict"
-        if partial and not confirmed:
+        # A page larger than the body cap is never a block page, so an oversized
+        # response that curl opened is still a real disagreement. Other partial
+        # fetches (timeouts, resets) stay inconclusive.
+        size_only_partial = fetched.error_kind in (None, "body_too_large")
+        curl_opened_page = curl_classification.verdict is Verdict.OPENED and size_only_partial
+        if partial and not confirmed and not curl_opened_page:
             outcome = "inconclusive"
         classification.evidence["curl_cross_check"] = {
             "status": outcome,
