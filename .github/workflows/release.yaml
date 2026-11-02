@@ -87,7 +87,7 @@ jobs:
         run: |
           echo "FLET_CACHE_DIR=$HOME/.flet/cache" >> "$GITHUB_ENV"
       - if: matrix.target == 'apk' || matrix.target == 'aab'
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.flet/cache/python-build
           key: android-python-runtime-${{ runner.os }}-${{ hashFiles('pyproject.toml', 'uv.lock') }}
