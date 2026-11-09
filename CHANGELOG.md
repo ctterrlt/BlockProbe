@@ -7,6 +7,40 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0-alpha] — 2026-11-09
+
+### Added
+
+- Added an on-demand Profile screen for local VPN, DNS, proxy and device
+  details, plus an opt-out Cloudflare DNS comparison after consent when the
+  device resolver cannot resolve a scanned hostname.
+- Added a dependency-free Rust scan core, loaded through a C ABI for aggregate
+  verdict selection, sinkhole-IP classification and the OS-resolver fallback.
+  Python still owns the primary DNS record queries, opt-in DoH fallback and UI.
+
+### Changed
+
+- Build Python wheels with a native platform tag and non-pure metadata, compile
+  the dependency-free Rust library when building from an sdist, and avoid
+  cross-platform wheel/source-archive collisions in the release artifact set.
+- Pin the Rust toolchain to 1.98.1 and validate the C ABI version before the
+  Python loader binds scan-engine functions.
+- Improve portal URL entry, responsive layout, live theme updates, and Android
+  scheduled-scan messaging; supported desktop schedules can be enabled from
+  Settings, while cron setup remains manual.
+- Skip the GitLab merge-request step for prerelease versions containing `-`;
+  stable F-Droid submissions retain the existing workflow.
+- Keep root `VERSION` canonical and validate its synchronized packaged copy.
+- Correct F-Droid merge-request request construction and add translations for
+  the new UI messages.
+
+### Fixed
+
+- Preserve verified blocked evidence when another host variant has only an
+  uncertain opened result, and mark the conflict for review.
+- Recalculate UI layout from measured width and recolor rebuilt controls using
+  the latest OS brightness, including while a scan is running.
+
 ## [1.3.0-beta] — 2026-10-31
 
 ### Changed

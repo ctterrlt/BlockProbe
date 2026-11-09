@@ -104,6 +104,12 @@ _DNS_LINE = re.compile(
 _DNS_TOKEN = re.compile(r"[0-9a-fA-F:.%]+")
 
 
+def _is_android_runtime() -> bool:
+    return sys.platform.startswith("android") or bool(
+        os.environ.get("ANDROID_ROOT") or os.environ.get("ANDROID_DATA")
+    )
+
+
 def _mask(url: str) -> str:
     try:
         parts = urlsplit(url)
@@ -170,7 +176,14 @@ def system_dns_servers() -> list[str]:
     upstreams. Nothing here performs a DNS query.
     """
     servers: list[str] = []
-    if sys.platform == "darwin":
+    if _is_android_runtime():
+        # Android may not expose its active per-network resolver in
+        # resolv.conf. These read-only properties are a best-effort fallback;
+        # a VPN or Private DNS profile can still be hidden from app processes.
+        for index in range(1, 5):
+            value = _run(["getprop", f"net.dns{index}"], timeout=0.5)
+            servers.extend(_server_tokens(value))
+    elif sys.platform == "darwin":
         for line in _run(["scutil", "--dns"]).splitlines():
             if "nameserver" in line and ":" in line:
                 servers.extend(_server_tokens(line.split(":", 1)[1]))

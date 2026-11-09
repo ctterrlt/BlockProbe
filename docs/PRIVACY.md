@@ -22,8 +22,12 @@ sections: what BlockProbe does, what it does not do, privacy, terms, and the
 permission to test only devices you own. The same texts are printed by
 `blockprobe consent accept`; the CLI and UI share `ui/actions.CONSENT_TEXTS`.
 
-Acceptance stores the consent version (`2026-10-19.1`) and a timestamp in the
-local `consents` table. `blockprobe consent status` shows the state. Refusing
+Acceptance stores the consent version (`2026-11-09.1`) and a timestamp in the
+local `consents` table. It enables a Cloudflare DNS-over-HTTPS fallback for
+scans, used only when the device resolver cannot resolve a selected hostname;
+Cloudflare receives that hostname. Acceptance itself sends no DNS request, and
+the fallback can be turned off in Settings. `blockprobe consent status` shows
+the state. Refusing
 consent leaves everything untouched; the app will not refresh or scan until the
 texts are accepted. Bumping the version (when the wording changes) makes the
 app ask again.
@@ -49,13 +53,15 @@ directory, overridable with `BLOCKPROBE_DATA_DIR`; config with
 | Captured fingerprints | `signatures/<domain>.toml` | Only when you run `signature capture`; hash and key phrases, no body |
 | Backups | `backups/` | Written before a guarded reset |
 | Cache | process memory only (embedded, in-process) | JSON list views only; probe verdicts are never cached; cleared on exit; no cache directory is created |
-| Scheduled job files | platform user directory | Only when you install a schedule; written, never enabled silently |
+| Scheduled job files | platform user directory | Written and activated only after the user explicitly enables a schedule; cron platforms show a command for manual setup |
 
-The diagnostics screen reads system configuration (resolvers, resolver labels,
+The Profile screen reads system configuration (resolvers, resolver labels,
 `/etc/hosts` entries and sinkhole count, proxy environment variables, VPN
 interfaces and provider hints, IPv6 availability). It does not upload it: it is
-shown locally and included in reports you export. Resolver and VPN names are
-inferred only from local configuration.
+shown locally and included in reports you export. Profile refresh is on demand,
+read-only, and makes no DNS lookup or network request. Resolver and VPN names
+are inferred only from local configuration; some Android and desktop VPN or
+Private DNS details can be hidden by the operating system.
 
 HTTPS connections use the platform trust store and verify certificate hostnames.
 An invalid or intercepted certificate is recorded as a TLS failure; BlockProbe
@@ -93,7 +99,9 @@ Only requests you start:
   connection or a filtering network and pause instead of producing fake results;
 - `https://betblocker.org/blocked/` on every user-started scan, so the shipped
   BetBlocker wording does not silently go stale;
-- an optional control-resolver comparison, only when you run that diagnostic;
+- a Cloudflare DNS-over-HTTPS query for a scanned hostname only when the device
+  resolver cannot resolve it. This is enabled after consent and can be disabled
+  in Settings; accepting consent alone sends no DNS request;
 - the domain you explicitly pass to `signature capture`;
 - an additional check of the same URL when HTTPX has found block evidence,
   using the system `curl` executable if available. Curl sends a bodyless HEAD
@@ -102,7 +110,7 @@ Only requests you start:
   on Android.
 
 Outbound HTTP requests use one common Chrome-for-Windows User-Agent, including
-website probes, portal refresh, the optional control-resolver request and
+website probes, portal refresh, the control-resolver fallback and
 system `curl` checks. This is only a request header: HTTPX and curl do not
 emulate Chrome's browser, TLS or network fingerprint and cannot prevent all
 bot detection. Portal refresh does not request or enforce `robots.txt`; its

@@ -8,9 +8,10 @@ The module renders and installs per-user job files:
 - Windows: Task Scheduler XML (``%APPDATA%\\BlockProbe``)
 - other POSIX: a cron line the user installs themselves
 
-Installing writes files only. Activation stays explicit and is printed as the
-exact command to run, because a scheduler that enables itself would be doing
-something the user did not ask for. No job ever runs with root.
+The UI and CLI enable a job only after the user explicitly requests a
+schedule. The operation writes the user-level job and asks the platform
+scheduler to activate it. Cron platforms show a command for manual setup. No
+job runs as root.
 """
 
 from __future__ import annotations
@@ -18,6 +19,8 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import shutil
+import subprocess
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -56,6 +59,7 @@ class ScheduleStatus:
     files: list[Path] = field(default_factory=list)
     activate: str = ""
     note: str = ""
+    active: bool = False
 
     @property
     def installed(self) -> bool:
@@ -300,6 +304,106 @@ def channel_hint(platform_name: str | None = None, directory: Path | None = None
     return "run the command from the file manually to test it"
 
 
+def _run_platform_command(command: list[str], *, check: bool = True) -> bool:
+    """Run a scheduler command without a shell or inherited terminal output."""
+    if shutil.which(command[0]) is None:
+        if check:
+            raise RuntimeError(f"Required scheduler command is unavailable: {command[0]}")
+        return False
+    try:
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        if check:
+            raise RuntimeError(f"Could not run {command[0]}: {exc}") from exc
+        return False
+    if check and result.returncode != 0:
+        detail = (result.stderr or result.stdout or "command failed").strip()
+        raise RuntimeError(f"{command[0]} failed: {detail[:500]}")
+    return result.returncode == 0
+
+
+def _schedule_active(platform_kind: str, target: Path) -> bool:
+    if platform_kind == "systemd":
+        return _run_platform_command(
+            ["systemctl", "--user", "is-active", "--quiet", f"{UNIT_NAME}.timer"],
+            check=False,
+        )
+    if platform_kind == "macos":
+        try:
+            domain = f"gui/{os.getuid()}/{LAUNCHD_LABEL}"
+        except AttributeError:  # pragma: no cover - Windows has no getuid
+            return False
+        return _run_platform_command(["launchctl", "print", domain], check=False)
+    if platform_kind == "windows":
+        return _run_platform_command(
+            ["schtasks.exe", "/Query", "/TN", TASK_NAME], check=False
+        )
+    return False
+
+
+def _is_managed_directory(platform_name: str | None, target: Path) -> bool:
+    """Avoid activating or removing OS jobs for test/custom output folders."""
+    platform_kind = detect_platform(platform_name)
+    if platform_kind == "systemd":
+        base = Path.home() / ".config"
+    elif platform_kind == "macos":
+        base = Path.home()
+    elif platform_kind == "windows":
+        base = Path(os.environ.get("APPDATA", str(Path.home())))
+    else:
+        base = Path.home() / ".config" / "blockprobe"
+    return target.resolve() == jobs_dir(platform_name, base=base).resolve()
+
+
+def activate(platform_name: str | None = None, directory: Path | None = None) -> bool:
+    """Enable a prepared schedule for the current user; return False for cron."""
+    platform_kind = detect_platform(platform_name)
+    target = directory or jobs_dir(platform_name)
+    if platform_kind == "android":
+        raise ValueError(
+            "Android background scheduling requires native WorkManager support."
+        )
+    if platform_kind == "cron":
+        return False
+    if not all(path.is_file() for path in job_files(platform_name, target)):
+        raise ValueError("Write the schedule files before enabling the schedule.")
+    if not _is_managed_directory(platform_name, target):
+        raise ValueError("A custom schedule directory cannot be enabled by the OS scheduler.")
+    if platform_kind == "systemd":
+        _run_platform_command(["systemctl", "--user", "daemon-reload"])
+        _run_platform_command(
+            ["systemctl", "--user", "enable", "--now", f"{UNIT_NAME}.timer"]
+        )
+    elif platform_kind == "macos":
+        try:
+            domain = f"gui/{os.getuid()}"
+        except AttributeError as exc:  # pragma: no cover - Windows has no getuid
+            raise RuntimeError("Could not identify the current macOS user.") from exc
+        plist = str(target / f"{LAUNCHD_LABEL}.plist")
+        # Replace a loaded job when the selected schedule changes.
+        _run_platform_command(["launchctl", "bootout", domain, plist], check=False)
+        _run_platform_command(["launchctl", "bootstrap", domain, plist])
+    elif platform_kind == "windows":
+        _run_platform_command(
+            [
+                "schtasks.exe",
+                "/Create",
+                "/TN",
+                TASK_NAME,
+                "/XML",
+                str(target / f"{TASK_NAME}.xml"),
+                "/F",
+            ]
+        )
+    return True
+
+
 def install(
     spec: ScheduleSpec,
     platform_name: str | None = None,
@@ -332,10 +436,37 @@ def install(
 
 def uninstall(platform_name: str | None = None, directory: Path | None = None) -> list[Path]:
     """Delete only the files this module created; returns the removed paths."""
-    if detect_platform(platform_name) == "android":
+    platform_kind = detect_platform(platform_name)
+    if platform_kind == "android":
         return []
+    target = directory or jobs_dir(platform_name)
+    if _is_managed_directory(platform_name, target) and _schedule_active(
+        platform_kind, target
+    ):
+        if platform_kind == "systemd":
+            _run_platform_command(
+                ["systemctl", "--user", "disable", "--now", f"{UNIT_NAME}.timer"]
+            )
+        elif platform_kind == "macos":
+            try:
+                domain = f"gui/{os.getuid()}"
+            except AttributeError:  # pragma: no cover - Windows has no getuid
+                domain = ""
+            if domain:
+                _run_platform_command(
+                    [
+                        "launchctl",
+                        "bootout",
+                        domain,
+                        str(target / f"{LAUNCHD_LABEL}.plist"),
+                    ]
+                )
+        elif platform_kind == "windows":
+            _run_platform_command(
+                ["schtasks.exe", "/Delete", "/TN", TASK_NAME, "/F"]
+            )
     removed: list[Path] = []
-    for path in job_files(platform_name, directory):
+    for path in job_files(platform_name, target):
         if path.exists():
             path.unlink()
             removed.append(path)
@@ -358,6 +489,10 @@ def status(platform_name: str | None = None, directory: Path | None = None) -> S
         files=files,
         activate=activate_hint(platform_name, target),
         note=channel_hint(platform_name, target),
+        active=(
+            _is_managed_directory(platform_name, target)
+            and _schedule_active(platform_kind, target)
+        ),
     )
     if platform_kind == "cron" and not result.installed:
         result.note = (

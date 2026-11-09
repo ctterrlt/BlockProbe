@@ -22,9 +22,10 @@ SRC = Path(__file__).resolve().parents[2] / "src"
 
 @pytest.fixture(autouse=True)
 def reset_language_to_italian() -> None:
+    previous_language = i18n.get_language()
     i18n.set_language("it")
     yield
-    i18n.set_language("it")
+    i18n.set_language(previous_language)
 
 
 def test_default_language_is_english() -> None:

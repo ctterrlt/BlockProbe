@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from blockprobe.core.enums import Confidence, Verdict
 from blockprobe.core.models import Classification, Site
+from blockprobe.probe.rust_engine import aggregate_indices
 
 MODES = ("as_listed", "apex", "www")
 
@@ -66,15 +67,6 @@ def build_variants(
     return variants
 
 
-def _rank(classification: Classification) -> tuple[int, int]:
-    verdict_rank = {
-        Verdict.OPENED: 3,
-        Verdict.BLOCKED: 2,
-        Verdict.UNREACHABLE: 1,
-    }[classification.verdict]
-    return verdict_rank, classification.confidence.rank
-
-
 def aggregate(domain: str, classifications: list[Classification]) -> Classification:
     """Combine per-variant classifications into one site verdict."""
     if not classifications:
@@ -85,20 +77,9 @@ def aggregate(domain: str, classifications: list[Classification]) -> Classificat
             needs_review=True,
             evidence={"note": "No variant could be probed."},
         )
-    best = sorted(classifications, key=_rank, reverse=True)[0]
-    opened = [item for item in classifications if item.verdict is Verdict.OPENED]
-    blocked = [item for item in classifications if item.verdict is Verdict.BLOCKED]
-    if opened:
-        chosen = sorted(opened, key=lambda item: item.confidence.rank, reverse=True)[0]
-    elif blocked:
-        # Prefer an explicit blocker hint over an unknown one.
-        chosen = sorted(
-            blocked,
-            key=lambda item: (item.confidence.rank, 1 if item.blocker_hint else 0),
-            reverse=True,
-        )[0]
-    else:
-        chosen = best
+    chosen_index, rust_conflict, uncertain_indices = aggregate_indices(classifications)
+    chosen = classifications[chosen_index]
+    uncertain_opened = [classifications[index] for index in uncertain_indices]
     evidence = dict(chosen.evidence)
     curl_checks = [
         {
@@ -118,6 +99,23 @@ def aggregate(domain: str, classifications: list[Classification]) -> Classificat
         if curl_warnings:
             evidence["curl_warnings"] = list(dict.fromkeys(curl_warnings))
     curl_conflict = any(item.get("status") == "conflict" for item in curl_checks)
+    uncertain_opened_conflict = rust_conflict and chosen.verdict is Verdict.BLOCKED
+    if uncertain_opened_conflict:
+        evidence["uncertain_opened_variants"] = [
+            {
+                "reason_code": item.reason_code,
+                "confidence": item.confidence.value,
+                "http_status": item.evidence.get("http", {}).get("status")
+                if isinstance(item.evidence.get("http"), dict)
+                else None,
+                "note": (
+                    "This variant loaded a page without block evidence, but that "
+                    "is not proof of an open site. The verified block evidence is "
+                    "kept and the result needs review."
+                ),
+            }
+            for item in uncertain_opened
+        ]
     evidence["variants"] = [
         {
             "verdict": item.verdict.value,
@@ -135,7 +133,7 @@ def aggregate(domain: str, classifications: list[Classification]) -> Classificat
         reason_code=chosen.reason_code,
         confidence=chosen.confidence,
         blocker_hint=chosen.blocker_hint,
-        needs_review=chosen.needs_review or curl_conflict,
+        needs_review=chosen.needs_review or curl_conflict or uncertain_opened_conflict,
         rule_id=chosen.rule_id,
         title=chosen.title,
         snippet=chosen.snippet,

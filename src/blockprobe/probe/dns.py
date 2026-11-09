@@ -11,30 +11,19 @@ opts in.
 from __future__ import annotations
 
 import asyncio
-import ipaddress
 import logging
-import socket
 from collections.abc import Iterable
 
 from blockprobe.core.models import DnsResult
+from blockprobe.probe.rust_engine import is_sinkhole_ip as _rust_is_sinkhole_ip
+from blockprobe.probe.rust_engine import system_resolve as _rust_system_resolve
 
 _LOGGER = logging.getLogger("blockprobe.probe.dns")
 
 
 def is_sinkhole_ip(value: str) -> bool:
     """Return True for addresses that a public website must never resolve to."""
-    try:
-        address = ipaddress.ip_address(value)
-    except ValueError:
-        return False
-    if address.is_unspecified or address.is_loopback or address.is_link_local:
-        return True
-    if address.is_private or address.is_reserved or address.is_multicast:
-        return True
-    # IPv4-mapped IPv6 addresses inherit the mapped address's properties.
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
-        return is_sinkhole_ip(str(address.ipv4_mapped))
-    return False
+    return _rust_is_sinkhole_ip(value)
 
 
 def _resolver(timeout: float, nameservers: Iterable[str] | None = None):  # type: ignore[no-untyped-def]
@@ -55,17 +44,7 @@ def _system_resolve(host: str) -> DnsResult | None:
     resolv.conf for Python libraries to read. ``getaddrinfo`` delegates to the
     platform resolver, which is also the path normal app connections use.
     """
-    try:
-        records = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
-    except (OSError, socket.gaierror):
-        return None
-    ips = list(
-        dict.fromkeys(
-            record[4][0]
-            for record in records
-            if record[4] and isinstance(record[4][0], str)
-        )
-    )
+    ips = _rust_system_resolve(host)
     if not ips:
         return None
     sinkholes = [ip for ip in ips if is_sinkhole_ip(ip)]

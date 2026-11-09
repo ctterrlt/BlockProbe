@@ -8,9 +8,10 @@ Android artifacts through Flet. The Python wheel and source archive, a Linux
 portable tarball and a universal Android APK were built locally. The Linux
 installer helper and a headless Linux app launch were smoke-checked. The
 locally built APK uses Flet's default Android debug certificate; Android UI
-verification for this work uses the configured emulator only. The current
-source build is `1.3.0-beta` / version code `100300020`, installed on that
-AVD for UI checks. Tagged release builds use the configured Android release
+verification for this work uses the configured emulator only. The source now
+targets `1.4.0-alpha` / version code `100400010`. The previously documented
+emulator UI checks used the `1.3.0-beta` / `100300020` APK, so they do not
+verify this source version. Tagged release builds use the configured Android release
 keystore and fail if its secrets are missing. M6
 remains open until a signed release has been built and verified with the
 owner's long-term key.
@@ -22,6 +23,14 @@ in the package metadata; the `desktop` extra adds Flet's desktop runtime.
 Python installs require Python and pip on the device. They are not standalone
 installers. The optional curl cross-check uses a system `curl` executable when
 available; it is not a required dependency and is not bundled in Android builds.
+Building from source also requires Rust and Cargo. `scripts/build.py` compiles
+the Rust scan library before producing a Flet app. The wheel build hook also
+compiles the host library offline when building a wheel from an sdist or source
+tree that does not already contain it. Android builds need the Android NDK and
+Rust targets for arm64-v8a, armeabi-v7a and x86_64; Web uses the matching
+Emscripten/Pyodide target. Flet includes platform libraries, and Android
+extracts the Python package so the lazy `ctypes` loader can open its library
+from a filesystem path. The Rust toolchain is pinned in `rust-toolchain.toml`.
 
 ```console
 python -m pip install blockprobe
@@ -39,17 +48,21 @@ python src/main.py
 ```
 
 The same environment provides the CLI and `blockprobe serve --headless` local
-web UI. The wheel and sdist include the bundled BetBlocker fallback signatures.
+web UI. Wheels include the host platform's Rust library and are marked non-pure
+with a `py3-none-<platform>` wheel tag. Source distributions include the Rust
+workspace and build hook; installing from an sdist therefore requires Cargo.
+Both include the bundled BetBlocker fallback signatures.
 
 ## Build artifacts
 
-The current development version is `1.3.0-beta`. Mobile startup colors follow the
+The current development version is `1.4.0-alpha`. Mobile startup colors follow the
 system appearance, and the splash screen uses the BlockProbe app icon. Android
 and iOS use a three-site scan concurrency default; other platforms use eight.
 Users can change scan concurrency in Settings, and the value is saved with the
 other local settings.
 
-`src/blockprobe/VERSION` is canonical. An installed emulator app can lag behind
+The root `VERSION` file is canonical; `src/blockprobe/VERSION` is its packaged
+runtime copy. An installed emulator app can lag behind
 the working tree, so inspect the APK's manifest before treating a run as
 current-source verification.
 
@@ -94,7 +107,7 @@ debug certificate for local testing.
 
 | Target | Artifact produced | Current limits |
 | --- | --- | --- |
-| Python | wheel and sdist | Python/pip must already be installed |
+| Python | host-specific wheel and sdist | Python/pip; Rust/Cargo when building from source |
 | Windows | portable ZIP; optional per-user Setup EXE | unsigned; built on Windows |
 | macOS | app ZIP; optional DMG | unsigned and not notarized; built on macOS |
 | Linux | portable tar.gz; optional Arch `.pkg.tar.zst` | x86_64 built locally; Arch package built on Arch Linux; `.deb`, `.rpm`, AppImage and Flatpak are not built |
@@ -125,8 +138,11 @@ fail before publication if any signing secret is missing or invalid. Manual
 branch builds may omit all four secrets and use Flet's debug key for testing.
 F-Droid builds the source independently and signs its own APK.
 
-The release workflow builds Python, Windows, macOS, Linux, Android APK/AAB,
-web and iOS simulator artifacts on their supported runners. A manual workflow
+The release workflow builds one host-specific Python wheel on Linux, Windows
+and macOS, plus one sdist from Linux. It uploads the wheels under distinct
+artifact names; their platform tags keep release filenames distinct. The
+workflow also builds Windows, macOS, Linux, Android APK/AAB, web and iOS
+simulator artifacts on their supported runners. A manual workflow
 run builds and uploads CI artifacts without publishing a release; a tag push
 builds the matrix and publishes a release, marked as a prerelease when its tag
 contains a hyphen. Android runtime downloads are cached and retried once after
@@ -228,12 +244,16 @@ started by the user.
 
 ## Milestones
 
-M6 is in progress. Local Linux builds cover Python packages, Linux x86_64,
-Android and web; the emulator checks verify the shared Android UI at standard
+M6 is in progress. Local checks cover the Linux platform wheel, Linux x86_64,
+and Rust libraries for Android arm64-v8a, armeabi-v7a and x86_64; no APK/AAB or
+other app package was built for this Rust check. The emulator checks verify the shared Android UI at standard
 and compact widths. The headless web smoke check loads the bundle but remains
 on the Flet startup screen, so web runtime interaction is not yet verified.
-Windows, macOS and iOS simulator artifacts are built by the native-host CI
-matrix. Linux arm64, AppImage/Flatpak, physical-device iOS
+Windows, macOS and iOS simulator artifacts are configured in the native-host
+CI matrix, but their native-library load checks have not run in this workspace.
+The iOS simulator and Pyodide/Web dynamic-library paths remain unverified.
+F-Droid recipe execution with the pinned Rust toolchain also remains
+unverified. Linux arm64, AppImage/Flatpak, physical-device iOS
 packaging, production signing, notarization and store-ready releases remain.
 M7 documentation is updated; the first stable release waits for M6 and a
 completed artifact review.

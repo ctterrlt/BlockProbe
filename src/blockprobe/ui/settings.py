@@ -32,6 +32,7 @@ class SettingsScreen:
     concurrency_field: ft.TextField
     timeout_field: ft.TextField
     control_url_field: ft.TextField
+    control_resolver_switch: ft.Switch
     auto_refresh_setting: ft.Switch
     ttl_field: ft.TextField
     settings_status: ft.Text
@@ -91,6 +92,10 @@ class SettingsScreen:
             value=config.probe.control_url,
             dense=True,
         )
+        self.control_resolver_switch = ft.Switch(
+            label=t("Use public DNS when device DNS fails"),
+            value=config.probe.use_control_resolver,
+        )
         self.auto_refresh_setting = ft.Switch(
             label=t("Update stale portal lists before a run"),
             value=config.portals.auto_refresh_on_run,
@@ -122,6 +127,10 @@ class SettingsScreen:
             keyboard_type=ft.KeyboardType.NUMBER,
         )
         self.schedule_status = text("", 12)
+        self.schedule_help = text("", 12)
+        self._schedule_platform: str | None = None
+        self.schedule_install_button: ft.Button | None = None
+        self.schedule_remove_button: ft.Button | None = None
         self._refresh_schedule_status()
         self.settings_status = text("", 12)
 
@@ -130,13 +139,44 @@ class SettingsScreen:
             from blockprobe.scheduler import status as job_status
 
             info = job_status()
-            state = t("installed") if info.installed else t("not installed")
         except Exception:
-            state = t("unknown")
-        self.schedule_status.value = t(
-            "Scheduled scan: {state}. Off by default, runs as your user, no admin rights.",
-            state=state,
-        )
+            self.schedule_status.value = t("Scheduled scan state is unknown.")
+            return
+        self._schedule_platform = info.platform
+        unavailable = info.platform == "android"
+        if unavailable:
+            self.schedule_help.value = t(
+                "Android apps cannot register a background scan with the system "
+                "from Flet. Run scans from the app when you need one."
+            )
+            self.schedule_status.value = t(
+                "Scheduled scans are not available on Android. Run scans manually."
+            )
+        else:
+            self.schedule_help.value = t(
+                "Enabling a schedule writes and activates a user-level job "
+                "(systemd timer, launchd agent or Task Scheduler). "
+                "It runs without administrator rights."
+            )
+            if info.active:
+                state = t("active")
+            elif info.installed:
+                state = t("written but not enabled")
+            else:
+                state = t("not installed")
+            self.schedule_status.value = t(
+                "Scheduled scan: {state}. Runs as your user, no admin rights.",
+                state=state,
+            )
+            if info.platform == "cron":
+                self.schedule_help.value = t(
+                    "This platform needs a manual cron entry; BlockProbe writes "
+                    "the file and shows the command to review."
+                )
+        for name in ("schedule_install_button", "schedule_remove_button"):
+            control = getattr(self, name, None)
+            if control is not None:
+                control.disabled = unavailable
 
     def _settings_view(self) -> ft.Control:
         self.settings_header = hero(
@@ -154,9 +194,22 @@ class SettingsScreen:
         self._schedule_field_slots: list[ft.Container] = []
 
         def schedule_slot(control: ft.Control) -> ft.Container:
-            slot = ft.Container(content=control, col={"xs": 12, "sm": 4})
+            slot = ft.Container(content=control, col={"xs": 12, "sm": 6})
             self._schedule_field_slots.append(slot)
             return slot
+
+        schedule_install = button(
+            t("Enable schedule"),
+            ft.Icons.SCHEDULE,
+            self._wrap(self._install_schedule),
+        )
+        schedule_remove = button(
+            t("Remove schedule"),
+            ft.Icons.EVENT_BUSY,
+            self._wrap(self._remove_schedule),
+        )
+        self.schedule_install_button = schedule_install
+        self.schedule_remove_button = schedule_remove
 
         self.settings_root = ft.Column(
             [
@@ -177,6 +230,14 @@ class SettingsScreen:
                                     ),
                                 ],
                                 run_spacing=10,
+                            ),
+                            self.control_resolver_switch,
+                            text(
+                                t(
+                                    "During a scan, Cloudflare receives a hostname only "
+                                    "when the device DNS resolver cannot resolve it."
+                                ),
+                                12,
                             ),
                             ft.ResponsiveRow(
                                 [
@@ -214,14 +275,7 @@ class SettingsScreen:
                     t("Scheduled scans (off by default)"),
                     ft.Column(
                         [
-                            text(
-                                t(
-                                    "Writes user-level job files (systemd user timer, launchd "
-                                    "agent or Task Scheduler XML). Nothing is enabled until you "
-                                    "run the command shown in the confirmation."
-                                ),
-                                12,
-                            ),
+                            self.schedule_help,
                             ft.ResponsiveRow(
                                 [
                                     schedule_slot(self.schedule_frequency),
@@ -232,16 +286,8 @@ class SettingsScreen:
                             ),
                             ft.Row(
                                 [
-                                    button(
-                                        t("Write schedule"),
-                                        ft.Icons.SCHEDULE,
-                                        self._wrap(self._install_schedule),
-                                    ),
-                                    button(
-                                        t("Remove schedule"),
-                                        ft.Icons.EVENT_BUSY,
-                                        self._wrap(self._remove_schedule),
-                                    ),
+                                    schedule_install,
+                                    schedule_remove,
                                     button(
                                         t("Refresh state"),
                                         ft.Icons.VISIBILITY,
@@ -294,6 +340,8 @@ class SettingsScreen:
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
+        # Re-apply the availability state now that the buttons exist.
+        self._refresh_schedule_status()
         return self.settings_root
 
     def _save_settings(self) -> actions.ActionResult:
@@ -314,6 +362,7 @@ class SettingsScreen:
             concurrency=concurrency,
             timeout_seconds=timeout,
             control_url=self.control_url_field.value or "",
+            use_control_resolver=bool(self.control_resolver_switch.value),
             auto_refresh_on_run=bool(self.auto_refresh_setting.value),
             refresh_ttl_hours=ttl,
         )
@@ -328,6 +377,7 @@ class SettingsScreen:
                     self.page,
                     actions.runtime().settings.config.app.theme_mode,
                     update=False,
+                    brightness=getattr(self, "_platform_brightness", None),
                 )
                 self.page.update()
             self.settings_status.value = (
@@ -369,7 +419,11 @@ class SettingsScreen:
             }[value]
             theme_menu.tooltip = f"{t('Appearance')}: {label}"
         self._sync_responsive_layout()
-        apply_page_theme(self.page, value)
+        apply_page_theme(
+            self.page,
+            value,
+            brightness=getattr(self, "_platform_brightness", None),
+        )
 
     def refresh_settings_layout(self, compact: bool) -> None:
         """Use compact spacing and a two-column schedule form on phones."""
@@ -393,9 +447,19 @@ class SettingsScreen:
                 vertical=10 if compact else 14,
             )
         for slot in self._schedule_field_slots:
-            slot.col = {"xs": 6, "sm": 4} if compact else {"xs": 12, "sm": 4}
+            slot.col = {"xs": 12, "sm": 6} if compact else {"xs": 12, "sm": 4}
 
     def _install_schedule(self) -> actions.ActionResult:
+        if self._schedule_platform == "android":
+            self._refresh_schedule_status()
+            return actions.ActionResult(
+                t("Scheduled scans unavailable"),
+                t(
+                    "Android does not allow BlockProbe to register a background "
+                    "scan from Flet. Run scans from the app."
+                ),
+                ok=False,
+            )
         try:
             weekday = int(self.schedule_weekday.value or "1")
         except ValueError:
@@ -488,5 +552,6 @@ class SettingsScreen:
             self.page,
             dialog,
             actions.runtime().settings.config.app.theme_mode,
+            brightness=getattr(self, "_platform_brightness", None),
         )
         self.page.show_dialog(dialog)

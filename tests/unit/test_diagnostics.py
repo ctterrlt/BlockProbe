@@ -36,6 +36,21 @@ def test_vpn_provider_names_are_hints_not_verdicts() -> None:
     assert any("Generic VPN/tunnel" in name for name in names)
 
 
+def test_android_dns_servers_read_active_network_properties(monkeypatch) -> None:
+    properties = {
+        "net.dns1": " 192.0.2.53\n",
+        "net.dns2": "2001:db8::53\n",
+    }
+    monkeypatch.setattr(vpn, "_is_android_runtime", lambda: True)
+    monkeypatch.setattr(
+        vpn,
+        "_run",
+        lambda command, timeout=3.0: properties.get(command[1], ""),
+    )
+
+    assert vpn.system_dns_servers() == ["192.0.2.53", "2001:db8::53"]
+
+
 def test_hosts_sinkhole_count_ignores_standard_loopback_aliases(
     tmp_path: Path,
     monkeypatch,

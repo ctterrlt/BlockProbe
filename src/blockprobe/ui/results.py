@@ -416,6 +416,7 @@ class ResultsScreen:
                 self.page,
                 actions.runtime().settings.config.app.theme_mode,
                 update=False,
+                brightness=getattr(self, "_platform_brightness", None),
             )
             self.page.update()
 
@@ -428,6 +429,7 @@ class ResultsScreen:
                 self.page,
                 actions.runtime().settings.config.app.theme_mode,
                 update=False,
+                brightness=getattr(self, "_platform_brightness", None),
             )
             self.page.update()
 

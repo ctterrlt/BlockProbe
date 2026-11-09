@@ -50,7 +50,8 @@ Builds:
     output: build/flet/apk/blockprobe.apk
     prebuild:
       - git -C $$flutter$$ checkout -f 3.44.8
-      - export PATH=$$flutter$$/bin:$PATH && bash fdroid/build.sh prepare
+      - rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
+      - export PATH=$$flutter$$/bin:$PATH ANDROID_NDK_HOME=$$NDK$$ && bash fdroid/build.sh prepare
     build:
       - bash fdroid/build.sh build
 

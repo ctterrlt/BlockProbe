@@ -23,6 +23,10 @@ def rendered() -> dict[str, Any]:
 def test_version_code_matches_the_release_build_number() -> None:
     version = fdroid_submit.project_version()
 
+    assert version == (fdroid_submit.ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    assert version == (
+        fdroid_submit.ROOT / "src" / "blockprobe" / "VERSION"
+    ).read_text(encoding="utf-8").strip()
     assert fdroid_submit.version_code(version) == build.project_build_number()
 
 
@@ -45,7 +49,8 @@ def test_render_uses_the_release_tag_and_current_version() -> None:
     assert current["srclibs"] == ["flutter@stable"]
     assert current["prebuild"] == [
         "git -C $$flutter$$ checkout -f 3.44.8",
-        "export PATH=$$flutter$$/bin:$PATH && bash fdroid/build.sh prepare",
+        "rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android",
+        "export PATH=$$flutter$$/bin:$PATH ANDROID_NDK_HOME=$$NDK$$ && bash fdroid/build.sh prepare",
     ]
     assert current["build"] == ["bash fdroid/build.sh build"]
 
@@ -237,3 +242,45 @@ def test_default_commit_uses_the_workflow_sha_on_branches(
     monkeypatch.setenv("GITHUB_SHA", "a" * 40)
 
     assert fdroid_submit.default_commit() == "a" * 40
+
+
+def test_create_mr_uses_the_source_project_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Fork-based MRs must be created through the fork, with a target project."""
+    client = fdroid_submit.GitLabClient("test-token")
+    calls: list[tuple[str, str, dict[str, Any] | None]] = []
+
+    def fake_request(
+        method: str,
+        path: str,
+        *,
+        params: dict[str, str] | None = None,
+        body: dict[str, Any] | None = None,
+        raw: bool = False,
+    ) -> Any:
+        calls.append((method, path, body))
+        if method == "GET":
+            return []
+        return {"web_url": "https://gitlab.com/fdroid/fdroiddata/-/merge_requests/1"}
+
+    monkeypatch.setattr(client, "_request", fake_request)
+
+    url = client.create_or_update_mr(
+        target_id=36528,
+        source_id=88307354,
+        source_branch="blockprobe-1.3.0-beta",
+        target_branch="master",
+        title="New app: BlockProbe",
+        description="metadata",
+    )
+
+    assert url.endswith("/merge_requests/1")
+    posts = [call for call in calls if call[0] == "POST"]
+    assert len(posts) == 1
+    _, path, body = posts[0]
+    assert path == "/projects/88307354/merge_requests"
+    assert body is not None
+    assert body["target_project_id"] == 36528
+    assert body["source_branch"] == "blockprobe-1.3.0-beta"
+    assert "source_project_id" not in body

@@ -45,7 +45,7 @@ _LOGGER = logging.getLogger("blockprobe.services.scan")
 
 # Bump this string whenever the first-run consent text changes so every user
 # sees the new wording before the app touches the network.
-CONSENT_VERSION = "2026-10-19.1"
+CONSENT_VERSION = "2026-11-09.1"
 GUARD_EVERY = 20
 
 
@@ -133,8 +133,19 @@ class ScanService:
         return record is None or record.version != CONSENT_VERSION
 
     def accept_consent(self) -> None:
+        # Enable the optional public-DNS comparison only after the user has
+        # accepted the updated disclosure. The comparison runs during a scan
+        # only when the device resolver cannot resolve a selected hostname.
+        self.settings.config.probe.use_control_resolver = True
+        self.settings.save()
+        self.set_control_resolver_enabled(True)
         self.storage.save_consent(CONSENT_VERSION)
         _LOGGER.info("consent recorded", extra={"event": "consent_accepted"})
+
+    def set_control_resolver_enabled(self, enabled: bool) -> None:
+        """Apply the saved DNS fallback choice to the next probe immediately."""
+        self.settings.config.probe.use_control_resolver = bool(enabled)
+        self._engine.config.use_control_resolver = bool(enabled)
 
     # --------------------------------------------------------------- selection
 

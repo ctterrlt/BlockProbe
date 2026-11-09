@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.3.0--beta-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-1.4.0--alpha-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
@@ -13,18 +13,24 @@ BlockProbe is an open-source, local-first tool for checking whether website filt
 
 The project is for people and families who want local evidence about website filtering, and for filter maintainers who need reproducible reports. It checks only the domains selected for a scan; it does not browse pages, inspect their full content, or certify a filter across every app, browser, profile, or network.
 
+The scan engine requires a matching native Rust library. Rust handles verdict
+aggregation, sinkhole-IP classification and the operating-system resolver
+fallback; Python still performs primary DNS record queries, optional DoH,
+HTTP probes, evidence assembly and the UI. The Rust layer is not a continuous
+DNS/VPN blocker and has not been shown to make full scans faster.
+
 ## Status
 
-The current development build is **1.3.0-beta**. The earlier 1.2.0 and 1.1.1
-GitHub release downloads were withdrawn. This beta includes the current
+The current development build is **1.4.0-alpha**. The earlier 1.2.0 and 1.1.1
+GitHub release downloads were withdrawn. This alpha includes the current
 regulator sources.
 
-The app version is maintained in [`src/blockprobe/VERSION`](src/blockprobe/VERSION)
-and drives runtime display, native installer builds and Flet build metadata.
-Python package metadata uses its PEP 440 equivalent (`1.3.0b0`). The canonical
-source version for this tree is **1.3.0-beta**; an already installed APK can
-report an older version and does not change the repository version.
-The current local debug APK uses Android version code `100300020`; it is for
+The app version is maintained in the root [`VERSION`](VERSION) file and drives
+package metadata and native installer builds. Its packaged copy at
+[`src/blockprobe/VERSION`](src/blockprobe/VERSION) drives runtime display.
+Python package metadata uses its PEP 440 equivalent (`1.4.0a0`). An installed
+APK can report an older version and does not change the repository version.
+The current Android version code is `100400010`; it is for
 emulator verification and is not a signed release.
 
 BlockProbe is usable **from source**: the portal refreshes, local probing,
@@ -61,17 +67,18 @@ silently doing nothing.
 - **Personalized scans.** Add domains that matter to your own filtering setup, then select only those custom sites or combine them with built-in sources. This supports checks of adult-content filtering, parental controls, and other user-selected website categories; custom domains are never fetched as a feed. A domain-level probe can show whether a site responds on this device's network path, but cannot confirm that all pages or content within that site are filtered.
 - **Portal scans.** Updating a portal fetches its published list pages and extracts the listed domains. A scan of that source probes every imported website individually; checking that the portal homepage responds is not a substitute. Pagination is followed up to its configured page limit, with a warning if more pages remain.
 - **Local probing.** Resolves each domain through the system resolver, records TCP/TLS diagnostics with Python sockets, and fetches a bounded HTTP response through HTTPX. Outbound HTTP requests use a common Chrome-for-Windows User-Agent; this header does not emulate Chrome's browser or network fingerprint. If HTTPX finds block evidence, BlockProbe optionally checks with the system `curl` executable: it sends a bodyless HEAD first, then fetches a capped body only if the site reports HTML. When curl opens a site successfully, the result stays marked for review and shows **“Warning: curl opened the website successfully.”** in results and exports. `curl` is optional and is not bundled in the Android app. A failed socket diagnostic does not prevent the HTTP request. Tests the host as listed plus its apex and `www` variants.
+- **Required Rust scan engine.** A versioned C ABI library selects aggregate verdicts, classifies sinkhole addresses and uses the OS resolver when the primary resolver fails. Platform wheels carry a native platform tag; source builds require Rust/Cargo. A missing or incompatible library is a clear runtime error, with no Python verdict fallback.
 - **Redirect and new-window evidence.** Records 302/307/308 chains, static `<meta refresh>`, `window.open`, `location` targets and reopen-on-return hints without executing JavaScript or downloading assets. A target on a known blocker landing page is blocked from the URL alone.
 - **Evidence-based classification.** Applies ordered signature rules to page content, headers, and redirect chains. Verdicts carry a reason code, confidence, and evidence; no verdict is inferred from an HTTP status code alone.
 - **Neutral controls and interference signal.** Requests Google, Wikipedia and Cloudflare before and between probes, reports the first control failure and the domains to recheck, and reports a transparent heuristic VPN/DNS interference signal. A locally detected content-filtering resolver is shown as context, but it does not by itself raise that signal.
 - **Privacy and legal scope.** Every report states that BlockProbe asks for no age verification, sets or stores no cookies, uploads nothing, accepts no website terms, saves no image or website files, and claims no GDPR/US privacy-law compliance. Response bodies are capped and only HTML is inspected.
 - **Local storage.** SQLite only, in one local database file. Probe verdicts are never cached; cached portal lists and views are invalidated through a database generation counter. Dynamic BetBlocker patterns live in an append-only table.
-- **Diagnostics.** Reports system DNS configuration, resolver and VPN hints, VPN/proxy usage, hosts-file sinkholes, Private DNS and IPv6 availability, and optionally compares results with a user-configured control resolver.
+- **Profile and diagnostics.** The Profile screen shows best-effort local DNS, VPN, proxy, hosts-file, IPv6, Android Private DNS and browser Secure DNS hints. After consent, a scan also asks Cloudflare DNS over HTTPS for a hostname only if the device resolver fails; Cloudflare receives that hostname, and this fallback can be disabled in Settings. Accepting consent itself sends no DNS request.
 - **Cross-platform interfaces.** A Flet desktop and mobile UI, a Typer-based CLI, and a local web UI bound to `127.0.0.1`.
 - **Five languages, adaptive appearance.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings. Appearance follows the operating system by default, with saved Light and Dark overrides. Layouts adapt to narrow windows and phone widths, with scrolling content and compact navigation labels. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
 - **Explicit export destinations.** Report and log exports open the platform save dialog so you can choose a path. If that dialog fails, BlockProbe keeps a uniquely named copy in the local reports folder and shows its path; cancelling the dialog does not create a second copy.
-- **Scheduled scans.** Off by default, user-level only (systemd user timer, launchd agent, Task Scheduler XML), with leak-only notifications when a notifier is available.
-- **Privacy by design.** No accounts, telemetry, analytics, or crash reporting. Network traffic is limited to selected portals, probe targets, neutral controls, the BetBlocker block page, an optional curl check after block evidence and opt-in checks.
+- **Scheduled scans.** Off by default; enabling one from Settings writes and activates a user-level job (systemd user timer, launchd agent or Task Scheduler XML). Cron platforms show a command for manual setup. Android background scheduling is unavailable; Android scans must be started in the app.
+- **Privacy by design.** No accounts, telemetry, analytics, or crash reporting. Network traffic is limited to selected portals, probe targets, neutral controls, the BetBlocker block page, an optional curl check after block evidence, and the disclosed Cloudflare DNS fallback when device DNS fails.
 
 ## Requirements
 
@@ -105,7 +112,7 @@ hosts. The Android APK uses a debug certificate. See the build matrix and
 limitations in [docs/PACKAGING.md](docs/PACKAGING.md).
 
 - **From this repository (supported).** A Python 3.14+ environment with the `desktop` extra installs the declared dependencies and runs the full app and CLI.
-- **Python package.** A locally built wheel or sdist provide the CLI, library, local web UI and FreeBSD support, with optional extras (`desktop`, `dev`).
+- **Python package.** A wheel provides the CLI, library and local web UI for the build host's OS/CPU. Building from the sdist requires Rust/Cargo. FreeBSD builds are possible from source but are not currently covered by CI.
 - **Packaged applications (M6 in progress).** Linux, Windows, macOS, Android, web and iOS simulator build paths are documented. Current Android UI verification uses the configured emulator; it does not use a physical phone. Production signing, Linux arm64, AppImage/Flatpak, iOS device packaging and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
 - **Container image (optional).** `packaging/Dockerfile` builds a headless web UI image. Docker is not a prerequisite for normal installation; the container's network route may differ from the device's VPN/DNS route.
 
@@ -152,11 +159,13 @@ Dependencies are declared in `pyproject.toml`. FastAPI is constrained to a relea
 
 The native Flet app is the primary interface. The first launch shows the
 consent notice; nothing touches the network until it is accepted. The main
-window then offers six screens: **Run** (choose a source or personalized set,
+window then offers seven screens: **Run** (choose a source or personalized set,
 preview, start, pause, resume, cancel), **Sources** (add a regulator feed or
 individual custom websites in separate forms; scan selections keep them
-separate),
-**Results** (filters, comparison, exports), **Logs**, **Settings** and **Help**.
+separate), **Results** (filters, comparison, exports), **Logs**, **Settings**,
+**Help** and **Profile**. Profile shows best-effort local VPN, DNS, proxy and
+device details; it makes no network request. Narrow layouts switch navigation
+and result views according to available logical width, regardless of device OS.
 
 Choose System, Light or Dark appearance from the header menu on every main
 screen. Exports ask for a destination with the platform file picker. If the
@@ -239,7 +248,7 @@ python -m mypy            # strict on blockprobe.core
 
 ## Privacy
 
-BlockProbe runs entirely on the local device. It does not create accounts, collect telemetry, or send results to a server. The only outbound requests are to the regulator portals selected by the user, the domains being probed, the neutral control sites, the live BetBlocker block page, and optional user-enabled checks such as a control DNS resolver. See [docs/PRIVACY.md](docs/PRIVACY.md) for the full data inventory and erasure paths.
+BlockProbe runs entirely on the local device. It does not create accounts, collect telemetry, or send results to a server. Outbound requests go to selected regulator portals, probe targets, neutral control sites, the live BetBlocker block page, and Cloudflare DNS over HTTPS only when device DNS cannot resolve a scanned hostname (disabled in Settings if you prefer). Accepting consent makes no DNS request. See [docs/PRIVACY.md](docs/PRIVACY.md) for the full data inventory and erasure paths.
 
 Fetched pages are treated as hostile input: scripts are never executed, linked assets are not fetched, website files are never saved, cookies are never stored or replayed, and response bodies are size-capped and discarded. The optional curl check uses HEAD before fetching HTML only.
 

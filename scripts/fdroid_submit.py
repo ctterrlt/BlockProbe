@@ -56,10 +56,13 @@ class GitLabError(RuntimeError):
 
 
 def project_version() -> str:
-    """Read the single user-editable version value."""
-    value = (ROOT / "src" / "blockprobe" / "VERSION").read_text(encoding="utf-8").strip()
+    """Read the canonical root version and verify its packaged runtime copy."""
+    value = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     if not value or any(char.isspace() for char in value):
         raise SystemExit("VERSION must contain one non-empty version string.")
+    packaged = (ROOT / "src" / "blockprobe" / "VERSION").read_text(encoding="utf-8").strip()
+    if packaged != value:
+        raise SystemExit("src/blockprobe/VERSION must match the root VERSION file.")
     return value
 
 
@@ -574,7 +577,6 @@ class GitLabClient:
             return str(updated["web_url"])
 
         body = {
-            "source_project_id": source_id,
             "source_branch": source_branch,
             "target_project_id": target_id,
             "target_branch": target_branch,
@@ -583,9 +585,13 @@ class GitLabClient:
             "remove_source_branch": True,
         }
         try:
+            # Create the cross-project MR from the source project (the fork),
+            # as GitLab documents for fork-based contributions. Posting to the
+            # target project works for members but returns a generic 403 for a
+            # token that only has access to its own fork.
             created = self._request(
                 "POST",
-                f"/projects/{target_id}/merge_requests",
+                f"/projects/{source_id}/merge_requests",
                 body=body,
             )
             return str(created["web_url"])
@@ -737,7 +743,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--metadata", type=Path, default=DEFAULT_METADATA)
     parser.add_argument(
-        "--version", default=None, help="Release version (default: src/blockprobe/VERSION)"
+        "--version", default=None, help="Release version (default: root VERSION)"
     )
     parser.add_argument("--version-code", type=int, default=None)
     parser.add_argument("--commit", default=None, help="Source tag or commit (default: CI ref)")
@@ -776,7 +782,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if version != project_version():
         print(
-            f"Warning: --version {version} differs from src/blockprobe/VERSION {project_version()}",
+            f"Warning: --version {version} differs from root VERSION {project_version()}",
             file=sys.stderr,
         )
 

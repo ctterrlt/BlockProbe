@@ -23,6 +23,7 @@ from blockprobe.ui.components import (
     apply_page_theme,
     apply_palette,
     button,
+    dark_for_mode,
     prepare_dialog,
     text,
 )
@@ -84,16 +85,14 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
         if not result.ok:
             return
         mode = actions.runtime().settings.config.app.theme_mode
-        apply_page_theme(page, mode, update=False)
+        brightness = getattr(page, "_blockprobe_brightness", None)
+        apply_page_theme(page, mode, update=False, brightness=brightness)
         page.clean()
         view = consent_view(page, on_accepted)
-        dark = mode == "dark" or (
-            mode == "system"
-            and getattr(page, "platform_brightness", None) == ft.Brightness.DARK
-        )
+        dark = dark_for_mode(page, mode, brightness=brightness)
         apply_palette(view, dark=dark)
         page.add(ft.SafeArea(content=view, expand=True))
-        apply_page_theme(page, mode, update=False)
+        apply_page_theme(page, mode, update=False, brightness=brightness)
         page.update()
 
     # Flet 1.x Dropdown emits selection through on_select. Assigning an
@@ -119,7 +118,10 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
                 ],
             )
             prepare_dialog(
-                page, dialog, actions.runtime().settings.config.app.theme_mode
+                page,
+                dialog,
+                actions.runtime().settings.config.app.theme_mode,
+                brightness=getattr(page, "_blockprobe_brightness", None),
             )
             page.show_dialog(dialog)
             return
@@ -143,13 +145,19 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
             actions=[ft.Button(content=t("Back"), on_click=lambda _e: page.pop_dialog())],
         )
         prepare_dialog(
-            page, dialog, actions.runtime().settings.config.app.theme_mode
+            page,
+            dialog,
+            actions.runtime().settings.config.app.theme_mode,
+            brightness=getattr(page, "_blockprobe_brightness", None),
         )
         page.show_dialog(dialog)
 
-    width = getattr(page, "width", None) or 600
-    padding = 16 if width < 600 else 32
-    return ft.Container(
+    width = getattr(page, "width", None)
+    try:
+        measured_width = float(width) if width is not None else None
+    except (TypeError, ValueError):
+        measured_width = None
+    container = ft.Container(
         content=ft.Column(
             [
                 text(f"{APP_NAME} {__version__}", 30, TEXT, weight=ft.FontWeight.BOLD),
@@ -192,7 +200,23 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
             spacing=12,
             expand=True,
         ),
-        padding=padding,
+        padding=16 if measured_width is None or measured_width < 600 else 32,
         expand=True,
         bgcolor=BACKGROUND,
     )
+
+    def resize(event: Any) -> None:
+        event_width = getattr(event, "width", None)
+        if event_width is None:
+            event_width = getattr(page, "width", None)
+        try:
+            event_width = float(event_width) if event_width is not None else None
+        except (TypeError, ValueError):
+            event_width = None
+        next_padding = 16 if event_width is None or event_width < 600 else 32
+        if container.padding != next_padding:
+            container.padding = next_padding
+            page.update()
+
+    page.on_resize = resize
+    return container

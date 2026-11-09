@@ -18,8 +18,9 @@ verdict is worse than a "needs review".
   process in `docs/SIGNATURES.md`; unverified data is not merged.
 - Security problems go to the private channel in `SECURITY.md`, not to a public
   issue.
-- `src/blockprobe/VERSION` is the only application-version source. Do not copy
-  its value into code, package metadata, installer templates or documentation.
+- Root `VERSION` is the canonical application-version source. Keep
+  `src/blockprobe/VERSION` synchronized as the packaged runtime copy; do not
+  hard-code version values elsewhere.
 - Keep every visible interface string in `blockprobe.i18n`; add and verify it
   in all supported language catalogs when changing a screen.
 - Android UI verification must use the configured AVD and an explicit
@@ -40,6 +41,10 @@ python -m pip install -e ".[dev]"
 python src/main.py               # desktop window
 ```
 
+Rust and Cargo 1.98.1 are required for scan functionality. The repository
+pins the toolchain in `rust-toolchain.toml`; Cargo dependencies are currently
+empty, and native compilation uses `--offline`.
+
 The same environment exposes the CLI (`blockprobe --help`) and the local web UI
 (`blockprobe serve --headless`, bound to `127.0.0.1:8550`).
 
@@ -51,11 +56,13 @@ All of these must pass before a pull request is reviewed:
 python -m ruff check src tests scripts
 python -m mypy                    # strict on blockprobe.core
 python -m pytest                  # includes hypothesis and respx tests
+cargo fmt --all -- --check
+cargo test --workspace --offline
 ```
 
 For UI and file-picker changes, include a current-source emulator build in the
 verification record. Confirm the embedded version from the APK manifest; the
-installed app version can lag behind `src/blockprobe/VERSION`.
+installed app version can lag behind the repository's root `VERSION`.
 
 - Tests live in `tests/unit`, `tests/integration` and `tests/regression`.
   Fixtures under `tests/fixtures/` follow the rule that the expected result is

@@ -9,6 +9,7 @@ import pytest
 
 from blockprobe.scheduler import (
     ScheduleSpec,
+    activate,
     cron_line,
     default_command,
     detect_platform,
@@ -140,6 +141,34 @@ def test_install_only_writes_files(tmp_path: Path) -> None:
     assert path.exists()
     assert "OnCalendar" in path.read_text(encoding="utf-8")
     # No activation command or unit is executed by install().
+
+
+@pytest.mark.parametrize(
+    ("platform_name", "expected_command"),
+    [
+        ("linux", ["systemctl", "--user", "enable", "--now", "blockprobe-scan.timer"]),
+        ("darwin", ["launchctl", "bootstrap"]),
+        ("win32", ["schtasks.exe", "/Create", "/TN", "BlockProbeScan"]),
+    ],
+)
+def test_activate_registers_the_explicitly_requested_user_schedule(
+    platform_name: str,
+    expected_command: list[str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    install(spec(), platform_name=platform_name, directory=tmp_path)
+    calls: list[list[str]] = []
+
+    def record(command: list[str], *, check: bool = True) -> bool:
+        calls.append(command)
+        return True
+
+    monkeypatch.setattr("blockprobe.scheduler._run_platform_command", record)
+    monkeypatch.setattr("blockprobe.scheduler._is_managed_directory", lambda *_: True)
+
+    assert activate(platform_name=platform_name, directory=tmp_path) is True
+    assert any(command[: len(expected_command)] == expected_command for command in calls)
 
 
 def test_schedule_dir_env_override(

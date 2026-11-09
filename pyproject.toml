@@ -27,7 +27,7 @@ keywords = [
     "website-filtering",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 3 - Alpha",
     "Environment :: Console",
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
@@ -112,7 +112,11 @@ addopts = "-q"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/blockprobe"]
+artifacts = ["src/blockprobe/_native/**"]
 exclude = ["**/.gitkeep", "**/__pycache__", "**/*.pyc"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+path = "scripts/hatch_build.py"
 
 [tool.flet]
 org = "io.github.ctterrlt"
@@ -126,6 +130,11 @@ icon_background = "#F4F7F6"
 path = "src"
 module = "main"
 assets_dir = "assets"
+include = [
+    "blockprobe/_native/**/*.dll",
+    "blockprobe/_native/**/*.dylib",
+    "blockprobe/_native/**/*.so",
+]
 
 [tool.flet.splash]
 color = "#F4F7F6"
@@ -133,6 +142,7 @@ dark_color = "#111816"
 
 [tool.flet.android]
 split_per_abi = false
+extract_packages = ["blockprobe"]
 
 [tool.flet.android.permission]
 "android.permission.INTERNET" = true

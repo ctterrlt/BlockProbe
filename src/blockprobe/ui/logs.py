@@ -81,7 +81,7 @@ class LogsScreen:
                                             ft.Icons.FILTER_ALT,
                                             self._wrap(self.refresh_logs),
                                         ),
-                                        col={"xs": 6, "sm": 4, "md": 2},
+                                        col={"xs": 12, "sm": 4, "md": 2},
                                     ),
                                     ft.Container(
                                         content=button(
@@ -95,7 +95,7 @@ class LogsScreen:
                                                 on_result=self._update_log_export_status,
                                             ),
                                         ),
-                                        col={"xs": 6, "sm": 4, "md": 2},
+                                        col={"xs": 12, "sm": 4, "md": 2},
                                     ),
                                     ft.Container(
                                         content=button(

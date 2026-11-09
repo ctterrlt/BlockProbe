@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from platformdirs import user_data_dir
 
@@ -32,7 +33,10 @@ from blockprobe.core.errors import BlockProbeError, ConsentRequired, ProbeError,
 from blockprobe.core.models import Portal, ResultRow, RunComparison, RunSummary, ScanSelection
 from blockprobe.i18n import LANGUAGES, set_language, t
 from blockprobe.logging_setup import export_logs_zip
-from blockprobe.portals.domain_normalizer import parse_domain_input
+from blockprobe.portals.domain_normalizer import (
+    parse_domain_input,
+    try_normalize_domain,
+)
 from blockprobe.portals.loader import ensure_portal_uuid, save_portal
 from blockprobe.probe.health import ProbeHealth, assess_probe_health
 from blockprobe.services import Runtime, get_runtime
@@ -95,9 +99,13 @@ CONSENT_TEXTS: tuple[tuple[str, str], ...] = (
         "Privacy",
         "Everything is processed on this device. There is no telemetry, no account "
         "and no cloud. Only the checks you start leave the device: the requests to "
-        "the portal lists and to the websites being probed. Cookies are never "
-        "stored, response bodies are not kept (a hash and a short snippet are kept "
-        "only in debug mode), and you can export or erase everything from Settings.",
+        "the portal lists and to the websites being probed. If the device's DNS "
+        "cannot resolve a scanned hostname, BlockProbe also asks Cloudflare DNS "
+        "over HTTPS; Cloudflare receives that hostname. This fallback is enabled "
+        "after consent and can be turned off in Settings. No DNS request is made "
+        "just by accepting. Cookies are never stored, response bodies are not kept "
+        "(a hash and a short snippet are kept only in debug mode), and you can "
+        "export or erase everything from Settings.",
     ),
     (
         "Terms",
@@ -343,15 +351,48 @@ def refresh_portals(portal_id: str | None = None) -> ActionResult:
     return ActionResult(title, "\n".join(lines) or t("No portals to update."), ok=not failed)
 
 
+def _normalize_portal_url(value: str) -> str | None:
+    """Return a usable feed URL, adding ``https://`` to a bare hostname.
+
+    People paste ``www.example.com`` or ``example.com/blocked`` as often as a
+    full URL. A portal feed is still an http(s) address, so a missing scheme is
+    upgraded to https instead of being rejected. Anything that is not a public
+    http(s) host returns ``None``.
+    """
+    raw = (value or "").strip()
+    if not raw:
+        return None
+    if "://" not in raw:
+        raw = f"https://{raw}"
+    try:
+        parts = urlsplit(raw)
+    except ValueError:
+        return None
+    if (
+        parts.scheme not in {"http", "https"}
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+    ):
+        return None
+    try:
+        _ = parts.port
+    except ValueError:
+        return None
+    if try_normalize_domain(raw) is None:
+        return None
+    return raw
+
+
 def add_portal_definition(name: str, start_url: str, country: str = "") -> ActionResult:
     """Save a public regulator feed definition, separately from custom sites."""
     clean_name = name.strip()
-    clean_url = start_url.strip()
+    clean_url = _normalize_portal_url(start_url)
     clean_country = country.strip().upper() or "ZZ"
-    if not clean_name or not clean_url.startswith(("http://", "https://")):
+    if not clean_name or clean_url is None:
         return ActionResult(
             t("Portal not added"),
-            t("Enter a portal name and a public http(s) list URL."),
+            t("Enter a portal name and a public list address, for example example.com."),
             ok=False,
         )
     if len(clean_country) != 2 or not clean_country.isascii() or not clean_country.isalpha():
@@ -954,7 +995,13 @@ def schedule_status() -> ActionResult:
         info = job_status()
     except Exception as exc:
         return _failure(t("Could not read the scheduled job"), exc)
-    state = "installed" if info.installed else "not installed"
+    state = (
+        "active"
+        if info.active
+        else "files written, not enabled"
+        if info.installed
+        else "not installed"
+    )
     lines = [
         f"Platform: {info.platform}",
         f"State: {state}",
@@ -962,12 +1009,14 @@ def schedule_status() -> ActionResult:
     ]
     for path in info.files:
         lines.append(f"  {'present' if path.exists() else 'missing'}: {path}")
-    if info.installed:
+    if info.active:
         lines.append(f"To run it once now: {info.note}")
     elif info.platform == "android":
         lines.append(info.note)
-    else:
+    elif info.installed and info.platform != "cron":
         lines.append(f"To enable it: {info.activate}")
+    else:
+        lines.append(info.activate)
     lines.append(
         t(
             "Scheduled scans are off by default and always run as your user; "
@@ -985,6 +1034,7 @@ def install_schedule(
 ) -> ActionResult:
     from blockprobe.scheduler import (
         ScheduleSpec,
+        activate,
         default_command,
         install,
     )
@@ -1006,10 +1056,25 @@ def install_schedule(
         return _failure(t("Schedule not installed"), exc)
     info = job_status()
     lines = [f"Written: {path}" for path in written]
-    lines.append(t("Nothing was enabled automatically."))
-    lines.append(f"To enable it, run: {info.activate}")
+    try:
+        enabled = activate()
+    except (OSError, RuntimeError, ValueError) as exc:
+        lines.append(t("Schedule files were written, but the system could not enable them."))
+        lines.append(str(exc))
+        if info.activate:
+            lines.append(f"To enable it manually: {info.activate}")
+        return ActionResult(t("Schedule not enabled"), "\n".join(lines), ok=False)
+    if enabled:
+        lines.append(t("The scheduled scan is enabled for this user."))
+    else:
+        lines.append(t("This platform needs manual cron setup."))
+        lines.append(info.activate)
     lines.append("Remove it any time from this screen or with 'blockprobe schedule remove'.")
-    return ActionResult(t("Scheduled scan file written"), "\n".join(lines))
+    return ActionResult(
+        t("Scheduled scan enabled") if enabled else t("Schedule file written"),
+        "\n".join(lines),
+        ok=enabled,
+    )
 
 
 def remove_schedule() -> ActionResult:
@@ -1018,7 +1083,7 @@ def remove_schedule() -> ActionResult:
 
     try:
         removed = uninstall()
-    except OSError as exc:
+    except (OSError, RuntimeError) as exc:
         return _failure(t("Could not remove the scheduled job"), exc)
     info = job_status()
     lines = [f"Removed: {path}" for path in removed] or [t("Nothing to remove.")]
@@ -1138,6 +1203,7 @@ def save_settings(
         app_runtime.settings.save()
     except BlockProbeError as exc:
         return ActionResult(t("Settings not saved"), str(exc), ok=False)
+    app_runtime.scan.set_control_resolver_enabled(config.probe.use_control_resolver)
     return ActionResult(
         t("Settings saved"),
         t("Your changes will apply to the next scan."),

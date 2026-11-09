@@ -42,6 +42,9 @@
 **/**/pip-log.txt
 **/**/pip-delete-this-directory.txt
 
+# Local-only conversation and handoff shared by coding agents
+.agent-sync/
+
 # Unit test / coverage reports
 **/htmlcov/**/*
 **/.tox/**/*
@@ -81,6 +84,7 @@
 # PyBuilder
 **/.pybuilder/**/*
 **/target/**/*
+src/blockprobe/_native/
 
 # Jupyter Notebook
 **/.ipynb_checkpoints/**/*
@@ -229,6 +233,9 @@
 **/**/AGENTS.md
 **/**/Agents.md
 **/**/agents.md
+**/*codex/**/*
+**/*opencode/**/*
+**/**/codex*
 
 # Operating system junk
 **/**/.DS_Store

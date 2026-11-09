@@ -27,9 +27,10 @@ its archive; it does not delete the old source tag, commit or GitHub release.
 
 ## Release flow
 
-1. Update `src/blockprobe/VERSION`, `CHANGELOG.md` and the source.
+1. Update root `VERSION`, synchronize `src/blockprobe/VERSION`, and update
+   `CHANGELOG.md` and the source.
 2. Commit and push the release changes to the repository's default branch.
-3. Tag with `v<version>` (for example `v1.3.0-beta`; the older `v-<version>`
+3. Tag with `v<version>` (for example `v1.4.0-alpha`; the older `v-<version>`
    form is also accepted) and push the tag.
 4. After the GitHub `Release` workflow completes successfully for the tag, the
    `F-Droid` workflow renders and validates the metadata, then opens or updates
@@ -115,7 +116,12 @@ clean directory outside the git tree, and runs `flet build apk` with Python
 single APK to the path declared in the metadata. The recipe checks out Flutter
 3.44.8 from F-Droid's `flutter` srclib and puts it on `PATH`; Flet then uses
 that SDK while its `prebuild` step downloads the Android Python runtime and
-wheels. `build` copies the prepared APK offline.
+wheels. Before the Flet build, the recipe compiles the dependency-free Rust
+library offline for the three Android ABIs with the toolchain pinned by
+`rust-toolchain.toml`. `rustup target add` obtains those standard-library
+components during metadata prebuild; this has not yet been verified on the
+F-Droid build server, so do not claim a reproducible F-Droid build until that
+recipe completes there. `build` copies the prepared APK offline.
 
 The build entry installs `python3-venv` through `sudo` because the F-Droid
 build VM does not guarantee it. The extended timeout covers Android runtime
@@ -123,10 +129,10 @@ and SDK setup.
 
 ## Risks and limits
 
-`src/blockprobe/VERSION` is the canonical source version. Confirm the build
-version and monotonically increasing Android version code from the produced
-APK before submitting metadata; an older installed APK does not identify the
-current source revision.
+The root `VERSION` is canonical; `src/blockprobe/VERSION` is its synchronized
+runtime copy. Confirm the build version and monotonically increasing Android
+version code from the produced APK before submitting metadata; an older
+installed APK does not identify the current source revision.
 
 - This is the first Flet/`serious_python` app submitted to `fdroiddata`. The
   Android recipe may need changes during F-Droid review.

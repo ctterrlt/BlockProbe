@@ -10,10 +10,10 @@ storage logic lives here.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import shutil
 import tempfile
-import threading
 import time
 from collections.abc import Awaitable, Callable
 from datetime import datetime
@@ -47,6 +47,7 @@ from blockprobe.ui.consent import consent_view
 from blockprobe.ui.help import help_view
 from blockprobe.ui.logs import LogsScreen
 from blockprobe.ui.portals import SourcesScreen
+from blockprobe.ui.profile import ProfileScreen
 from blockprobe.ui.results import ResultsScreen
 from blockprobe.ui.run import RunScreen
 from blockprobe.ui.settings import SettingsScreen
@@ -60,6 +61,7 @@ class BlockProbeUi(
     ResultsScreen,
     LogsScreen,
     SettingsScreen,
+    ProfileScreen,
 ):
     """Holds the controls so actions and the poller can update them."""
 
@@ -74,6 +76,7 @@ class BlockProbeUi(
             (ft.Icons.TERMINAL, t("Logs")),
             (ft.Icons.SETTINGS, t("Settings")),
             (ft.Icons.HELP_OUTLINE, t("Help")),
+            (ft.Icons.PERSON_OUTLINE, t("Profile")),
         ]
         self.nav = ft.NavigationRail(
             selected_index=0,
@@ -82,6 +85,7 @@ class BlockProbeUi(
                 for icon, label in destinations
             ],
             extended=True,
+            min_width=68,
             min_extended_width=172,
             bgcolor=BACKGROUND,
             indicator_color=ACCENT_DIM,
@@ -130,6 +134,16 @@ class BlockProbeUi(
         self.views: list[ft.Control] = []
         self.current_screen = 0
         self._compact_layout = False
+        self._bottom_navigation = True
+        self._expanded_navigation = False
+        self._layout_width: float | None = None
+        self._layout_height: float | None = None
+        self.header: ft.Container | None = None
+        self._platform_brightness = getattr(
+            self.page,
+            "_blockprobe_brightness",
+            getattr(self.page, "platform_brightness", None),
+        )
         self._last_results_poll = 0.0
         self.page.on_resize = self._on_resize
 
@@ -138,6 +152,7 @@ class BlockProbeUi(
         self._setup_results()
         self._setup_logs()
         self._setup_settings()
+        self._setup_profile()
 
     # ------------------------------------------------------------------ helpers
 
@@ -182,7 +197,7 @@ class BlockProbeUi(
         self.status_detail.value = ""
         self._apply_live_theme()
         mode = actions.runtime().settings.config.app.theme_mode
-        dark = dark_for_mode(self.page, mode)
+        dark = dark_for_mode(self.page, mode, brightness=self._platform_brightness)
         self._dismiss_snack()
         snack = ft.SnackBar(
             content=text(
@@ -220,28 +235,35 @@ class BlockProbeUi(
                     t("The action could not be completed. Check Logs for details."),
                     ok=False,
                 )
-            # Only an action that explicitly cleared the consent record returns
-            # to the first-run flow. Re-checking consent after every action
-            # could turn a transient storage read error into a false prompt.
-            if result.consent_cleared:
-                self._show_consent()
-                return
+            # The action itself may block on storage or network work, but all
+            # Flet control mutations must happen on the page event loop. Doing
+            # them from this worker raced the scan poller and theme updates.
             try:
-                self.refresh_run_controls()
+                self.page.run_task(self._finish_async_action, result, sequence)
             except Exception:
-                _LOGGER.exception("could not refresh run controls after an action")
-            try:
-                self.apply(result, sequence)
-            except Exception:
-                _LOGGER.exception("could not display the completed action result")
-                try:
-                    self.status_title.value = result.title
-                    self.status_detail.value = ""
-                    self.page.update()
-                except Exception:
-                    _LOGGER.exception("could not show the action result fallback")
+                _LOGGER.exception("could not schedule the completed action for the UI")
 
         self.page.run_thread(work)
+
+    async def _finish_async_action(
+        self, result: actions.ActionResult, sequence: int
+    ) -> None:
+        """Apply a worker result on Flet's page event loop."""
+        if result.consent_cleared:
+            self._show_consent()
+            return
+        try:
+            self.refresh_run_controls()
+            self.apply(result, sequence)
+        except Exception:
+            _LOGGER.exception("could not display the completed action result")
+            try:
+                self.status_title.value = result.title
+                self.status_detail.value = ""
+                self._apply_live_theme()
+                self.page.update()
+            except Exception:
+                _LOGGER.exception("could not show the action result fallback")
 
     def _show_consent(self) -> None:
         """Return to first-run consent if local data deletion cleared it."""
@@ -510,7 +532,7 @@ class BlockProbeUi(
 
     def _on_mobile_nav(self, _event: Any) -> None:
         index = int(self.mobile_nav.selected_index or 0)
-        self._show_screen(6 if index == 4 else index)
+        self._show_screen(7 if index == 4 else index)
 
     def _show_screen(self, index: int) -> None:
         self.current_screen = index
@@ -518,14 +540,22 @@ class BlockProbeUi(
             self._build_source_checkboxes()
         self.nav.selected_index = index if 0 <= index < len(self.views) else 0
         self.mobile_nav.selected_index = index if 0 <= index < 4 else 4
-        content = self.more_view if index == 6 else self.views[index]
+        content = self.more_view if index == 7 else self.views[index]
         self.content_area.content = ft.Column(
             [self.page_heading, content],
             spacing=20,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             expand=True,
         )
-        labels = [t("Run"), t("Sources"), t("Results"), t("Logs"), t("Settings"), t("Help")]
+        labels = [
+            t("Run"),
+            t("Sources"),
+            t("Results"),
+            t("Logs"),
+            t("Settings"),
+            t("Help"),
+            t("Profile"),
+        ]
         descriptions = [
             t("Check how this device reaches the selected websites."),
             t("Choose regulator sources and maintain your own list."),
@@ -533,9 +563,10 @@ class BlockProbeUi(
             t("Inspect recent local activity and export a diagnostic log."),
             t("Adjust scan behavior and local data controls."),
             t("Read about scope, privacy and responsible use."),
+            t("View local VPN, DNS, proxy and filtering signals."),
             t("More tools and information."),
         ]
-        self.screen_title.value = labels[index] if index < 6 else t("More")
+        self.screen_title.value = labels[index] if index < len(labels) else t("More")
         self.screen_description.value = descriptions[index]
         if index == 1:
             self.refresh_portal_texts()
@@ -544,6 +575,8 @@ class BlockProbeUi(
             self.refresh_results()
         if index == 3:
             self.refresh_logs()
+        if index == 6:
+            self._refresh_profile()
         self._apply_live_theme()
         self.page.update()
 
@@ -597,6 +630,14 @@ class BlockProbeUi(
                 ),
                 card(t("Appearance"), self.more_theme_dropdown),
                 card(
+                    t("Profile"),
+                    button(
+                        t("Profile"),
+                        ft.Icons.PERSON_OUTLINE,
+                        lambda _e: self._show_screen(6),
+                    ),
+                ),
+                card(
                     t("Settings and help"),
                     ft.Row(
                         [
@@ -633,6 +674,7 @@ class BlockProbeUi(
             self._logs_view(),
             self._settings_view(),
             help_view(),
+            self._profile_view(),
         ]
         self.more_view = self._more_view()
         self.content_area.content = ft.Column(
@@ -677,10 +719,12 @@ class BlockProbeUi(
                     self.version_badge,
                 ],
                 spacing=8,
+                wrap=True,
             ),
             padding=ft.Padding.symmetric(horizontal=22, vertical=12),
             border=ft.Border.only(bottom=ft.BorderSide(1, BORDER)),
         )
+        self.header = header
         body = ft.Row(
             [
                 self.nav,
@@ -717,22 +761,116 @@ class BlockProbeUi(
         self._sync_responsive_layout()
         return root
 
-    def _on_resize(self, _event: Any) -> None:
-        self._sync_responsive_layout()
+    def _event_width(self, event: Any | None = None) -> float | None:
+        """Return the latest logical page width from an event or the page."""
+        width = getattr(event, "width", None)
+        if width is None:
+            width = getattr(self.page, "width", None)
+        try:
+            return float(width) if width is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _event_height(self, event: Any | None = None) -> float | None:
+        height = getattr(event, "height", None)
+        if height is None:
+            height = getattr(self.page, "height", None)
+        try:
+            return float(height) if height is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _on_resize(self, event: Any = None) -> None:
+        if self._sync_responsive_layout(
+            self._event_width(event), self._event_height(event)
+        ):
+            self._apply_live_theme()
         try:
             self.page.update()
         except Exception:
             pass
 
-    def _sync_responsive_layout(self) -> None:
-        width = getattr(self.page, "width", None) or 1024
-        compact = width < 760
+    def _responsive_thresholds(self) -> tuple[float, float, float]:
+        """Return nav/table cutovers from configured rails and minimum widths.
+
+        A form needs about 360 logical px of inner width to keep labels and
+        actions usable. The results table is horizontally scrollable, but 620
+        inner px avoids making its common columns unusably narrow. Card insets,
+        page gutters, and the actual NavigationRail widths are included.
+        """
+        divider = float(self.nav_divider.width or 1)
+        rail = float(self.nav.min_width or 68)
+        extended_rail = float(self.nav.min_extended_width or 172)
+        card_insets = 32
+
+        def first_width_for_inner(minimum: int, navigation: float) -> float:
+            for candidate in range(1, 4097):
+                gutter = max(8, min(20, round(candidate * 0.03))) * 2
+                if candidate - navigation - gutter - card_insets >= minimum:
+                    return float(candidate)
+            return 4096.0
+
+        bottom_nav = first_width_for_inner(360, rail + divider)
+        table_view = first_width_for_inner(620, rail + divider)
+        extended_view = first_width_for_inner(600, extended_rail + divider)
+        return bottom_nav, table_view, extended_view
+
+    def _sync_responsive_layout(
+        self,
+        width: float | None = None,
+        height: float | None = None,
+        *,
+        force: bool = False,
+    ) -> bool:
+        """Size the shell from the page's logical width, independent of OS.
+
+        The thresholds account for the configured rail and minimum useful
+        content width; the OS name does not affect layout.
+        An unknown width starts in the narrowest safe layout until the first
+        resize event arrives.
+        """
+        if width is None:
+            width = self._event_width()
+        if height is None:
+            height = self._event_height()
+        bottom_cutover, table_cutover, expanded_cutover = (
+            self._responsive_thresholds()
+        )
+        compact = width is None or width < table_cutover
+        bottom_navigation = width is None or width < bottom_cutover
+        expanded_navigation = width is not None and width >= expanded_cutover
+        if (
+            not force
+            and compact == self._compact_layout
+            and bottom_navigation == self._bottom_navigation
+            and expanded_navigation == self._expanded_navigation
+            and width == self._layout_width
+            and height == self._layout_height
+        ):
+            return False
         self._compact_layout = compact
-        self.nav.visible = not compact
-        self.nav_divider.visible = not compact
-        self.mobile_nav.visible = compact
-        self.content_area.padding = 12 if compact else 20
-        self.screen_title.size = 24 if compact else 28
+        self._bottom_navigation = bottom_navigation
+        self._expanded_navigation = expanded_navigation
+        self._layout_width = width
+        self._layout_height = height
+        self.nav.extended = expanded_navigation
+        self.nav.label_type = (
+            ft.NavigationRailLabelType.NONE
+            if expanded_navigation
+            else ft.NavigationRailLabelType.SELECTED
+        )
+        self.nav.visible = not bottom_navigation
+        self.nav_divider.visible = not bottom_navigation
+        self.mobile_nav.visible = bottom_navigation
+        measured_width = width or 320
+        horizontal_padding = max(8, min(20, round(measured_width * 0.03)))
+        vertical_padding = max(8, min(14, round(measured_width * 0.02)))
+        self.content_area.padding = horizontal_padding
+        if self.header is not None:
+            self.header.padding = ft.Padding.symmetric(
+                horizontal=horizontal_padding, vertical=vertical_padding
+            )
+        self.screen_title.size = 22 if compact else 28
         self.screen_title.visible = not (compact and self.current_screen == 0)
         self.screen_description.visible = not compact
         self.status_bar.visible = not compact
@@ -741,28 +879,40 @@ class BlockProbeUi(
         self.refresh_run_layout(compact)
         self.refresh_results_layout(compact)
         self.refresh_settings_layout(compact)
+        self.refresh_profile_layout(compact)
+        return True
 
     def _apply_live_theme(self) -> None:
         """Reapply the selected palette after a screen replaces its controls."""
         mode = actions.runtime().settings.config.app.theme_mode
-        apply_page_theme(self.page, mode, update=False)
+        apply_page_theme(
+            self.page,
+            mode,
+            update=False,
+            brightness=self._platform_brightness,
+        )
 
     # -------------------------------------------------------------------- polls
 
     def start_poller(self) -> None:
-        """Follow the stored run from a daemon thread and update the screens."""
+        """Follow the stored run without blocking Flet's UI event loop."""
         if self._poller_started:
             return
         self._poller_started = True
 
-        def loop() -> None:
+        async def loop() -> None:
             while self._alive:
-                time.sleep(1.5)
+                await asyncio.sleep(1.5)
+                if not self._alive:
+                    break
                 try:
+                    layout_changed = self._sync_responsive_layout()
+                    if layout_changed:
+                        self._apply_live_theme()
                     summary = actions.latest_run_summary()
                     active_run = actions.runtime().scan.active_run
                     active = active_run.id if active_run is not None else None
-                    changed = self._render_summary(summary)
+                    changed = self._render_summary(summary) or layout_changed
                     changed = self.refresh_run_controls(
                         summary,
                         active=active_run is not None,
@@ -806,8 +956,7 @@ class BlockProbeUi(
                     _LOGGER.exception("UI poll failed")
                     continue
 
-        thread = threading.Thread(target=loop, name="blockprobe-poller", daemon=True)
-        thread.start()
+        self.page.run_task(loop)
 
     def rebuild_ui(self, result: actions.ActionResult | None = None) -> None:
         """Rebuild every screen; used after a language change.
@@ -821,7 +970,11 @@ class BlockProbeUi(
         mode = actions.runtime().settings.config.app.theme_mode
         _apply_saved_theme(page, update=False)
         shell = _main_shell(page)
-        dark = dark_for_mode(page, mode)
+        dark = dark_for_mode(
+            page,
+            mode,
+            brightness=getattr(page, "_blockprobe_brightness", None),
+        )
         apply_palette(shell, dark=dark)
         page.add(ft.SafeArea(content=shell, expand=True))
         _apply_saved_theme(page, update=False)
@@ -949,8 +1102,11 @@ def main(page: ft.Page) -> None:
     """Build the BlockProbe window and connect its controls to actions."""
     page.title = f"{APP_NAME} {__version__}"
     # Apply the saved palette before Flet paints the consent or app screen.
-    page.on_platform_brightness_change = lambda _event: _apply_saved_theme(
-        page, update=True
+    # Use the brightness carried by the event: page.platform_brightness can
+    # still hold the old value when the callback runs, which left light
+    # controls on a dark system theme.
+    page.on_platform_brightness_change = lambda event: _on_platform_brightness_change(
+        page, event
     )
     page.padding = 0
     page.horizontal_alignment = ft.CrossAxisAlignment.CENTER
@@ -973,6 +1129,42 @@ def main(page: ft.Page) -> None:
             _LOGGER.exception("could not display the local storage error")
 
 
-def _apply_saved_theme(page: ft.Page, *, update: bool = False) -> None:
+def _brightness_from_event(event: Any) -> ft.Brightness | None:
+    """Read brightness from the current event or its legacy ``data`` payload."""
+    brightness = getattr(event, "brightness", None)
+    if isinstance(brightness, ft.Brightness):
+        return brightness
+    data = getattr(event, "data", None)
+    if isinstance(data, str):
+        lowered = data.casefold()
+        if lowered == "dark":
+            return ft.Brightness.DARK
+        if lowered == "light":
+            return ft.Brightness.LIGHT
+    return None
+
+
+def _on_platform_brightness_change(page: ft.Page, event: Any) -> None:
+    brightness = _brightness_from_event(event)
+    if brightness is not None:
+        # Keep the value on the page so a rebuild that happens before the
+        # platform property refreshes still starts from the right appearance.
+        setattr(page, "_blockprobe_brightness", brightness)  # noqa: B010
+    ui = getattr(page, "data", None)
+    if isinstance(ui, BlockProbeUi) and brightness is not None:
+        # Keep the value for later repaints: rebuilding result cards must not
+        # fall back to a stale page.platform_brightness.
+        ui._platform_brightness = brightness
+    _apply_saved_theme(page, update=True, brightness=brightness)
+
+
+def _apply_saved_theme(
+    page: ft.Page,
+    *,
+    update: bool = False,
+    brightness: ft.Brightness | None = None,
+) -> None:
     mode = actions.runtime().settings.config.app.theme_mode
-    apply_page_theme(page, mode, update=update)
+    if brightness is None:
+        brightness = getattr(page, "_blockprobe_brightness", None)
+    apply_page_theme(page, mode, update=update, brightness=brightness)

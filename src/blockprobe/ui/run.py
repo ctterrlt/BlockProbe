@@ -378,6 +378,7 @@ class RunScreen:
             self.page,
             actions.runtime().settings.config.app.theme_mode,
             update=False,
+            brightness=getattr(self, "_platform_brightness", None),
         )
         self._refresh_preview()
         self.page.update()

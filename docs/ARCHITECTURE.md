@@ -20,19 +20,40 @@ keep three concerns separate:
 | Engines | `blockprobe.portals`, `blockprobe.probe`, `blockprobe.diagnostics` | Pure or near-pure logic: extraction, normalisation, probing, classification, health scoring. No UI imports. |
 | Services | `blockprobe.services`, `blockprobe.storage`, `blockprobe.cache`, `blockprobe.scheduler` | Use cases, persistence, TTL cache, user-level jobs. |
 | Interfaces | `blockprobe.ui`, `blockprobe.cli` | Presentation only. Every button and command goes through `blockprobe.ui.actions`. |
+| Native engine | Dependency-free Rust library behind a C ABI adapter | Selects aggregate scan verdicts, classifies sinkhole IPs and performs the OS-resolver fallback. It is not a continuous blocker. |
 
 The dependency direction is one-way: interfaces → services → engines → core.
 `blockprobe.ui.actions` is Flet-free so the CLI, the tests and a future web UI
 can reuse the exact same use cases; `blockprobe.ui.app` and the `ui/` screens
 only build widgets and route events.
 
-The app version is read from `src/blockprobe/VERSION`. Hatchling uses
-`scripts/hatch_version.py` to derive valid PEP 440 wheel metadata from that
-same file; native installer builds read it when generating their
-version fields, and `scripts/build.py` passes it to Flet as the display version
-and derives the Android build code from it. The Flet UI uses a responsive
-Material 3 theme that follows OS brightness by default, with saved light and
-dark overrides. The scan source picker includes every enabled portal definition
+The scan path calls Rust for deterministic verdict aggregation, sinkhole-IP
+classification, and a fallback through the operating system's resolver.
+Python's dnspython path remains responsible for primary A/AAAA/CNAME queries,
+and the consent-enabled Cloudflare DoH fallback remains Python/httpx. These
+lookups are network-wait bound; routing them through a Rust FFI call would not
+make DNS responses faster and would add resolver and platform integration
+risk. Blocking DNS work runs in the scan worker, not on the Flet UI loop.
+
+Rust is loaded lazily through `blockprobe.probe.rust_engine`. The loader checks
+ABI version 1 before binding the remaining symbols. Packaged builds must
+include the matching native library for their OS and architecture; Python
+wheels are tagged `py3-none-<platform>`, and the sdist build hook compiles the
+dependency-free library offline when Cargo is available. A missing or
+incompatible library is an explicit scan-engine error rather than a silent
+Python fallback.
+This engine is not a DNS/VPN blocker; continuous filtering requires separate
+native platform services and user permission. See
+[`RUST-MIGRATION.md`](RUST-MIGRATION.md) for boundaries, constraints and exit
+criteria.
+
+The root `VERSION` is canonical. `src/blockprobe/VERSION` is its synchronized
+runtime/package copy. Hatchling uses `scripts/hatch_version.py` to derive valid
+PEP 440 wheel metadata from the root file; native installer builds read it when
+generating version fields, and `scripts/build.py` passes it to Flet as the
+display version and derives the Android build code from it. The Flet UI uses a
+responsive Material 3 theme that follows OS brightness by default, with saved
+light and dark overrides. The scan source picker includes every enabled portal definition
 and the user-maintained custom domain list, allowing focused, personalized
 checks. Built-in regulator feeds currently cover gambling domains; custom
 domains can represent other filtering categories.
@@ -99,8 +120,10 @@ decodes JavaScript escapes (`\x3d`, `\u003d`). No fragment URL is hard-coded.
    refresh, control-resolver and curl requests. Portal refresh never requests
    `robots.txt`. This header does not emulate Chrome's browser or network
    fingerprint. A failed socket diagnostic does not suppress the HTTP request;
-   successful HTTP evidence takes precedence over DNS diagnostic errors. If
-   the HTTPX classification is blocked,
+   successful HTTP evidence takes precedence over DNS diagnostic errors. After
+   consent, a Cloudflare DNS-over-HTTPS comparison runs only when the device
+   resolver cannot resolve the selected hostname; it can be disabled in
+   Settings. If the HTTPX classification is blocked,
    the runner optionally fetches the same URL with the system `curl` executable
    and classifies that bounded response independently. If curl opens a site,
    the primary verdict remains and the result is marked for review with the
@@ -174,9 +197,10 @@ when the process exits. Values are serialized as JSON, not Python pickle data.
 
 - Flet owns the UI thread. Long actions run via `page.run_thread`, so buttons
   never freeze the window.
-- A daemon poller reads run progress from the database every second and updates
-  the Run and Results screens. It survives restarts because storage is the
-  single source of truth.
+- An `asyncio` poller scheduled through Flet's `page.run_task` reads run progress
+  from the database and updates controls on the Flet event loop. The scan
+  service keeps network work on its worker thread; stored run data remains the
+  source of truth across restarts.
 - The scan worker is one thread per run, guarded by a lock so manual and
   scheduled runs cannot overlap.
 

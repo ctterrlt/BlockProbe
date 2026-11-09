@@ -107,21 +107,40 @@ def palette_text(*, dark: bool) -> str:
     return _DARK_PALETTE[TEXT] if dark else TEXT
 
 
-def dark_for_mode(page: ft.Page, mode: str) -> bool:
-    return mode == "dark" or (
-        mode == "system"
-        and getattr(page, "platform_brightness", None) == ft.Brightness.DARK
-    )
+def dark_for_mode(
+    page: ft.Page,
+    mode: str,
+    *,
+    brightness: ft.Brightness | None = None,
+) -> bool:
+    if mode == "dark":
+        return True
+    if mode != "system":
+        return False
+    current = brightness if brightness is not None else getattr(page, "platform_brightness", None)
+    return current == ft.Brightness.DARK
 
 
-def prepare_dialog(page: ft.Page, dialog: ft.AlertDialog, mode: str) -> None:
+def prepare_dialog(
+    page: ft.Page,
+    dialog: ft.AlertDialog,
+    mode: str,
+    *,
+    brightness: ft.Brightness | None = None,
+) -> None:
     """Apply explicit high-contrast colors before opening a native dialog."""
-    dark = dark_for_mode(page, mode)
+    dark = dark_for_mode(page, mode, brightness=brightness)
     apply_palette(dialog, dark=dark)
     dialog.bgcolor = palette_surface(dark=dark)
     dialog.title_text_style = ft.TextStyle(color=palette_text(dark=dark))
     dialog.content_text_style = ft.TextStyle(color=palette_text(dark=dark))
-def apply_page_theme(page: ft.Page, mode: str, *, update: bool = True) -> None:
+def apply_page_theme(
+    page: ft.Page,
+    mode: str,
+    *,
+    update: bool = True,
+    brightness: ft.Brightness | None = None,
+) -> None:
     """Follow the OS appearance in system mode and recolor explicit controls."""
     page.theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
     page.dark_theme = ft.Theme(
@@ -133,10 +152,7 @@ def apply_page_theme(page: ft.Page, mode: str, *, update: bool = True) -> None:
         "light": ft.ThemeMode.LIGHT,
         "dark": ft.ThemeMode.DARK,
     }[mode]
-    platform_brightness = getattr(page, "platform_brightness", None)
-    dark = mode == "dark" or (
-        mode == "system" and platform_brightness == ft.Brightness.DARK
-    )
+    dark = dark_for_mode(page, mode, brightness=brightness)
     apply_palette(
         [page.controls, getattr(page, "overlay", []), getattr(page, "dialog", None)],
         dark=dark,

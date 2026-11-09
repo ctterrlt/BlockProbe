@@ -11,7 +11,12 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-VERSION="$(tr -d '[:space:]' < "$ROOT/src/blockprobe/VERSION")"
+VERSION="$(tr -d '[:space:]' < "$ROOT/VERSION")"
+PACKAGED_VERSION="$(tr -d '[:space:]' < "$ROOT/src/blockprobe/VERSION")"
+if [[ "$PACKAGED_VERSION" != "$VERSION" ]]; then
+  echo "src/blockprobe/VERSION must match the root VERSION file" >&2
+  exit 1
+fi
 VERSION_CODE="$(
   python3 - "$VERSION" <<'PY'
 import re
@@ -95,6 +100,7 @@ prepare() {
   cd "$BUILD_DIR"
 
   echo "Building BlockProbe $VERSION ($VERSION_CODE) with Flet $FLET_VERSION"
+  python3 scripts/build_rust_engine.py --android
   # F-Droid checks out Flutter as a bare srclib, without the engine artifacts
   # that the official Flutter archive includes. Flet skips its own SDK install
   # when it finds this SDK on PATH, so populate the Android artifacts first.

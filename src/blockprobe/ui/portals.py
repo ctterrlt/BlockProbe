@@ -50,7 +50,7 @@ class SourcesScreen:
         self.portal_name_input = ft.TextField(label=t("Portal name"), text_size=14)
         self.portal_url_input = ft.TextField(
             label=t("Public regulator list URL"),
-            hint_text=t("Paste the regulator's public list URL."),
+            hint_text=t("Paste the regulator's public list URL or a bare domain."),
             keyboard_type=ft.KeyboardType.URL,
             text_size=14,
         )

@@ -10,10 +10,11 @@ support personalized parental-control and adult-content-filter checks.
 Build entry point: `python scripts/build.py TARGET` from the repository root.
 Install Python 3.14+ and `python -m pip install -e ".[packaging]"` first.
 Flet bundles the dependencies declared by `pyproject.toml` and Python 3.14.
-`src/blockprobe/VERSION` is the single version source for runtime display,
-Flet build version/build code, Windows installer and Arch package artifact.
+Root `VERSION` is the canonical version source for package metadata, Flet
+build version/build code, Windows installer and Arch package artifact.
+`src/blockprobe/VERSION` is the synchronized runtime/package copy.
 Hatchling converts SemVer-style prerelease labels to PEP 440 package metadata
-(`1.3.0-beta` becomes `1.3.0b0`).
+(`1.4.0-alpha` becomes `1.4.0a0`).
 Android build codes reserve ordered slots for alpha, beta, gamma, release
 candidates and stable versions, so a later prerelease can update an earlier
 one without changing the package identity or signing key.
@@ -23,15 +24,19 @@ manifest against this source version and the build-code mapping. A previous
 APK left installed on an emulator may report an older version; it does not
 change the repository's canonical version.
 
-The current local development version is `1.3.0-beta`; its Android code is
-`100300020`. The debug APK was installed on the configured emulator for UI
-verification. `python
-scripts/build.py all` rebuilds the targets available on the current host and
-cleans target-specific previous artifacts first.
+The current source version is `1.4.0-alpha`; its Android code is
+`100400010`. The earlier debug APK used for emulator UI checks was
+`1.3.0-beta` (`100300020`), so it does not verify the current source.
+```console
+python scripts/build.py all
+```
+
+This rebuilds the targets available on the current host and cleans
+target-specific previous artifacts first.
 
 | Target | Artifact | Host/tooling |
 | --- | --- | --- |
-| `python` | wheel and sdist | Python/pip; Hatchling build backend |
+| `python` | host-specific `py3-none-<platform>` wheel and sdist | Python/pip; Rust/Cargo 1.98.1 for source builds |
 | `windows` | portable ZIP; `--installer` adds per-user Setup EXE | Windows; Inno Setup for installer |
 | `macos` | app ZIP; `--installer` adds unsigned DMG | macOS; Xcode/Flutter toolchain |
 | `linux` | portable tar.gz; `--installer` also creates Arch `.pkg.tar.zst` on Arch | Linux; Flutter toolchain; `makepkg` for Arch package |
@@ -46,8 +51,12 @@ emulator checks use unsigned/debug artifacts. The Android 35 emulator was
 checked at both 411dp and 360dp. The built web bundle was served at narrow and
 wide browser sizes, but headless Chromium remained on the Flet startup screen,
 so the web runtime still needs an interactive-browser check. The project owner
-also exercises the app on Android. This is not a production-signed release. The release workflow
-matrix covers Windows, macOS, Linux, APK, AAB, web and iOS simulator targets.
+also exercises the app on Android. This is not a production-signed release.
+The Release workflow builds and smoke-tests separate Windows, macOS and Linux
+Python wheels, uploads one sdist, and builds Windows, macOS, Linux, APK, AAB,
+web and iOS simulator targets. The Linux wheel was built and its installed
+Rust library was loaded locally; Windows/macOS wheel checks are configured in
+CI and remain unverified until that workflow runs.
 AppImage/Flatpak, Linux arm64,
 physical-device iOS IPA, store submission and production signing remain
 unimplemented. Android background scheduling is not implemented. See

@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from blockprobe import i18n
 from blockprobe.core.config import load_config
 from blockprobe.services import reset_runtime
 from blockprobe.ui import actions
@@ -37,6 +38,8 @@ class FakePage:
         self.bgcolor = None
         self.padding = 0
         self.horizontal_alignment = None
+        self.width = None
+        self.platform_brightness = None
         self.controls: list = []
         self.updates = 0
         self.dialog = None
@@ -65,9 +68,18 @@ class FakePage:
     def run_thread(self, handler, *args, **kwargs):  # type: ignore[no-untyped-def]
         return handler(*args, **kwargs)
 
+    def run_task(self, handler, *args, **kwargs):  # type: ignore[no-untyped-def]
+        import asyncio
+
+        result = handler(*args, **kwargs)
+        if hasattr(result, "__await__"):
+            return asyncio.run(result)
+        return result
+
 
 @pytest.fixture()
 def action_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    previous_language = i18n.get_language()
     config_path = tmp_path / "config.toml"
     # The suite pins the English source strings; language behaviour has its own
     # tests in test_i18n.py and test_config.py.
@@ -79,6 +91,7 @@ def action_env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
     reset_runtime()
     yield tmp_path
     reset_runtime()
+    i18n.set_language(previous_language)
 
 
 def test_self_check_passes(action_env: Path) -> None:
@@ -99,6 +112,16 @@ def test_consent_gates_network_actions(action_env: Path) -> None:
     accepted = actions.accept_consent()
     assert accepted.ok is True
     assert actions.consent_required() is False
+    app_runtime = actions.runtime()
+    assert app_runtime.settings.config.probe.use_control_resolver is True
+    assert app_runtime.scan._engine.config.use_control_resolver is True
+    assert load_config(action_env / "config.toml").config.probe.use_control_resolver is True
+
+    opted_out = actions.save_settings(use_control_resolver=False)
+    assert opted_out.ok is True
+    assert app_runtime.settings.config.probe.use_control_resolver is False
+    assert app_runtime.scan._engine.config.use_control_resolver is False
+    assert load_config(action_env / "config.toml").config.probe.use_control_resolver is False
 
 
 def test_consent_storage_failure_is_not_reported_as_missing_consent(
@@ -146,6 +169,24 @@ def test_consent_language_selection_applies_before_acceptance(action_env: Path) 
     assert rebuilt_consent.content.controls[2].value == "Prima della prima richiesta di rete"
 
 
+def test_consent_layout_starts_narrow_and_tracks_resize(action_env: Path) -> None:
+    from types import SimpleNamespace
+
+    from blockprobe.ui.consent import consent_view
+
+    page = FakePage()
+    page.width = None
+    view = consent_view(page, lambda: None)  # type: ignore[arg-type]
+    assert view.padding == 16
+    assert page.on_resize is not None
+
+    page.width = 820
+    page.on_resize(SimpleNamespace(height=900))
+    assert view.padding == 32
+    page.on_resize(SimpleNamespace(width=360, height=800))
+    assert view.padding == 16
+
+
 def test_custom_domains_flow(action_env: Path) -> None:
     assert actions.consent_required() is True  # custom list needs no consent
     result = actions.add_custom_domains("https://www.one-casino.it/some/path\nnot a domain")
@@ -177,6 +218,41 @@ def test_custom_website_and_portal_feed_are_separate_sources(action_env: Path) -
     assert any(label == "Example Regulator" for _, label in choices)
     assert [site.domain for site in app_runtime.storage.list_custom_sites()] == ["single-site.it"]
     assert app_runtime.storage.list_portals()
+
+
+def test_portal_accepts_a_bare_hostname(action_env: Path) -> None:
+    result = actions.add_portal_definition(
+        "Bare host regulator",
+        "www.example.com/blocked-sites",
+        "IT",
+    )
+    assert result.ok is True
+    stored = [
+        portal
+        for portal in actions.runtime().storage.list_portals()
+        if portal.name == "Bare host regulator"
+    ]
+    assert stored
+    assert stored[0].start_url == "https://www.example.com/blocked-sites"
+
+    plain = actions.add_portal_definition("Plain domain", "example.com", "IT")
+    assert plain.ok is True
+    assert any(
+        portal.start_url == "https://example.com"
+        for portal in actions.runtime().storage.list_portals()
+        if portal.name == "Plain domain"
+    )
+
+    rejected = actions.add_portal_definition("Broken feed", "not a url", "IT")
+    assert rejected.ok is False
+    credential_url = actions.add_portal_definition(
+        "Credential URL", "https://user:secret@example.com/feed", "IT"
+    )
+    assert credential_url.ok is False
+    invalid_port = actions.add_portal_definition(
+        "Invalid port", "https://example.com:invalid/feed", "IT"
+    )
+    assert invalid_port.ok is False
 
 
 def test_scan_preview_tracks_custom_only_selection(action_env: Path) -> None:
@@ -265,7 +341,7 @@ def test_ui_shell_builds_without_a_window(action_env: Path) -> None:
     assert isinstance(ui, ui_app.BlockProbeUi)
 
     # Every screen is built and refreshable without touching the network.
-    assert len(ui.views) == 6
+    assert len(ui.views) == 7
     ui.refresh_results()
     ui.refresh_logs()
     ui.refresh_portal_texts()
@@ -501,3 +577,182 @@ def test_export_preparation_error_recovers_generated_output(
     assert statuses
     assert statuses[-1].ok is False
     assert "preparation error" in statuses[-1].detail
+
+
+def test_ui_layout_adapts_to_available_width(action_env: Path) -> None:
+    from types import SimpleNamespace
+
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    page = FakePage()
+    page.width = None
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+    assert ui._compact_layout is True
+    assert ui._bottom_navigation is True
+    assert ui.mobile_nav.visible is True
+    assert ui.nav.visible is False
+
+    # These are logical page widths, so devices using the same OS select
+    # layouts from their actual available width instead of platform identity.
+    bottom_cutover, table_cutover, expanded_cutover = ui._responsive_thresholds()
+
+    def inner_width(width: float, navigation_width: float) -> float:
+        gutter = max(8, min(20, round(width * 0.03))) * 2
+        return width - navigation_width - gutter - 32
+
+    rail_width = float(ui.nav.min_width or 68) + float(ui.nav_divider.width or 1)
+    expanded_width = float(ui.nav.min_extended_width or 172) + float(
+        ui.nav_divider.width or 1
+    )
+    assert inner_width(bottom_cutover, rail_width) >= 360
+    assert inner_width(table_cutover, rail_width) >= 620
+    assert inner_width(expanded_cutover, expanded_width) >= 600
+
+    ui._on_resize(SimpleNamespace(width=320, height=640))
+    assert ui.content_area.padding == 10
+    assert ui.mobile_nav.visible is True
+    assert all(slot.col == {"xs": 12, "sm": 6} for slot in ui._schedule_field_slots)
+
+    logs_card = ui.views[3].controls[1]
+    logs_row = logs_card.content.controls[1].controls[0]
+    assert logs_row.controls[2].col["xs"] == 12
+    assert logs_row.controls[3].col["xs"] == 12
+
+    ui._on_resize(SimpleNamespace(width=390, height=844))
+    assert ui.content_area.padding == 12
+    assert ui.mobile_nav.visible is True
+
+    ui._on_resize(SimpleNamespace(width=bottom_cutover - 1, height=800))
+    assert ui._compact_layout is True
+    assert ui.mobile_nav.visible is True
+
+    ui._on_resize(SimpleNamespace(width=bottom_cutover, height=800))
+    assert ui.nav.visible is True
+    assert ui.nav.extended is False
+    assert ui.mobile_nav.visible is False
+
+    ui._on_resize(SimpleNamespace(width=table_cutover - 1, height=900))
+    assert ui._compact_layout is True
+
+    ui._on_resize(SimpleNamespace(width=table_cutover, height=900))
+    assert ui._compact_layout is False
+    assert ui.nav.visible is True
+    assert ui.nav.extended is False
+
+    ui._on_resize(SimpleNamespace(width=expanded_cutover, height=900))
+    assert ui.nav.extended is True
+    assert ui.content_area.padding == 20
+    assert all(slot.col == {"xs": 12, "sm": 4} for slot in ui._schedule_field_slots)
+
+    # A phone client can report its size only through the resize event.
+    ui._on_resize(SimpleNamespace(width=360, height=800))
+    assert ui._compact_layout is True
+    assert ui.mobile_nav.visible is True
+    assert ui.nav.visible is False
+
+
+def test_system_theme_uses_event_brightness_and_recolors_on_resize(
+    action_env: Path,
+) -> None:
+    from types import SimpleNamespace
+
+    import flet as ft
+
+    from blockprobe.ui import app as ui_app
+    from blockprobe.ui.components import palette_background
+
+    assert actions.accept_consent().ok is True
+    assert actions.save_settings(theme_mode="system").ok is True
+    page = FakePage()
+    page.width = 1280
+    page.platform_brightness = ft.Brightness.LIGHT
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+
+    # The event carries the new brightness even when the page property is stale.
+    ui_app._on_platform_brightness_change(
+        page, SimpleNamespace(brightness=ft.Brightness.DARK)
+    )
+    assert ui._platform_brightness == ft.Brightness.DARK
+    assert page.bgcolor == palette_background(dark=True)
+
+    # Resizing rebuilds cards with light constants; the live theme must recolor
+    # them with the last known system brightness before the page is painted.
+    page.width = 360
+    ui._on_resize(SimpleNamespace(width=360, height=800))
+    assert page.bgcolor == palette_background(dark=True)
+
+
+def test_android_schedule_ui_explains_and_disables_install(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from blockprobe import scheduler
+    from blockprobe.ui import app as ui_app
+
+    monkeypatch.setattr(
+        scheduler,
+        "status",
+        lambda *_args, **_kwargs: scheduler.ScheduleStatus(
+            platform="android",
+            directory=Path("/tmp/blockprobe-schedule"),
+        ),
+    )
+    assert actions.accept_consent().ok is True
+    page = FakePage()
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+
+    assert ui._schedule_platform == "android"
+    assert ui.schedule_install_button is not None
+    assert ui.schedule_install_button.disabled is True
+    assert ui.schedule_remove_button is not None
+    assert ui.schedule_remove_button.disabled is True
+    assert "Android" in ui.schedule_status.value
+
+    result = ui._install_schedule()
+    assert result.ok is False
+    assert "Android" in result.detail
+
+
+def test_profile_refresh_shows_local_vpn_and_dns_context(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import blockprobe.diagnostics as diagnostics
+    from blockprobe.core.models import NetworkContext
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    context = NetworkContext(
+        timestamp=1_798_000_000,
+        os_name="android",
+        app_version="1.4.0-alpha",
+        resolvers=["1.1.1.1"],
+        resolver_labels=["1.1.1.1 (Cloudflare)"],
+        dns_filters=["Cloudflare for Families"],
+        vpn_interfaces=["tun0"],
+        vpn_providers=["Generic VPN/tunnel"],
+        private_dns="Private DNS is configured",
+        browser_doh="Unknown",
+    )
+    monkeypatch.setattr(diagnostics, "collect_network_context", lambda: context)
+    page = FakePage()
+    page.width = 320
+    ui_app.build_app(page)  # type: ignore[arg-type]
+    ui = page.data
+    assert isinstance(ui, ui_app.BlockProbeUi)
+
+    ui._show_screen(6)
+
+    assert ui.profile_root is not None
+    assert ui.profile_root.scroll == ui_app.ft.ScrollMode.AUTO
+    assert ui.profile_status.value.startswith("Profile updated:")
+    assert len(ui.profile_content.controls) == 4
+    details = ui.profile_content.controls[0].content.controls[1]
+    assert any("Generic VPN/tunnel" in control.value for control in details.controls)
+    dns = ui.profile_content.controls[1].content.controls[1]
+    assert any("1.1.1.1 (Cloudflare)" in control.value for control in dns.controls)

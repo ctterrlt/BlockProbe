@@ -33,9 +33,12 @@ TARGETS = (
 
 def project_version() -> str:
     """Read the one user-editable application version value."""
-    value = (ROOT / "src" / "blockprobe" / "VERSION").read_text(encoding="utf-8").strip()
+    value = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
     if not value or any(char.isspace() for char in value):
         raise SystemExit("VERSION must contain one non-empty version string.")
+    packaged = (ROOT / "src" / "blockprobe" / "VERSION").read_text(encoding="utf-8").strip()
+    if packaged != value:
+        raise SystemExit("src/blockprobe/VERSION must match the root VERSION file.")
     return value
 
 
@@ -109,6 +112,7 @@ def find_executable(name: str) -> str:
 
 
 def build_python() -> list[Path]:
+    run([sys.executable, str(ROOT / "scripts" / "build_rust_engine.py")])
     output = DIST / "python"
     if output.exists():
         shutil.rmtree(output)
@@ -140,6 +144,15 @@ def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path
         )
     if target == "ios-simulator" and host != "darwin":
         raise SystemExit("Building an iOS simulator app requires macOS and Xcode.")
+
+    if target in {"apk", "aab"}:
+        run([sys.executable, str(ROOT / "scripts" / "build_rust_engine.py"), "--android"])
+    elif target == "ios-simulator":
+        run([sys.executable, str(ROOT / "scripts" / "build_rust_engine.py"), "--ios-simulator"])
+    elif target == "web":
+        run([sys.executable, str(ROOT / "scripts" / "build_rust_engine.py"), "--web"])
+    elif target in {"windows", "macos", "linux"}:
+        run([sys.executable, str(ROOT / "scripts" / "build_rust_engine.py")])
 
     output = ROOT / "build" / "flet" / target
     if output.exists():
