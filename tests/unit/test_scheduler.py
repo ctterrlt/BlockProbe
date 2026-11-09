@@ -166,6 +166,12 @@ def test_activate_registers_the_explicitly_requested_user_schedule(
 
     monkeypatch.setattr("blockprobe.scheduler._run_platform_command", record)
     monkeypatch.setattr("blockprobe.scheduler._is_managed_directory", lambda *_: True)
+    if platform_name == "darwin":
+        # The simulated macOS launchctl path needs a user ID even when this
+        # cross-platform test is running on Windows, where os.getuid is absent.
+        monkeypatch.setattr(
+            "blockprobe.scheduler.os.getuid", lambda: 501, raising=False
+        )
 
     assert activate(platform_name=platform_name, directory=tmp_path) is True
     assert any(command[: len(expected_command)] == expected_command for command in calls)
