@@ -241,4 +241,63 @@ jobs:
             android.permission.POST_NOTIFICATIONS \
             android.permission.FOREGROUND_SERVICE_DATA_SYNC \
             com.dexterous.flutterlocalnotifications.ForegroundService; do
-            if ! grep -q "$token" <<< "$manifest_
+            if ! grep -q "$token" <<< "$manifest_dump"; then
+              echo "::error::Packaged manifest is missing $token."
+              exit 1
+            fi
+          done
+          echo "Packaged manifest declares the dataSync scan foreground service."
+      - if: matrix.target == 'apk'
+        name: Verify signed APK
+        env:
+          EXPECTED_ANDROID_CERT_SHA256: f26ef654fab89fb03dae4db3740d59f49a52e8afb3b1bad74d1c7a677d13ca9d
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/sdk}}"
+          if [[ ! -d "$sdk_root/build-tools" && -d "$HOME/Android/Sdk/build-tools" ]]; then
+            sdk_root="$HOME/Android/Sdk"
+          fi
+          aapt2="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 \
+            -type f -name aapt2 -print | sort -V | tail -n 1)"
+          if [[ -z "$aapt2" ]]; then
+            echo "::error::aapt2 not found; cannot verify the packaged manifest."
+            exit 1
+          fi
+          shopt -s nullglob
+          case "${{ matrix.target }}" in
+            apk) artifacts=(dist/packages/apk/*.apk) ;;
+            aab) artifacts=(dist/packages/aab/*.aab) ;;
+          esac
+          if [[ "${#artifacts[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one ${{ matrix.target }} artifact."
+            exit 1
+          fi
+          cert_report="$(keytool -printcert -jarfile "${bundles[0]}")"
+          aab_cert="$(awk '/SHA256:/{print $2; exit}' <<< "$cert_report" \
+            | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [[ "$aab_cert" != "$EXPECTED_ANDROID_CERT_SHA256" ]]; then
+            echo "AAB is not signed with the established BlockProbe release key." >&2
+            exit 1
+          fi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.target }}
+          path: dist/packages/${{ matrix.target }}/*
+          if-no-files-found: error
+
+  publish:
+    name: Attach artifacts to GitHub release
+    needs: [python-package, native-package]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/**
+          generate_release_notes: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
