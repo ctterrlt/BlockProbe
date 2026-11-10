@@ -56,6 +56,15 @@ class AndroidNetworkService extends FletService {
             'error': 'unsupported_platform',
           };
         }
+      case 'open_network_settings':
+        try {
+          return await _channel.invokeMethod<bool>('open_network_settings') ??
+              false;
+        } on PlatformException {
+          return false;
+        } on MissingPluginException {
+          return false;
+        }
       default:
         return 'error:unknown_method:$name';
     }

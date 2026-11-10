@@ -10,7 +10,11 @@ from typing import Any
 
 import flet as ft
 
-from blockprobe.android_network import is_android, read_active_network
+from blockprobe.android_network import (
+    is_android,
+    open_android_network_settings,
+    read_active_network,
+)
 from blockprobe.core.models import NetworkContext
 from blockprobe.i18n import t
 from blockprobe.ui.components import MUTED, button, card, hero, text
@@ -110,11 +114,9 @@ class ProfileScreen:
 
     async def _open_device_network_settings(self, _event: Any = None) -> None:
         """Open Android Settings and refresh local signals on return."""
-        from blockprobe.diagnostics.system_dns import open_android_network_settings
-
         self._profile_refresh_on_resume = True
         try:
-            opened = await asyncio.to_thread(open_android_network_settings)
+            opened = await open_android_network_settings(page=self.page)
         except Exception:
             opened = False
         if opened:

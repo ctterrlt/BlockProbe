@@ -109,6 +109,10 @@ class AndroidNetworkService(ft.Service):
         result = await self._invoke_method("read_state")
         return result if isinstance(result, dict) else None
 
+    async def open_network_settings(self) -> bool:
+        """Open Android's wireless settings through the native plugin."""
+        return await self._invoke_method("open_network_settings") is True
+
 
 def _page_or_none(page: Page | None) -> Page | None:
     if page is not None:
@@ -152,6 +156,19 @@ async def read_active_network(
     except Exception as exc:  # platform bridge failures must not abort a scan
         return AndroidNetwork(error=type(exc).__name__)
     return parse_network_payload(payload)
+
+
+async def open_android_network_settings(page: Page | None = None) -> bool:
+    """Open the device's wireless settings without launching a shell command."""
+    if not is_android():
+        return False
+    service = network_service(page)
+    if service is None:
+        return False
+    try:
+        return await service.open_network_settings()
+    except Exception:
+        return False
 
 
 @dataclass(frozen=True)

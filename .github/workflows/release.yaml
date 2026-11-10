@@ -36,12 +36,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: 0.13.7
+          enable-cache: true
       - name: Build package
         run: |
-          python -m pip install -e ".[packaging]"
-          python scripts/build.py python
+          uv sync --locked --extra packaging
+          uv run --locked python scripts/build.py python
       - name: Smoke-test wheel
-        run: python scripts/smoke_wheel.py
+        run: uv run --locked python scripts/smoke_wheel.py
       - uses: actions/upload-artifact@v4
         with:
           name: python-wheel-${{ matrix.os }}
@@ -93,11 +98,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      - name: Install uv
+        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          version: 0.13.7
+          enable-cache: true
       - if: matrix.target == 'apk' || matrix.target == 'aab'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
+      - if: matrix.target == 'aab'
+        name: Download bundletool for App Bundle manifest verification
+        shell: bash
+        run: |
+          set -euo pipefail
+          bundletool_jar="$RUNNER_TEMP/bundletool-all-1.18.2.jar"
+          curl --fail --location --retry 3 \
+            --output "$bundletool_jar" \
+            https://github.com/google/bundletool/releases/download/1.18.2/bundletool-all-1.18.2.jar
+          echo "BUNDLETOOL_JAR=$bundletool_jar" >> "$GITHUB_ENV"
       - if: matrix.target == 'apk' || matrix.target == 'aab'
         name: Install Rust Android targets
         run: rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
@@ -125,7 +145,7 @@ jobs:
       - if: matrix.target == 'windows'
         run: choco install innosetup --yes --no-progress
       - name: Install build tooling
-        run: python -m pip install -e ".[packaging]"
+        run: uv sync --locked --extra packaging
       - if: matrix.target == 'apk' || matrix.target == 'aab'
         name: Configure Android release signing
         env:
@@ -172,7 +192,7 @@ jobs:
         name: Resolve Flet Linux build packages
         id: linux_deps
         run: |
-          packages="$(python scripts/install-linux-build-deps.py --print-packages)"
+          packages="$(uv run --locked python scripts/install-linux-build-deps.py --print-packages)"
           echo "packages=$packages" >> "$GITHUB_OUTPUT"
       - if: matrix.target == 'linux'
         name: Restore cached Flet Linux build packages
@@ -182,10 +202,10 @@ jobs:
           version: flet-linux-build-deps-v1
       - if: matrix.target == 'linux'
         name: Verify Flet Linux build dependencies
-        run: python scripts/install-linux-build-deps.py --check || python scripts/install-linux-build-deps.py
+        run: uv run --locked python scripts/install-linux-build-deps.py --check || uv run --locked python scripts/install-linux-build-deps.py
       - name: Build native package
         if: matrix.target != 'apk' && matrix.target != 'aab'
-        run: python scripts/build.py ${{ matrix.target }} ${{ matrix.installer }}
+        run: uv run --locked python scripts/build.py ${{ matrix.target }} ${{ matrix.installer }}
       - if: matrix.target == 'apk' || matrix.target == 'aab'
         name: Build Android package (retry a failed runtime archive download)
         shell: bash
@@ -195,7 +215,7 @@ jobs:
           FLET_ANDROID_SIGNING_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
         run: |
           for attempt in 1 2; do
-            if python scripts/build.py ${{ matrix.target }}; then
+            if uv run --locked python scripts/build.py ${{ matrix.target }}; then
               exit 0
             fi
             if [[ "$attempt" -eq 1 ]]; then
@@ -213,7 +233,7 @@ jobs:
           done
           exit 1
       - if: matrix.target == 'apk' || matrix.target == 'aab'
-        name: Verify scan foreground service is packaged
+        name: Verify Android manifest permissions and foreground service
         shell: bash
         run: |
           set -euo pipefail
@@ -223,10 +243,6 @@ jobs:
           fi
           aapt2="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 \
             -type f -name aapt2 -print | sort -V | tail -n 1)"
-          if [[ -z "$aapt2" ]]; then
-            echo "::error::aapt2 not found; cannot verify the packaged manifest."
-            exit 1
-          fi
           shopt -s nullglob
           case "${{ matrix.target }}" in
             apk) artifacts=(dist/packages/apk/*.apk) ;;
@@ -236,8 +252,20 @@ jobs:
             echo "::error::Expected exactly one ${{ matrix.target }} artifact."
             exit 1
           fi
-          manifest_dump="$("$aapt2" dump xmltree "${artifacts[0]}" --file AndroidManifest.xml)"
+          if [[ "${{ matrix.target }}" == "apk" ]]; then
+            if [[ -z "$aapt2" ]]; then
+              echo "::error::aapt2 not found; cannot verify the APK manifest."
+              exit 1
+            fi
+            manifest_dump="$("$aapt2" dump xmltree "${artifacts[0]}" --file AndroidManifest.xml)"
+          else
+            manifest_dump="$(java -jar "$BUNDLETOOL_JAR" dump manifest \
+              --bundle="${artifacts[0]}")"
+          fi
           for token in \
+            android.permission.INTERNET \
+            android.permission.ACCESS_NETWORK_STATE \
+            android.permission.FOREGROUND_SERVICE \
             android.permission.POST_NOTIFICATIONS \
             android.permission.FOREGROUND_SERVICE_DATA_SYNC \
             com.dexterous.flutterlocalnotifications.ForegroundService; do
@@ -246,7 +274,7 @@ jobs:
               exit 1
             fi
           done
-          echo "Packaged manifest declares the dataSync scan foreground service."
+          echo "Packaged manifest declares Internet/network state and the dataSync scan foreground service."
       - if: matrix.target == 'apk'
         name: Verify signed APK
         env:

@@ -39,6 +39,15 @@ user's tie rule. Primary DNS A/AAAA/CNAME queries and HTTP remain Python.
   installed-wheel CLI self-check.
 - The Rust library compiled for Linux and Android `arm64-v8a`, `armeabi-v7a`
   and `x86_64`. No APK/AAB or other app package was built for this validation.
+- In a separate Android packaging pass on the same date, the current `1.4.0`
+  source produced a universal APK and AAB (Android build code `100400099`). The
+  APK was installed on the Android 35 emulator and checked at 360x800dp,
+  411x914dp and 600x800dp; APK and AAB manifests both declare `INTERNET` and
+  `ACCESS_NETWORK_STATE`. This does not change the wheel-only scope of the
+  Rust validation above.
+- Current Linux checks pass 344 Python tests and 10 Rust tests. Windows/macOS
+  runners, the iOS simulator, Web runtime loading and the F-Droid build server
+  have not been exercised for the current unpushed worktree.
 - The host C ABI reports version 2; Python rejects an unexpected ABI version.
   Rust and Python tests compare aggregate selection, sinkhole classification
   and fixed built-in response-marker matching.

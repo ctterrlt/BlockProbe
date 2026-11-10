@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.4.0--beta-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
@@ -21,33 +21,33 @@ DNS/VPN blocker and has not been shown to make full scans faster.
 
 ## Status
 
-The current source version is **1.4.0**, pending final emulator and package
-checks. All previous GitHub release downloads were withdrawn. This release
-includes the current regulator sources.
+The current source version is **1.4.0**. Local Python, Rust, workflow and
+Android APK/AAB checks pass; hosted checks for this unpushed worktree remain
+pending. Previous GitHub release downloads were withdrawn, and this local
+debug APK is not a published replacement.
 
 The app version is maintained in the root [`VERSION`](VERSION) file and drives
 package metadata and native installer builds. Its packaged copy at
 [`src/blockprobe/VERSION`](src/blockprobe/VERSION) drives runtime display.
 Python package metadata uses its PEP 440 equivalent (`1.4.0`). An installed
 APK can report an older version and does not change the repository version.
-The current Android version code is `100400099`; it is for
-emulator verification and is not a signed release.
+The current Android version code is `100400099`. The local APK is signed with
+Flet's debug certificate and is for emulator verification only.
 
-A previously distributed Android build was found to show a blank gray screen
-after consent on Android 35. The current source fixes the header layout and
-consent transition; the fix was verified before this beta version bump on an
-Android 35 emulator at
-411x914dp, 360x800dp and 600x800dp using a local debug APK. A beta-versioned
-APK (`1.4.0-beta`, code `100400020`) has since been built and launched on the
-Android 35 emulator at 411x914dp. It uses Flet's debug certificate and is not a
-signed or published replacement; the affected distributed artifact still
-needs replacement before redistribution.
+A previously distributed Android build showed a blank gray screen after
+consent on Android 35. The current-source `1.4.0` APK (code `100400099`) was
+built, installed and exercised on the Android 35 emulator at 411x914dp,
+360x800dp and 600x800dp. It uses Flet's debug certificate and is not a signed
+or published replacement. No physical phone was accessed for these checks.
 
 BlockProbe is usable **from source**: the portal refreshes, local probing,
 SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and local web
 UI are implemented. M6 packaging remains in progress. The Release workflow
-builds signed artifacts for tags; local Android debug APKs are for emulator
-verification only. UI choices include global System/Light/Dark appearance,
+builds signed artifacts for tags; current workflow edits are locally validated
+but have not run on GitHub Actions. The earlier hosted Release run failed
+native package jobs because it installed an incompatible latest Flet CLI; the
+workflows now install from the locked project dependencies. UI choices include
+global System/Light/Dark appearance,
 responsive scrolling, explicit consent-record failures, and immediate action
 banner replacement. Export buttons ask for a platform path and retain a
 uniquely named copy in the reports directory if saving or readback fails.
@@ -87,7 +87,7 @@ silently doing nothing.
 - **Neutral controls and interference signal.** Requests Google, Wikipedia and Cloudflare before and between probes, reports the first control failure and the domains to recheck, and reports a transparent heuristic VPN/DNS interference signal. A locally detected content-filtering resolver is shown as context, but it does not by itself raise that signal.
 - **Privacy and legal scope.** Every report states that BlockProbe asks for no age verification, sets or stores no cookies, uploads nothing, accepts no website terms, saves no image or website files, and claims no GDPR/US privacy-law compliance. Response bodies are capped and only HTML is inspected.
 - **Local storage.** SQLite only, in one local database file. Probe verdicts are never cached; cached portal lists and views are invalidated through a database generation counter. Dynamic BetBlocker patterns live in an append-only table.
-- **Profile and diagnostics.** The Profile screen shows best-effort local DNS, VPN, proxy, hosts-file, IPv6, Android Private DNS and browser Secure DNS hints. On Android it reads the active resolver and Private DNS hostname using the install-time `ACCESS_NETWORK_STATE` permission; there is no runtime popup for that permission. Recognized provider hostnames are matched against a bundled local catalog, which can show the provider name, known IP endpoints and documented categories. These are hints, not a live blocklist or proof of which sites are blocked. After consent, a scan also asks Cloudflare DNS over HTTPS for a hostname only if the device resolver fails; Cloudflare receives that hostname, and this fallback can be disabled in Settings. Accepting consent itself sends no DNS request.
+- **Profile and diagnostics.** The Profile screen shows best-effort local DNS, VPN, proxy, hosts-file, IPv6, Android Private DNS and browser Secure DNS hints. The Android APK declares `INTERNET` for network sockets and `ACCESS_NETWORK_STATE` to read the active resolver; both are normal install-time permissions and do not show a runtime prompt. Recognized provider hostnames are matched against a bundled local catalog, which can show the provider name, known IP endpoints and documented categories. These are hints, not a live blocklist or proof of which sites are blocked. After consent, a scan also asks Cloudflare DNS over HTTPS for a hostname only if the device resolver fails; Cloudflare receives that hostname, and this fallback can be disabled in Settings. Accepting consent itself sends no DNS request.
 - **Cross-platform interfaces.** A Flet desktop and mobile UI, a Typer-based CLI, and a local web UI bound to `127.0.0.1`.
 - **Five languages, adaptive appearance.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings. Appearance follows the operating system by default, with saved Light and Dark overrides. Layouts adapt to narrow windows and phone widths, with scrolling content and compact navigation labels. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
 - **Explicit export destinations.** Report and log exports open the platform save dialog so you can choose a path. If that dialog fails, BlockProbe keeps a uniquely named copy in the local reports folder and shows its path; cancelling the dialog does not create a second copy.

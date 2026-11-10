@@ -131,6 +131,7 @@ class SettingsScreen:
         self._schedule_platform: str | None = None
         self.schedule_install_button: ft.Button | None = None
         self.schedule_remove_button: ft.Button | None = None
+        self.schedule_state_button: ft.Button | None = None
         self._refresh_schedule_status()
         self.settings_status = text("", 12)
 
@@ -173,12 +174,19 @@ class SettingsScreen:
                     "This platform needs a manual cron entry; BlockProbe writes "
                     "the file and shows the command to review."
                 )
-        # Keep both actions tappable on Android: the handler returns an
-        # explicit localized explanation instead of silently ignoring taps.
-        for name in ("schedule_install_button", "schedule_remove_button"):
+        # Unsupported Android schedule actions are not presented as buttons.
+        for name in (
+            "schedule_frequency",
+            "schedule_time",
+            "schedule_weekday",
+            "schedule_install_button",
+            "schedule_remove_button",
+            "schedule_state_button",
+        ):
             control = getattr(self, name, None)
             if control is not None:
-                control.disabled = False
+                control.visible = not unavailable
+                control.disabled = unavailable
 
     def _settings_view(self) -> ft.Control:
         self.settings_header = hero(
@@ -210,8 +218,14 @@ class SettingsScreen:
             ft.Icons.EVENT_BUSY,
             self._wrap(self._remove_schedule),
         )
+        schedule_state = button(
+            t("Refresh state"),
+            ft.Icons.VISIBILITY,
+            self._wrap(self._schedule_state_action),
+        )
         self.schedule_install_button = schedule_install
         self.schedule_remove_button = schedule_remove
+        self.schedule_state_button = schedule_state
 
         self.settings_root = ft.Column(
             [
@@ -290,11 +304,7 @@ class SettingsScreen:
                                 [
                                     schedule_install,
                                     schedule_remove,
-                                    button(
-                                        t("Refresh state"),
-                                        ft.Icons.VISIBILITY,
-                                        self._wrap(self._schedule_state_action),
-                                    ),
+                                    schedule_state,
                                 ],
                                 wrap=True,
                                 spacing=12,

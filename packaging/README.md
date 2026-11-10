@@ -24,14 +24,14 @@ manifest against this source version and the build-code mapping. A previous
 APK left installed on an emulator may report an older version; it does not
 change the repository's canonical version.
 
-The current source version is `1.4.0`; its Android code is `100400099`.
-The UI fix was checked before the beta version bump on the Android 35 Pixel 7
-emulator at 411x914dp,
-360x800dp and 600x800dp. First-run consent, the post-consent screen, navigation
-and dark-theme persistence rendered correctly. A beta versioned APK
-(`1.4.0-beta`, code `100400020`) has since been built, installed and launched
-at 411x914dp. It uses Flet's debug certificate and is not a signed or published
-replacement; replace the earlier distributed APK before redistributing.
+The current source version is `1.4.0`; its Android code is `100400099`. On
+2026-11-10, a universal APK and AAB were built from this source. The APK was
+installed and exercised on the Android 35 emulator at 411x914dp, 360x800dp and
+600x800dp. The Profile resolver, settings handoff, scheduled-scan limitation,
+mobile navigation and light/dark themes were checked. The APK uses Flet's
+debug certificate. The AAB manifest was checked locally but not with the
+protected release key. Neither artifact is a production release. No physical
+phone was accessed.
 ```console
 python scripts/build.py all
 ```
@@ -53,8 +53,9 @@ target-specific previous artifacts first.
 `packaging/windows/installer.iss` and `packaging/macos/build_dmg.sh` wrap the
 Flet outputs. They do not sign or notarize. Local Linux desktop and Android
 emulator checks use unsigned/debug artifacts. The Android 35 emulator was
-checked at 411x914dp, 360x800dp and 600x800dp; screenshots cover consent, the
-main screen and Sources in dark theme. An earlier web bundle was served at
+checked at 411x914dp, 360x800dp and 600x800dp. Navigation, Profile resolver
+display, device Settings launch, Android scheduled-scan messaging, and
+light/dark theme selection were exercised. An earlier web bundle was served at
 narrow and wide browser sizes, but headless Chromium remained on the Flet
 startup screen.
 The latest Release Web build showed Cargo emits `blockprobe_core.wasm` without
@@ -67,7 +68,10 @@ The Release workflow builds and smoke-tests separate Windows, macOS and Linux
 Python wheels, uploads one sdist, and builds Windows, macOS, Linux, APK, AAB,
 web and iOS simulator targets. The Linux wheel was built and its installed
 Rust library was loaded locally; Windows/macOS wheel checks are configured in
-CI and remain unverified until that workflow runs. Release CI restores Flet's
+CI and remain unverified until that workflow runs. The local workflow rewrite
+pins `uv` and uses `uv.lock`; release packaging checks APK manifests with
+`aapt2` and AAB manifests with bundletool 1.18.2. The current unpushed diff has
+not run on hosted Actions. Release CI restores Flet's
 Linux build packages from an APT cache before the Linux build and falls back to
 a full install only when a package is missing. That cache path is configured
 but has not yet been exercised on GitHub Actions.

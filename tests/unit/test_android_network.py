@@ -20,12 +20,19 @@ class FakeService:
         self.payload = payload
         self.error = error
         self.calls = 0
+        self.settings_calls = 0
 
     async def read_state(self) -> Any:
         self.calls += 1
         if self.error is not None:
             raise self.error
         return self.payload
+
+    async def open_network_settings(self) -> bool:
+        self.settings_calls += 1
+        if self.error is not None:
+            raise self.error
+        return self.payload is True
 
 
 class FakePage:
@@ -120,6 +127,30 @@ async def test_read_active_network_without_page_or_service(monkeypatch: pytest.M
     snapshot = await android_network.read_active_network()
     assert snapshot.available is False
     assert snapshot.error == "no_page"
+
+
+async def test_open_android_network_settings_uses_the_native_page_service(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(android_network, "is_android", lambda: True)
+    service = FakeService(True)
+    monkeypatch.setattr(android_network, "network_service", lambda page=None: service)
+
+    assert await android_network.open_android_network_settings(page=FakePage()) is True
+    assert service.settings_calls == 1
+
+
+async def test_open_android_network_settings_returns_false_off_android(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(android_network, "is_android", lambda: False)
+    monkeypatch.setattr(
+        android_network,
+        "network_service",
+        lambda page=None: pytest.fail("desktop must not create an Android service"),
+    )
+
+    assert await android_network.open_android_network_settings() is False
 
 
 def test_network_service_is_created_once_per_page() -> None:

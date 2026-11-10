@@ -25,6 +25,7 @@ with ``blockprobe.android_foreground.FOREGROUND_SERVICE_TYPES``."""
 ANDROID_MANIFEST = Path("android/app/src/main/AndroidManifest.xml")
 ANDROID_APP_GRADLE = Path("android/app/build.gradle.kts")
 ANDROID_REQUIRED_MANIFEST_TOKENS = (
+    "android.permission.INTERNET",
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.FOREGROUND_SERVICE",
@@ -34,6 +35,7 @@ ANDROID_REQUIRED_MANIFEST_TOKENS = (
 )
 ANDROID_EXTENSION_NAME = "blockprobe_android_network"
 ANDROID_PACKAGED_MANIFEST_TOKENS = (
+    "android.permission.INTERNET",
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.FOREGROUND_SERVICE",
@@ -259,25 +261,60 @@ def _aapt2() -> Path | None:
 def verify_android_artifacts(artifacts: list[Path]) -> list[str]:
     """Check the built APK/AAB manifest when the Android SDK is available."""
     aapt2 = _aapt2()
-    if aapt2 is None:
-        print(
-            "Skipping packaged Android manifest inspection: aapt2 not found. "
-            "Verified the generated project only."
-        )
-        return []
     verified: list[str] = []
     for artifact in artifacts:
-        if artifact.suffix not in {".apk", ".aab"}:
+        if artifact.suffix == ".apk":
+            if aapt2 is None:
+                print(
+                    f"Skipping packaged APK manifest inspection for {artifact.name}: "
+                    "aapt2 not found. Verified the generated project only."
+                )
+                continue
+            command = [
+                str(aapt2),
+                "dump",
+                "xmltree",
+                str(artifact),
+                "--file",
+                "AndroidManifest.xml",
+            ]
+            tool_name = "aapt2"
+        elif artifact.suffix == ".aab":
+            bundletool_value = os.environ.get("BUNDLETOOL_JAR")
+            if not bundletool_value:
+                print(
+                    f"Skipping packaged AAB manifest inspection for {artifact.name}: "
+                    "BUNDLETOOL_JAR is not set."
+                )
+                continue
+            bundletool_jar = Path(bundletool_value).expanduser()
+            if not bundletool_jar.is_file():
+                raise SystemExit(
+                    f"BUNDLETOOL_JAR does not point to a file: {bundletool_jar}"
+                )
+            java = shutil.which("java")
+            if java is None:
+                raise SystemExit("Java is required to inspect Android App Bundles.")
+            command = [
+                java,
+                "-jar",
+                str(bundletool_jar),
+                "dump",
+                "manifest",
+                f"--bundle={artifact}",
+            ]
+            tool_name = "bundletool"
+        else:
             continue
         result = subprocess.run(
-            [str(aapt2), "dump", "xmltree", str(artifact), "--file", "AndroidManifest.xml"],
+            command,
             capture_output=True,
             text=True,
             check=False,
         )
         if result.returncode != 0:
             raise SystemExit(
-                f"aapt2 could not read {artifact.name}: {result.stderr.strip()}"
+                f"{tool_name} could not read {artifact.name}: {result.stderr.strip()}"
             )
         missing = [
             token for token in ANDROID_PACKAGED_MANIFEST_TOKENS if token not in result.stdout
@@ -286,7 +323,10 @@ def verify_android_artifacts(artifacts: list[Path]) -> list[str]:
             raise SystemExit(
                 f"{artifact.name} manifest is missing: {', '.join(missing)}."
             )
-        verified.append(f"{artifact.name}: packaged manifest declares the dataSync scan service")
+        verified.append(
+            f"{artifact.name}: packaged manifest declares INTERNET + "
+            "ACCESS_NETWORK_STATE and the dataSync scan service"
+        )
     return verified
 
 

@@ -4,20 +4,17 @@
 # Packaging
 
 BlockProbe supports source/Python-package installation and builds desktop and
-Android artifacts through Flet. The Python wheel and source archive, a Linux
-portable tarball and a universal Android APK were built locally. The Linux
-installer helper and a headless Linux app launch were smoke-checked. The
-locally built APK uses Flet's default Android debug certificate; Android UI
-verification for this work uses the configured emulator only. The UI fix was
-verified before the beta version bump on Android 35 at 411x914dp, 360x800dp and
-600x800dp using a local APK. A beta-versioned APK (`1.4.0-beta`, code
-`100400020`) has since been built, installed and launched at 411x914dp. It uses
-Flet's debug certificate and is not a signed or published replacement. Replace
-the earlier distributed APK with a properly signed build containing the fix
-before redistribution. Tagged release builds
-use the configured Android release keystore and fail if its secrets are
-missing. M6 remains open until a signed release has been built and verified
-with the owner's long-term key.
+Android artifacts through Flet. On 2026-11-10, the current source version
+`1.4.0` (Android code `100400099`) built a universal APK and an AAB locally.
+Both are local artifacts, not release artifacts. The APK uses Flet's debug
+certificate and was installed on the configured Android 35 emulator. The AAB
+manifest was verified locally but has not been checked with the protected
+release key. The APK was exercised at 411x914dp,
+360x800dp and 600x800dp. The Profile resolver, Android Settings handoff,
+scheduled-scan explanation, mobile navigation and light/dark appearance were
+checked. No physical-device ADB session was used. Production distribution
+still requires the protected release key and successful hosted Release
+validation; M6 remains open until a signed artifact is reviewed.
 
 The latest Release CI Web job showed Cargo producing `blockprobe_core.wasm`
 both at the release root and under `deps`; Emscripten omits the `lib` prefix
@@ -153,7 +150,15 @@ The release workflow builds one host-specific Python wheel on Linux, Windows
 and macOS, plus one sdist from Linux. It uploads the wheels under distinct
 artifact names; their platform tags keep release filenames distinct. The
 workflow also builds Windows, macOS, Linux, Android APK/AAB, web and iOS
-simulator artifacts on their supported runners. A manual workflow
+simulator artifacts on their supported runners. GitHub workflows install
+through pinned `uv` with `uv.lock`; the Release job checks APK manifests with
+`aapt2` and AAB manifests with bundletool 1.18.2. Both package verifiers require
+`INTERNET`, `ACCESS_NETWORK_STATE` and the scan foreground-service entries.
+Local YAML and shell checks pass, but the current worktree has not run on
+GitHub Actions. Before these edits, the CI runs on `main` and `dev` passed,
+Release run `42895680094` failed its seven native package jobs because it
+installed an incompatible latest Flet CLI, and F-Droid run `42896467596` was
+skipped after that Release failure. A manual workflow
 run builds and uploads CI artifacts without publishing a release; a tag push
 builds the matrix and publishes a release, marked as a prerelease when its tag
 contains a hyphen. Android runtime downloads are cached and retried once after
@@ -235,8 +240,10 @@ workflow validation.
 For local UI verification, install only on the configured AVD and pin ADB
 commands to `emulator-5554`. A debug APK is a smoke-test artifact, not a release.
 
-The APK's manifest requests `ACCESS_NETWORK_STATE` for read-only active-network
-and DNS details; Android grants it at installation and shows no runtime prompt.
+The APK and AAB manifests declare normal `INTERNET` and
+`ACCESS_NETWORK_STATE` permissions. `INTERNET` allows network sockets;
+`ACCESS_NETWORK_STATE` lets Profile read active network and resolver details.
+Android grants both at installation, with no runtime prompt for either.
 User-started scans run in a `dataSync` foreground service, and Android 13+
 requests `POST_NOTIFICATIONS` at runtime. Denying notification permission does
 not cancel the scan. Android scan scheduling is not implemented, and the
@@ -270,11 +277,16 @@ started by the user.
 ## Milestones
 
 M6 is in progress. Local checks cover the Linux platform wheel, Linux x86_64,
-and Rust libraries for Android arm64-v8a, armeabi-v7a and x86_64; no APK/AAB or
-other app package was built for this Rust check. The Android 35 Pixel 7 emulator
-was checked at 411x914dp, 360x800dp and 600x800dp. Consent, the transition to
-the main screen, theme persistence and the main-screen layouts were checked
-with screenshots; no physical phone was attached. The headless web smoke check
+and Rust libraries for Android arm64-v8a, armeabi-v7a and x86_64. The Android
+APK and AAB were separately built from source version 1.4.0; the APK manifest
+passed `aapt2` verification and the AAB manifest passed bundletool 1.18.2
+verification. The Android 35 Pixel 7 emulator was checked at 411x914dp,
+360x800dp and 600x800dp. Profile showed the emulator resolver `10.0.2.3`; both
+network permissions were granted at install. Mobile navigation, Android
+Settings, the no-scheduling explanation and theme selection were exercised.
+The Python 3.14 suite passed 344 tests, Rust passed 10 tests, and Ruff, MyPy,
+Cargo format, YAML parsing and workflow shell syntax passed. No physical phone
+was attached. The headless web smoke check
 loads the bundle but remains on the Flet startup screen, so web runtime
 interaction is not yet verified.
 Windows, macOS and iOS simulator artifacts are configured in the native-host

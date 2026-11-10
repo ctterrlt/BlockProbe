@@ -10,6 +10,7 @@ directory through `[tool.flet.android.dependencies]` and
 `[tool.flet.android.dev_packages]`.
 
 The Kotlin plugin performs no network I/O and changes no settings: it reads
-`ConnectivityManager`/`LinkProperties` for the network the device already uses.
-`ACCESS_NETWORK_STATE` is an install-time permission, so no runtime prompt is
-involved for this part.
+`ConnectivityManager`/`LinkProperties` for the network the device already
+uses. `ACCESS_NETWORK_STATE` is an install-time permission, so no runtime
+prompt is involved for this read. The app separately declares Android's
+normal install-time `INTERNET` permission for scan and network socket access.

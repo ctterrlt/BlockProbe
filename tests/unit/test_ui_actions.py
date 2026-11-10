@@ -799,7 +799,7 @@ def test_system_theme_uses_event_brightness_and_recolors_on_resize(
     assert page.bgcolor == palette_background(dark=True)
 
 
-def test_android_schedule_actions_stay_enabled_and_explain_unavailability(
+def test_android_schedule_controls_are_hidden_with_platform_explanation(
     action_env: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from blockprobe import scheduler
@@ -821,20 +821,17 @@ def test_android_schedule_actions_stay_enabled_and_explain_unavailability(
 
     assert ui._schedule_platform == "android"
     assert ui.schedule_install_button is not None
-    assert ui.schedule_install_button.disabled is False
+    assert ui.schedule_install_button.visible is False
+    assert ui.schedule_install_button.disabled is True
     assert ui.schedule_remove_button is not None
-    assert ui.schedule_remove_button.disabled is False
+    assert ui.schedule_remove_button.visible is False
+    assert ui.schedule_remove_button.disabled is True
+    assert ui.schedule_state_button is not None
+    assert ui.schedule_state_button.visible is False
+    assert ui.schedule_frequency.visible is False
+    assert ui.schedule_time.visible is False
+    assert ui.schedule_weekday.visible is False
     assert "Android" in ui.schedule_status.value
-
-    result = ui._install_schedule()
-    assert result.ok is False
-    assert "Android" in result.detail
-    result = ui._remove_schedule()
-    assert result.ok is False
-    assert "Android" in result.detail
-    result = ui._schedule_state_action()
-    assert result.ok is False
-    assert "Android" in result.detail
 
 
 def test_profile_refresh_shows_local_vpn_and_dns_context(
@@ -999,11 +996,14 @@ def test_profile_settings_return_triggers_refresh(
 
     import flet as ft
 
-    from blockprobe.diagnostics import system_dns
     from blockprobe.ui import app as ui_app
+    from blockprobe.ui import profile as profile_ui
 
     assert actions.accept_consent().ok is True
-    monkeypatch.setattr(system_dns, "open_android_network_settings", lambda: True)
+    async def open_settings(*, page=None):  # type: ignore[no-untyped-def]
+        return True
+
+    monkeypatch.setattr(profile_ui, "open_android_network_settings", open_settings)
     page = FakePage()
     ui_app.build_app(page)  # type: ignore[arg-type]
     ui = page.data
@@ -1021,28 +1021,6 @@ def test_profile_settings_return_triggers_refresh(
     )
     assert refreshed == [True]
     assert ui._profile_refresh_on_resume is False
-
-
-def test_open_android_network_settings_uses_system_settings_intent(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    from subprocess import CompletedProcess
-
-    from blockprobe.diagnostics import system_dns
-
-    commands: list[list[str]] = []
-
-    def fake_run(command: list[str], **_kwargs) -> CompletedProcess[str]:
-        commands.append(command)
-        return CompletedProcess(command, 0, stdout="", stderr="")
-
-    monkeypatch.setenv("ANDROID_ROOT", "/system")
-    monkeypatch.setattr(system_dns.subprocess, "run", fake_run)
-
-    assert system_dns.open_android_network_settings() is True
-    assert commands == [
-        ["/system/bin/am", "start", "-a", "android.settings.SETTINGS"]
-    ]
 
 
 @pytest.mark.parametrize("mode", ["dark", "light"])

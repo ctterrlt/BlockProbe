@@ -2,10 +2,12 @@
 package io.github.ctterrlt.blockprobe_android_network
 
 import android.content.Context
+import android.content.Intent
 import android.net.ConnectivityManager
 import android.net.LinkProperties
 import android.net.NetworkCapabilities
 import android.os.Build
+import android.provider.Settings
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -38,7 +40,21 @@ class BlockProbeAndroidNetworkPlugin : FlutterPlugin, MethodChannel.MethodCallHa
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         when (call.method) {
             "read_state" -> result.success(readState())
+            "open_network_settings" -> result.success(openNetworkSettings())
             else -> result.notImplemented()
+        }
+    }
+
+    private fun openNetworkSettings(): Boolean {
+        return try {
+            val applicationContext = context ?: return false
+            val intent = Intent(Settings.ACTION_WIRELESS_SETTINGS).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            applicationContext.startActivity(intent)
+            true
+        } catch (_: Exception) {
+            false
         }
     }
 

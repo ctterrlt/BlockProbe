@@ -22,6 +22,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- Pin `uv` in GitHub workflows and install from `uv.lock` so native packaging
+  uses the tested Flet version. Inspect APK manifests with `aapt2` and AAB
+  manifests with `bundletool`; require both `INTERNET` and
+  `ACCESS_NETWORK_STATE` in packaged Android artifacts.
 - Cache Linux build dependencies in Release CI and install only packages
   missing from the restored APT cache. The prior hosted build spent 20m03s
   downloading build packages and 3m35s in the native build; the cache path has
@@ -41,6 +45,9 @@ All notable changes to this project are documented here. The format follows
   the scan worker starts.
 - Explain Android's install-time network-state permission in Profile rather
   than showing a runtime permission request the platform does not provide.
+- Open Android network settings with a native Settings intent and refresh the
+  Profile when the app resumes. Android Settings now explains that background
+  scheduled scans are unavailable and hides the unusable schedule actions.
 
 ## [1.4.0-beta] — 2026-11-10
 

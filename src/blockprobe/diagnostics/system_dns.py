@@ -74,36 +74,6 @@ def private_dns_hint() -> str:
     )
 
 
-def open_android_network_settings() -> bool:
-    """Ask Android to open its Settings app so users can inspect network DNS.
-
-    Android does not expose an app-level runtime permission that reveals the
-    Private DNS setting. Opening the system Settings screen is a user-guided
-    fallback; the caller refreshes its local profile when the app resumes.
-    """
-    if not (os.environ.get("ANDROID_ROOT") or sys.platform.startswith("android")):
-        return False
-    try:
-        result = subprocess.run(
-            ["/system/bin/am", "start", "-a", "android.settings.SETTINGS"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        _LOGGER.exception("could not open Android network settings")
-        return False
-    if result.returncode != 0 or "Permission Denial" in result.stderr:
-        _LOGGER.warning(
-            "Android Settings launch failed (exit %s): %s",
-            result.returncode,
-            result.stderr.strip() or result.stdout.strip(),
-        )
-        return False
-    return True
-
-
 def browser_doh_hint() -> str:
     """Look for Chrome/Chromium DnsOverHttps policy files on Linux."""
     policy_paths = [

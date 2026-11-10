@@ -172,9 +172,12 @@ service; `POST_NOTIFICATIONS` is requested at runtime on Android 13+, and
 denial does not cancel the scan. Android 15 limits a `dataSync` service to six
 hours in a 24-hour period for apps targeting API 35+, and the OS may stop the
 app process. The service does not promise survival after process death or
-force-stop. `ACCESS_NETWORK_STATE` is granted at installation, so Android has
-no runtime prompt for it. See [Android's foreground-service timeout
-rules](https://developer.android.com/develop/background-work/services/fgs/timeout).
+force-stop. The Android package declares normal `INTERNET` and
+`ACCESS_NETWORK_STATE` permissions: the first allows network sockets, and the
+second lets Profile read the active resolver and network details. Android
+grants both at installation, so neither produces a runtime permission prompt.
+Profile reads this local state without making a DNS request. See [Android's
+foreground-service timeout rules](https://developer.android.com/develop/background-work/services/fgs/timeout).
 
 ## Responsible use and harm reduction
 

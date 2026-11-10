@@ -4,12 +4,13 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import zipfile
 from pathlib import Path
 
 import pytest
-from scripts import build_rust_engine
+from scripts import build, build_rust_engine
 from scripts.smoke_wheel import validate_wheel
 
 
@@ -88,3 +89,87 @@ def test_pyodide_side_module_reports_discovered_artifacts(tmp_path: Path) -> Non
 
     with pytest.raises(SystemExit, match=r"discovered: libblockprobe_core\.rlib"):
         build_rust_engine.stage_pyodide_side_module(release_dir)
+
+
+@pytest.mark.parametrize("suffix", (".apk", ".aab"))
+def test_android_artifact_verifier_uses_format_specific_tool(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    suffix: str,
+) -> None:
+    artifact = tmp_path / f"blockprobe{suffix}"
+    artifact.touch()
+    aapt2 = tmp_path / "aapt2"
+    bundletool = tmp_path / "bundletool.jar"
+    aapt2.touch()
+    bundletool.touch()
+    monkeypatch.setattr(build, "_aapt2", lambda: aapt2)
+    monkeypatch.setattr(build.shutil, "which", lambda _name: "/usr/bin/java")
+    monkeypatch.setenv("BUNDLETOOL_JAR", str(bundletool))
+    commands: list[list[str]] = []
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        commands.append(command)
+        manifest = "\n".join(build.ANDROID_PACKAGED_MANIFEST_TOKENS)
+        return subprocess.CompletedProcess(command, 0, stdout=manifest, stderr="")
+
+    monkeypatch.setattr(build.subprocess, "run", fake_run)
+
+    verified = build.verify_android_artifacts([artifact])
+
+    assert len(verified) == 1
+    assert "INTERNET" in verified[0]
+    assert "ACCESS_NETWORK_STATE" in verified[0]
+    if suffix == ".apk":
+        assert commands[0][0] == str(aapt2)
+        assert commands[0][1:3] == ["dump", "xmltree"]
+    else:
+        assert commands[0][:3] == ["/usr/bin/java", "-jar", str(bundletool)]
+        assert commands[0][3:5] == ["dump", "manifest"]
+        assert commands[0][5] == f"--bundle={artifact}"
+
+
+@pytest.mark.parametrize(
+    "missing_permission",
+    (
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+    ),
+)
+def test_android_artifact_verifier_requires_dns_network_permissions(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing_permission: str,
+) -> None:
+    artifact = tmp_path / "blockprobe.apk"
+    artifact.touch()
+    aapt2 = tmp_path / "aapt2"
+    aapt2.touch()
+    monkeypatch.setattr(build, "_aapt2", lambda: aapt2)
+    manifest = "\n".join(
+        token
+        for token in build.ANDROID_PACKAGED_MANIFEST_TOKENS
+        if token != missing_permission
+    )
+
+    def fake_run(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout=manifest, stderr="")
+
+    monkeypatch.setattr(build.subprocess, "run", fake_run)
+
+    with pytest.raises(SystemExit, match=missing_permission):
+        build.verify_android_artifacts([artifact])
+
+
+def test_android_aab_manifest_verifier_reports_missing_bundletool(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    artifact = tmp_path / "blockprobe.aab"
+    artifact.touch()
+    monkeypatch.setattr(build, "_aapt2", lambda: tmp_path / "aapt2")
+    monkeypatch.delenv("BUNDLETOOL_JAR", raising=False)
+
+    assert build.verify_android_artifacts([artifact]) == []
+    assert "BUNDLETOOL_JAR is not set" in capsys.readouterr().out

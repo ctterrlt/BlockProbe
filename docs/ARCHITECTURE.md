@@ -50,12 +50,13 @@ criteria.
 
 On Android, `blockprobe.android_network` reads the active network's DNS
 addresses and Private DNS hostname through a bundled Flutter extension. The
-`ACCESS_NETWORK_STATE` permission is granted at installation; Android does not
-show a runtime permission prompt for it. Recognized Private DNS hostnames are
-matched exactly against a bundled local provider catalog to display the
-provider name, known endpoint addresses and documented filtering categories.
-These catalog entries are local hints, not a live blocklist or proof of the
-active filtering policy. This lookup makes no DNS request.
+APK declares Android's normal `INTERNET` permission for network sockets and
+`ACCESS_NETWORK_STATE` for reading active network details. Android grants both
+at installation; neither has a runtime permission prompt. Recognized Private
+DNS hostnames are matched exactly against a bundled local provider catalog to
+display the provider name, known endpoint addresses and documented filtering
+categories. These catalog entries are local hints, not a live blocklist or
+proof of the active filtering policy. This lookup makes no DNS request.
 
 The root `VERSION` is canonical. `src/blockprobe/VERSION` is its synchronized
 runtime/package copy. Hatchling uses `scripts/hatch_version.py` to derive valid
@@ -225,6 +226,8 @@ when the process exits. Values are serialized as JSON, not Python pickle data.
   cancel the scan. Android scan scheduling is not implemented, and process
   death or force-stop survival is not guaranteed. Android 15 limits this
   service type to six hours per 24-hour period for apps targeting API 35+.
+  Settings explains that scheduled scans are unavailable and hides schedule
+  actions on Android.
 
 ## Security and hostile input
 

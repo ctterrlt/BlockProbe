@@ -26,8 +26,10 @@ verdict is worse than a "needs review".
 - Android UI verification must use the configured AVD and an explicit
   `emulator-5554` ADB selector. Never use a physical-device serial for project
   verification.
-- Android's `ACCESS_NETWORK_STATE` permission is granted at installation and
-  has no runtime prompt. User-started scans use a `dataSync` foreground
+- Android's `INTERNET` and `ACCESS_NETWORK_STATE` permissions are normal
+  install-time permissions and have no runtime prompt. The former enables
+  network sockets; the latter lets Profile read the active resolver.
+  User-started scans use a `dataSync` foreground
   service; Android 13+ requests `POST_NOTIFICATIONS`, and denial must not
   cancel the scan. Android scan scheduling is not implemented, and process
   death or force-stop survival must not be claimed. Keep emulator checks and
@@ -68,6 +70,8 @@ cargo test --workspace --offline
 
 The Python suite also parses every tracked `.yaml` and `.yml` file to catch
 configuration syntax errors.
+The fake-server integration tests bind to `127.0.0.1`; sandboxed test runners
+must allow loopback sockets or the suite will fail during fixture setup.
 
 For UI and file-picker changes, include a current-source emulator build in the
 verification record. Confirm the embedded version from the APK manifest; the
