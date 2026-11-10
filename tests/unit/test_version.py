@@ -32,7 +32,7 @@ def test_hatch_and_build_metadata_use_the_root_version() -> None:
     from scripts.build import project_build_number, project_version
     from scripts.hatch_version import pep440_version
 
-    assert pep440_version() == "1.4.0a0"
-    assert project_version() == "1.4.0-alpha"
-    assert project_build_number() == 100400010
+    assert pep440_version() == "1.4.0b0"
+    assert project_version() == "1.4.0-beta"
+    assert project_build_number() == 100400020
 

@@ -5,7 +5,7 @@
 
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue?style=flat-square)](LICENSE)
 [![Python 3.14+](https://img.shields.io/badge/python-3.14%2B-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.4.0--alpha-blue?style=flat-square)](#status)
+[![Version](https://img.shields.io/badge/version-1.4.0--beta-blue?style=flat-square)](#status)
 [![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20macOS%20%7C%20Linux%20%7C%20Android-informational?style=flat-square)](#requirements)
 [![Telemetry](https://img.shields.io/badge/telemetry-none-brightgreen?style=flat-square)](#privacy)
 
@@ -21,16 +21,26 @@ DNS/VPN blocker and has not been shown to make full scans faster.
 
 ## Status
 
-The current development build is **1.4.0-alpha**. All previous GitHub release
-downloads were withdrawn. This alpha includes the current regulator sources.
+The current development build is **1.4.0-beta**. All previous GitHub release
+downloads were withdrawn. This beta includes the current regulator sources.
 
 The app version is maintained in the root [`VERSION`](VERSION) file and drives
 package metadata and native installer builds. Its packaged copy at
 [`src/blockprobe/VERSION`](src/blockprobe/VERSION) drives runtime display.
-Python package metadata uses its PEP 440 equivalent (`1.4.0a0`). An installed
+Python package metadata uses its PEP 440 equivalent (`1.4.0b0`). An installed
 APK can report an older version and does not change the repository version.
-The current Android version code is `100400010`; it is for
+The current Android version code is `100400020`; it is for
 emulator verification and is not a signed release.
+
+A previously distributed Android build was found to show a blank gray screen
+after consent on Android 35. The current source fixes the header layout and
+consent transition; the fix was verified before this beta version bump on an
+Android 35 emulator at
+411x914dp, 360x800dp and 600x800dp using a local debug APK. A beta-versioned
+APK (`1.4.0-beta`, code `100400020`) has since been built and launched on the
+Android 35 emulator at 411x914dp. It uses Flet's debug certificate and is not a
+signed or published replacement; the affected distributed artifact still
+needs replacement before redistribution.
 
 BlockProbe is usable **from source**: the portal refreshes, local probing,
 SQLite storage, reports, diagnostics, consent flow, Flet UI, CLI and local web

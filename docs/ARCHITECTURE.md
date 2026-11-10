@@ -53,7 +53,13 @@ PEP 440 wheel metadata from the root file; native installer builds read it when
 generating version fields, and `scripts/build.py` passes it to Flet as the
 display version and derives the Android build code from it. The Flet UI uses a
 responsive Material 3 theme that follows OS brightness by default, with saved
-light and dark overrides. The scan source picker includes every enabled portal definition
+light and dark overrides. Each page keeps the same light and dark `Theme`
+instances and only changes the selected mode when the saved preference changes.
+Consent, language and shell transitions replace the visible root in one update,
+without clearing the page first; a retryable startup view covers shell-build
+failures. The Android header row must remain non-wrapping while it contains an
+expanded child, so Flutter does not attempt to lay out flex content inside a
+wrapping layout. The scan source picker includes every enabled portal definition
 and the user-maintained custom domain list, allowing focused, personalized
 checks. Built-in regulator feeds currently cover gambling domains; custom
 domains can represent other filtering categories.

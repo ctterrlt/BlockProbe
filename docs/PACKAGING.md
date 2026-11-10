@@ -8,13 +8,16 @@ Android artifacts through Flet. The Python wheel and source archive, a Linux
 portable tarball and a universal Android APK were built locally. The Linux
 installer helper and a headless Linux app launch were smoke-checked. The
 locally built APK uses Flet's default Android debug certificate; Android UI
-verification for this work uses the configured emulator only. The source now
-targets `1.4.0-alpha` / version code `100400010`. The previously documented
-emulator UI checks used the `1.3.0-beta` / `100300020` APK, so they do not
-verify this source version. Tagged release builds use the configured Android release
-keystore and fail if its secrets are missing. M6
-remains open until a signed release has been built and verified with the
-owner's long-term key.
+verification for this work uses the configured emulator only. The UI fix was
+verified before the beta version bump on Android 35 at 411x914dp, 360x800dp and
+600x800dp using a local APK. A beta-versioned APK (`1.4.0-beta`, code
+`100400020`) has since been built, installed and launched at 411x914dp. It uses
+Flet's debug certificate and is not a signed or published replacement. Replace
+the earlier distributed APK with a properly signed build containing the fix
+before redistribution. Tagged release builds
+use the configured Android release keystore and fail if its secrets are
+missing. M6 remains open until a signed release has been built and verified
+with the owner's long-term key.
 
 The latest Release CI Web job showed Cargo producing `blockprobe_core.wasm`
 both at the release root and under `deps`; Emscripten omits the `lib` prefix
@@ -63,7 +66,7 @@ Both include the bundled BetBlocker fallback signatures.
 
 ## Build artifacts
 
-The current development version is `1.4.0-alpha`. Mobile startup colors follow the
+The current development version is `1.4.0-beta`. Mobile startup colors follow the
 system appearance, and the splash screen uses the BlockProbe app icon. Android
 and iOS use a three-site scan concurrency default; other platforms use eight.
 Users can change scan concurrency in Settings, and the value is saved with the
@@ -254,9 +257,12 @@ started by the user.
 
 M6 is in progress. Local checks cover the Linux platform wheel, Linux x86_64,
 and Rust libraries for Android arm64-v8a, armeabi-v7a and x86_64; no APK/AAB or
-other app package was built for this Rust check. The emulator checks verify the shared Android UI at standard
-and compact widths. The headless web smoke check loads the bundle but remains
-on the Flet startup screen, so web runtime interaction is not yet verified.
+other app package was built for this Rust check. The Android 35 Pixel 7 emulator
+was checked at 411x914dp, 360x800dp and 600x800dp. Consent, the transition to
+the main screen, theme persistence and the main-screen layouts were checked
+with screenshots; no physical phone was attached. The headless web smoke check
+loads the bundle but remains on the Flet startup screen, so web runtime
+interaction is not yet verified.
 Windows, macOS and iOS simulator artifacts are configured in the native-host
 CI matrix, but their native-library load checks have not run in this workspace.
 The iOS simulator and Pyodide/Web dynamic-library paths remain unverified.

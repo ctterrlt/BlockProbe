@@ -25,6 +25,7 @@ from blockprobe.ui.components import (
     button,
     dark_for_mode,
     prepare_dialog,
+    replace_page_root,
     text,
 )
 
@@ -86,14 +87,11 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
             return
         mode = actions.runtime().settings.config.app.theme_mode
         brightness = getattr(page, "_blockprobe_brightness", None)
-        apply_page_theme(page, mode, update=False, brightness=brightness)
-        page.clean()
         view = consent_view(page, on_accepted)
         dark = dark_for_mode(page, mode, brightness=brightness)
         apply_palette(view, dark=dark)
-        page.add(ft.SafeArea(content=view, expand=True))
         apply_page_theme(page, mode, update=False, brightness=brightness)
-        page.update()
+        replace_page_root(page, view)
 
     # Flet 1.x Dropdown emits selection through on_select. Assigning an
     # on_change attribute silently leaves this callback disconnected on Linux,
@@ -128,7 +126,6 @@ def consent_view(page: ft.Page, on_accepted: Callable[[], None]) -> ft.Control:
         result = actions.accept_consent()
         if not result.ok:
             raise RuntimeError(result.detail)
-        page.clean()
         on_accepted()
 
     def decline(_event: Any) -> None:

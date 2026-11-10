@@ -11,6 +11,12 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Keep the Flet theme objects stable and replace the page root atomically
+  during consent, language and shell changes to prevent brief blank frames.
+- Fix the Android post-consent gray screen by removing a wrapping header row
+  that contained an expanded child; add a regression check for this layout.
+- Show a retryable startup error if the main screen cannot be built after
+  consent instead of leaving an empty page.
 - Find Cargo's unprefixed `blockprobe_core.wasm` Emscripten output throughout
   the release tree, then stage it under Pyodide's `.so` loader name.
 - Replace the empty bug, portal and signature issue-form YAML files with usable

@@ -41,6 +41,7 @@ from blockprobe.ui.components import (
     apply_palette,
     button,
     dark_for_mode,
+    replace_page_root,
     text,
 )
 from blockprobe.ui.consent import consent_view
@@ -269,15 +270,16 @@ class BlockProbeUi(
         """Return to first-run consent if local data deletion cleared it."""
         self._alive = False
         self._dismiss_snack()
-        self.page.clean()
-        self.page.add(
-            ft.SafeArea(
-                content=consent_view(self.page, lambda: _enter_main(self.page)),
-                expand=True,
-            )
+        view = consent_view(self.page, lambda: _enter_main(self.page))
+        mode = actions.runtime().settings.config.app.theme_mode
+        brightness = getattr(self.page, "_blockprobe_brightness", None)
+        apply_palette(
+            view,
+            dark=dark_for_mode(self.page, mode, brightness=brightness),
         )
-        _apply_saved_theme(self.page)
-        self.page.update()
+        _apply_saved_theme(self.page, update=False)
+        self.page.data = None
+        replace_page_root(self.page, view)
 
     def _wrap(self, action: Callable[[], actions.ActionResult]) -> Callable[[Any], None]:
         def on_click(_event: Any) -> None:
@@ -719,7 +721,6 @@ class BlockProbeUi(
                     self.version_badge,
                 ],
                 spacing=8,
-                wrap=True,
             ),
             padding=ft.Padding.symmetric(horizontal=22, vertical=12),
             border=ft.Border.only(bottom=ft.BorderSide(1, BORDER)),
@@ -966,19 +967,21 @@ class BlockProbeUi(
         """
         self._alive = False
         page = self.page
-        page.clean()
-        mode = actions.runtime().settings.config.app.theme_mode
-        _apply_saved_theme(page, update=False)
-        shell = _main_shell(page)
-        dark = dark_for_mode(
-            page,
-            mode,
-            brightness=getattr(page, "_blockprobe_brightness", None),
-        )
-        apply_palette(shell, dark=dark)
-        page.add(ft.SafeArea(content=shell, expand=True))
-        _apply_saved_theme(page, update=False)
-        page.update()
+        try:
+            mode = actions.runtime().settings.config.app.theme_mode
+            shell = _main_shell(page)
+            dark = dark_for_mode(
+                page,
+                mode,
+                brightness=getattr(page, "_blockprobe_brightness", None),
+            )
+            apply_palette(shell, dark=dark)
+            _apply_saved_theme(page, update=False)
+            replace_page_root(page, shell)
+        except Exception as exc:
+            _LOGGER.exception("could not rebuild the application after a language change")
+            _show_startup_error(page, exc)
+            return
         new_ui = getattr(page, "data", None)
         if isinstance(new_ui, BlockProbeUi):
             if result is not None:
@@ -1047,24 +1050,23 @@ def build_app(page: ft.Page) -> ft.Control:
             return consent_view(page, lambda: _enter_main(page))
     except Exception as exc:
         _LOGGER.exception("could not check the consent record during startup")
-        return _consent_error_view(page, exc)
+        return _startup_error_view(page, exc)
     return _main_shell(page)
 
 
-def _consent_error_view(page: ft.Page, error: BaseException) -> ft.Control:
-    """Show a retryable storage error instead of presenting false consent."""
+def _startup_error_view(page: ft.Page, error: BaseException) -> ft.Control:
+    """Show a retryable startup error instead of leaving an empty page."""
 
     def retry(_event: Any) -> None:
-        page.clean()
         main(page)
 
     return ft.Container(
         content=ft.Column(
             [
                 ft.Icon(ft.Icons.ERROR_OUTLINE, size=36, color=BAD),
-                text(t("Could not check the consent record"), 20, TEXT, weight=ft.FontWeight.BOLD),
+                text(t("BlockProbe could not start"), 20, TEXT, weight=ft.FontWeight.BOLD),
                 text(
-                    t("Check Logs and retry. No network action can run until the consent record is checked."),
+                    t("Retry the app. No network action runs until startup completes."),
                     14,
                     MUTED,
                     selectable=True,
@@ -1083,10 +1085,23 @@ def _consent_error_view(page: ft.Page, error: BaseException) -> ft.Control:
 
 
 def _enter_main(page: ft.Page) -> None:
-    shell = _main_shell(page)
-    page.add(ft.SafeArea(content=shell, expand=True))
-    _apply_saved_theme(page)
-    page.update()
+    try:
+        _LOGGER.info("building main interface after consent", extra={"event": "ui_main_build"})
+        mode = actions.runtime().settings.config.app.theme_mode
+        shell = _main_shell(page)
+        dark = dark_for_mode(
+            page,
+            mode,
+            brightness=getattr(page, "_blockprobe_brightness", None),
+        )
+        apply_palette(shell, dark=dark)
+        _apply_saved_theme(page, update=False)
+        replace_page_root(page, shell)
+        _LOGGER.info("main interface rendered after consent", extra={"event": "ui_main_ready"})
+    except Exception as exc:
+        _LOGGER.exception("application could not enter the main screen after consent")
+        _show_startup_error(page, exc)
+        return
     ui = getattr(page, "data", None)
     if isinstance(ui, BlockProbeUi):
         ui.start_poller()
@@ -1094,8 +1109,23 @@ def _enter_main(page: ft.Page) -> None:
 
 def _main_shell(page: ft.Page) -> ft.Control:
     ui = BlockProbeUi(page)
+    root = ui.build()
     page.data = ui  # keep a reference so the poller keeps updating this session
-    return ui.build()
+    return root
+
+
+def _show_startup_error(page: ft.Page, error: BaseException) -> None:
+    """Replace the current screen with a retryable startup diagnostic."""
+    page.data = None
+    try:
+        _apply_saved_theme(page, update=False)
+    except Exception:
+        _LOGGER.exception("could not apply the saved theme to the startup error screen")
+    try:
+        view = _startup_error_view(page, error)
+        replace_page_root(page, view)
+    except Exception:
+        _LOGGER.exception("could not display the startup error screen")
 
 
 def main(page: ft.Page) -> None:
@@ -1113,20 +1143,22 @@ def main(page: ft.Page) -> None:
     try:
         _apply_saved_theme(page, update=False)
         root = build_app(page)
-        page.add(ft.SafeArea(content=root, expand=True))
-        _apply_saved_theme(page)
-        page.update()
+        mode = actions.runtime().settings.config.app.theme_mode
+        apply_palette(
+            root,
+            dark=dark_for_mode(
+                page,
+                mode,
+                brightness=getattr(page, "_blockprobe_brightness", None),
+            ),
+        )
+        replace_page_root(page, root)
         ui = getattr(page, "data", None)
         if isinstance(ui, BlockProbeUi):
             ui.start_poller()
     except Exception as exc:
         _LOGGER.exception("application startup could not read local settings")
-        try:
-            page.clean()
-            page.add(ft.SafeArea(content=_consent_error_view(page, exc), expand=True))
-            page.update()
-        except Exception:
-            _LOGGER.exception("could not display the local storage error")
+        _show_startup_error(page, exc)
 
 
 def _brightness_from_event(event: Any) -> ft.Brightness | None:

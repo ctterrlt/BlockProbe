@@ -142,24 +142,47 @@ def apply_page_theme(
     brightness: ft.Brightness | None = None,
 ) -> None:
     """Follow the OS appearance in system mode and recolor explicit controls."""
-    page.theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
-    page.dark_theme = ft.Theme(
-        color_scheme_seed=ACCENT,
-        use_material3=True,
-    )
-    page.theme_mode = {
+    light_theme = getattr(page, "_blockprobe_light_theme", None)
+    if light_theme is None:
+        light_theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
+        setattr(page, "_blockprobe_light_theme", light_theme)  # noqa: B010
+    dark_theme = getattr(page, "_blockprobe_dark_theme", None)
+    if dark_theme is None:
+        dark_theme = ft.Theme(color_scheme_seed=ACCENT, use_material3=True)
+        setattr(page, "_blockprobe_dark_theme", dark_theme)  # noqa: B010
+    if getattr(page, "theme", None) is not light_theme:
+        page.theme = light_theme
+    if getattr(page, "dark_theme", None) is not dark_theme:
+        page.dark_theme = dark_theme
+    theme_mode = {
         "system": ft.ThemeMode.SYSTEM,
         "light": ft.ThemeMode.LIGHT,
         "dark": ft.ThemeMode.DARK,
     }[mode]
+    if getattr(page, "theme_mode", None) != theme_mode:
+        page.theme_mode = theme_mode
     dark = dark_for_mode(page, mode, brightness=brightness)
     apply_palette(
         [page.controls, getattr(page, "overlay", []), getattr(page, "dialog", None)],
         dark=dark,
     )
-    page.bgcolor = palette_background(dark=dark)
+    background = palette_background(dark=dark)
+    if getattr(page, "bgcolor", None) != background:
+        page.bgcolor = background
     if update:
         page.update()
+
+
+def replace_page_root(page: ft.Page, control: ft.Control) -> None:
+    """Replace the visible content in one update, without an empty-page flash."""
+    roots = page.controls
+    if len(roots) == 1 and isinstance(roots[0], ft.SafeArea):
+        root = roots[0]
+        root.content = control
+    else:
+        root = ft.SafeArea(content=control, expand=True)
+        roots[:] = [root]
+    page.update()
 
 
 def text(

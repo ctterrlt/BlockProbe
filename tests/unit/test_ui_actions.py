@@ -34,7 +34,10 @@ class FakePage:
     def __init__(self) -> None:
         self.data = None
         self.title = ""
-        self.theme_mode = None
+        self._theme_mode = None
+        self.theme_mode_assignments = 0
+        self.theme = None
+        self.dark_theme = None
         self.bgcolor = None
         self.padding = 0
         self.horizontal_alignment = None
@@ -42,14 +45,25 @@ class FakePage:
         self.platform_brightness = None
         self.controls: list = []
         self.updates = 0
+        self.clean_calls = 0
         self.dialog = None
         self.web = False
         self._dialogs = FakeDialogs()
+
+    @property
+    def theme_mode(self):  # type: ignore[no-untyped-def]
+        return self._theme_mode
+
+    @theme_mode.setter
+    def theme_mode(self, value):  # type: ignore[no-untyped-def]
+        self.theme_mode_assignments += 1
+        self._theme_mode = value
 
     def add(self, *controls) -> None:  # type: ignore[no-untyped-def]
         self.controls.extend(controls)
 
     def clean(self) -> None:
+        self.clean_calls += 1
         self.controls.clear()
 
     def update(self) -> None:
@@ -167,6 +181,80 @@ def test_consent_language_selection_applies_before_acceptance(action_env: Path) 
     assert page.updates == 1
     rebuilt_consent = page.controls[0].content
     assert rebuilt_consent.content.controls[2].value == "Prima della prima richiesta di rete"
+
+
+def test_consent_accept_does_not_clear_the_visible_root(action_env: Path) -> None:
+    from types import SimpleNamespace
+
+    import flet as ft
+
+    from blockprobe.ui.consent import consent_view
+
+    page = FakePage()
+    existing_root = ft.Container()
+    page.controls.append(existing_root)
+    accepted: list[bool] = []
+    consent = consent_view(page, lambda: accepted.append(True))  # type: ignore[arg-type]
+    agree_button = consent.content.controls[-1].controls[0].content  # type: ignore[union-attr]
+
+    agree_button.on_click(SimpleNamespace())
+
+    assert actions.consent_required() is False
+    assert accepted == [True]
+    assert page.controls == [existing_root]
+    assert page.clean_calls == 0
+
+
+def test_theme_objects_and_mode_are_stable_between_repaints(action_env: Path) -> None:
+    import flet as ft
+
+    from blockprobe.ui.components import apply_page_theme, palette_background
+
+    page = FakePage()
+    apply_page_theme(page, "light", update=False)
+    light_theme = page.theme
+    dark_theme = page.dark_theme
+    first_mode_assignments = page.theme_mode_assignments
+
+    apply_page_theme(page, "light", update=False)
+    assert page.theme is light_theme
+    assert page.dark_theme is dark_theme
+    assert page.theme_mode_assignments == first_mode_assignments
+
+    apply_page_theme(page, "dark", update=False)
+    assert page.theme is light_theme
+    assert page.dark_theme is dark_theme
+    assert page.theme_mode is ft.ThemeMode.DARK
+    assert page.theme_mode_assignments == first_mode_assignments + 1
+    assert page.bgcolor == palette_background(dark=True)
+
+
+def test_consent_startup_failure_shows_retryable_screen_without_blank_update(
+    action_env: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import flet as ft
+
+    from blockprobe.ui import app as ui_app
+
+    assert actions.accept_consent().ok is True
+    page = FakePage()
+    page.controls.append(ft.Container())
+
+    def fail_to_build(_page):  # type: ignore[no-untyped-def]
+        raise RuntimeError("simulated Android shell startup failure")
+
+    monkeypatch.setattr(ui_app, "_main_shell", fail_to_build)
+    ui_app._enter_main(page)  # type: ignore[arg-type]
+
+    assert len(page.controls) == 1
+    assert page.updates == 1
+    assert page.clean_calls == 0
+    assert isinstance(page.controls[0], ft.SafeArea)
+    startup_view = page.controls[0].content
+    error_controls = startup_view.content.controls
+    assert error_controls[1].value == "BlockProbe could not start"
+    assert "simulated Android shell startup failure" in error_controls[3].value
+    assert error_controls[4].content == "Retry"
 
 
 def test_consent_layout_starts_narrow_and_tracks_resize(action_env: Path) -> None:
@@ -341,6 +429,10 @@ def test_ui_shell_builds_without_a_window(action_env: Path) -> None:
     assert isinstance(ui, ui_app.BlockProbeUi)
 
     # Every screen is built and refreshable without touching the network.
+    # The flexible title column must stay under a Row, not a wrapping layout:
+    # Flutter's Expanded child cannot be laid out inside Wrap on Android.
+    assert ui.header.content.wrap is False
+    assert ui.header.content.controls[1].expand is True
     assert len(ui.views) == 7
     ui.refresh_results()
     ui.refresh_logs()
@@ -730,7 +822,7 @@ def test_profile_refresh_shows_local_vpn_and_dns_context(
     context = NetworkContext(
         timestamp=1_798_000_000,
         os_name="android",
-        app_version="1.4.0-alpha",
+        app_version="1.4.0-beta",
         resolvers=["1.1.1.1"],
         resolver_labels=["1.1.1.1 (Cloudflare)"],
         dns_filters=["Cloudflare for Families"],

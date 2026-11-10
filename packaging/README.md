@@ -14,7 +14,7 @@ Root `VERSION` is the canonical version source for package metadata, Flet
 build version/build code, Windows installer and Arch package artifact.
 `src/blockprobe/VERSION` is the synchronized runtime/package copy.
 Hatchling converts SemVer-style prerelease labels to PEP 440 package metadata
-(`1.4.0-alpha` becomes `1.4.0a0`).
+(`1.4.0-beta` becomes `1.4.0b0`).
 Android build codes reserve ordered slots for alpha, beta, gamma, release
 candidates and stable versions, so a later prerelease can update an earlier
 one without changing the package identity or signing key.
@@ -24,9 +24,14 @@ manifest against this source version and the build-code mapping. A previous
 APK left installed on an emulator may report an older version; it does not
 change the repository's canonical version.
 
-The current source version is `1.4.0-alpha`; its Android code is
-`100400010`. The earlier debug APK used for emulator UI checks was
-`1.3.0-beta` (`100300020`), so it does not verify the current source.
+The current source version is `1.4.0-beta`; its Android code is `100400020`.
+The UI fix was checked before the beta version bump on the Android 35 Pixel 7
+emulator at 411x914dp,
+360x800dp and 600x800dp. First-run consent, the post-consent screen, navigation
+and dark-theme persistence rendered correctly. A beta versioned APK
+(`1.4.0-beta`, code `100400020`) has since been built, installed and launched
+at 411x914dp. It uses Flet's debug certificate and is not a signed or published
+replacement; replace the earlier distributed APK before redistributing.
 ```console
 python scripts/build.py all
 ```
@@ -48,8 +53,10 @@ target-specific previous artifacts first.
 `packaging/windows/installer.iss` and `packaging/macos/build_dmg.sh` wrap the
 Flet outputs. They do not sign or notarize. Local Linux desktop and Android
 emulator checks use unsigned/debug artifacts. The Android 35 emulator was
-checked at both 411dp and 360dp. An earlier web bundle was served at narrow and
-wide browser sizes, but headless Chromium remained on the Flet startup screen.
+checked at 411x914dp, 360x800dp and 600x800dp; screenshots cover consent, the
+main screen and Sources in dark theme. An earlier web bundle was served at
+narrow and wide browser sizes, but headless Chromium remained on the Flet
+startup screen.
 The latest Release Web build showed Cargo emits `blockprobe_core.wasm` without
 the `lib` prefix, at the release root and under `deps`. The builder now accepts
 the unprefixed module name and the optional `lib` prefix, but this change still
