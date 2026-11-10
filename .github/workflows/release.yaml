@@ -145,15 +145,15 @@ jobs:
             echo 'ANDROID_RELEASE_SIGNING=0' >> "$GITHUB_ENV"
             exit 0
           fi
-          if [[ -z "$ANDROID_KEYSTORE_BASE64" \vert{}\vert{} -z "$ANDROID_KEYSTORE_PASSWORD" || \
-                -z "$ANDROID_KEY_PASSWORD" \vert{}\vert{} -z "$ANDROID_KEY_ALIAS" ]]; then
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" || -z "$ANDROID_KEYSTORE_PASSWORD" || \
+                -z "$ANDROID_KEY_PASSWORD" || -z "$ANDROID_KEY_ALIAS" ]]; then
             echo "::error::Set all four Android signing secrets or remove them all."
             exit 1
           fi
           signing_dir="$RUNNER_TEMP/blockprobe-android-signing"
           mkdir -p "$signing_dir"
           chmod 700 "$signing_dir"
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" \vert{} base64 --decode > "$signing_dir/upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$signing_dir/upload.jks"
           chmod 600 "$signing_dir/upload.jks"
           keystore_report="$signing_dir/keystore-certificate.txt"
           keytool -list -v -keystore "$signing_dir/upload.jks" \
@@ -185,7 +185,7 @@ jobs:
         run: python scripts/install-linux-build-deps.py --check || python scripts/install-linux-build-deps.py
       - name: Build native package
         if: matrix.target != 'apk' && matrix.target != 'aab'
-        run: python scripts/build.py ${{ matrix.target }}${{ matrix.installer }}
+        run: python scripts/build.py ${{ matrix.target }} ${{ matrix.installer }}
       - if: matrix.target == 'apk' || matrix.target == 'aab'
         name: Build Android package (retry a failed runtime archive download)
         shell: bash
@@ -252,24 +252,50 @@ jobs:
         env:
           EXPECTED_ANDROID_CERT_SHA256: f26ef654fab89fb03dae4db3740d59f49a52e8afb3b1bad74d1c7a677d13ca9d
         run: |
-          set -euo pipefail
+          shopt -s nullglob
+          apks=(dist/packages/apk/*.apk)
+          [[ "${#apks[@]}" -eq 1 ]]
+          if [[ "${ANDROID_RELEASE_SIGNING:-0}" != "1" ]]; then
+            echo "APK build was a non-release workflow_dispatch using Flet's debug key."
+            exit 0
+          fi
           sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/sdk}}"
           if [[ ! -d "$sdk_root/build-tools" && -d "$HOME/Android/Sdk/build-tools" ]]; then
             sdk_root="$HOME/Android/Sdk"
           fi
-          aapt2="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 \
-            -type f -name aapt2 -print | sort -V | tail -n 1)"
-          if [[ -z "$aapt2" ]]; then
-            echo "::error::aapt2 not found; cannot verify the packaged manifest."
+          apksigner="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 \
+            -type f -name apksigner -print | sort -V | tail -n 1)"
+          if [[ -z "$apksigner" ]]; then
+            echo "Could not find apksigner under $sdk_root/build-tools." >&2
             exit 1
           fi
+          apk_report="$("$apksigner" verify --verbose --print-certs "${apks[0]}")"
+          printf '%s\n' "$apk_report"
+          apk_cert="$(sed -n 's/.*certificate SHA-256 digest: //p' <<< "$apk_report" \
+            | head -n 1 | tr -d ':' | tr '[:upper:]' '[:lower:]')"
+          if [[ "$apk_cert" != "$EXPECTED_ANDROID_CERT_SHA256" ]]; then
+            echo "APK is not signed with the established BlockProbe release key." >&2
+            exit 1
+          fi
+      - if: matrix.target == 'aab'
+        name: Verify signed Android App Bundle
+        env:
+          EXPECTED_ANDROID_CERT_SHA256: f26ef654fab89fb03dae4db3740d59f49a52e8afb3b1bad74d1c7a677d13ca9d
+        run: |
           shopt -s nullglob
-          case "${{ matrix.target }}" in
-            apk) artifacts=(dist/packages/apk/*.apk) ;;
-            aab) artifacts=(dist/packages/aab/*.aab) ;;
-          esac
-          if [[ "${#artifacts[@]}" -ne 1 ]]; then
-            echo "::error::Expected exactly one ${{ matrix.target }} artifact."
+          bundles=(dist/packages/aab/*.aab)
+          [[ "${#bundles[@]}" -eq 1 ]]
+          if [[ "${ANDROID_RELEASE_SIGNING:-0}" != "1" ]]; then
+            echo "AAB build was a non-release workflow_dispatch using Flet's debug key."
+            exit 0
+          fi
+          verification="$(jarsigner -verify -verbose -certs "${bundles[0]}" 2>&1)" || {
+            printf '%s\n' "$verification"
+            exit 1
+          }
+          if ! grep -q 'jar verified\.' <<< "$verification"; then
+            printf '%s\n' "$verification"
+            echo "AAB is not validly signed." >&2
             exit 1
           fi
           cert_report="$(keytool -printcert -jarfile "${bundles[0]}")"
