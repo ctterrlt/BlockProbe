@@ -127,6 +127,14 @@ The build entry installs `python3-venv` through `sudo` because the F-Droid
 build VM does not guarantee it. The extended timeout covers Android runtime
 and SDK setup.
 
+The Android manifest requests `ACCESS_NETWORK_STATE` for read-only active
+network and DNS details; Android grants it at installation and does not show a
+runtime prompt. User-started scans use a `dataSync` foreground service and
+request `POST_NOTIFICATIONS` at runtime on Android 13+. Denying notification
+permission does not cancel the scan. Android scan scheduling is not
+implemented, and the foreground service does not promise survival after process
+death or force-stop.
+
 ## Risks and limits
 
 The root `VERSION` is canonical; `src/blockprobe/VERSION` is its synchronized

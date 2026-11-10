@@ -31,6 +31,8 @@ jobs:
         with:
           toolchain: 1.98.1
           components: rustfmt
+      - name: Fetch Rust dependencies
+        run: cargo fetch --manifest-path Cargo.toml
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
@@ -86,6 +88,8 @@ jobs:
         with:
           toolchain: 1.98.1
           components: rustfmt
+      - name: Fetch Rust dependencies
+        run: cargo fetch --manifest-path Cargo.toml
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
@@ -165,8 +169,20 @@ jobs:
           printf 'FLET_ANDROID_SIGNING_KEY_STORE=%s\n' \
             "$signing_dir/upload.jks" >> "$GITHUB_ENV"
       - if: matrix.target == 'linux'
-        name: Install Flet Linux build dependencies
-        run: python scripts/install-linux-build-deps.py
+        name: Resolve Flet Linux build packages
+        id: linux_deps
+        run: |
+          packages="$(python scripts/install-linux-build-deps.py --print-packages)"
+          echo "packages=$packages" >> "$GITHUB_OUTPUT"
+      - if: matrix.target == 'linux'
+        name: Restore cached Flet Linux build packages
+        uses: awalsh128/cache-apt-pkgs-action@v1.6.3
+        with:
+          packages: ${{ steps.linux_deps.outputs.packages }}
+          version: flet-linux-build-deps-v1
+      - if: matrix.target == 'linux'
+        name: Verify Flet Linux build dependencies
+        run: python scripts/install-linux-build-deps.py --check || python scripts/install-linux-build-deps.py
       - name: Build native package
         if: matrix.target != 'apk' && matrix.target != 'aab'
         run: python scripts/build.py ${{ matrix.target }} ${{ matrix.installer }}
@@ -196,6 +212,41 @@ jobs:
             fi
           done
           exit 1
+      - if: matrix.target == 'apk' || matrix.target == 'aab'
+        name: Verify scan foreground service is packaged
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdk_root="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-$HOME/Android/sdk}}"
+          if [[ ! -d "$sdk_root/build-tools" && -d "$HOME/Android/Sdk/build-tools" ]]; then
+            sdk_root="$HOME/Android/Sdk"
+          fi
+          aapt2="$(find "$sdk_root/build-tools" -mindepth 2 -maxdepth 2 \
+            -type f -name aapt2 -print | sort -V | tail -n 1)"
+          if [[ -z "$aapt2" ]]; then
+            echo "::error::aapt2 not found; cannot verify the packaged manifest."
+            exit 1
+          fi
+          shopt -s nullglob
+          case "${{ matrix.target }}" in
+            apk) artifacts=(dist/packages/apk/*.apk) ;;
+            aab) artifacts=(dist/packages/aab/*.aab) ;;
+          esac
+          if [[ "${#artifacts[@]}" -ne 1 ]]; then
+            echo "::error::Expected exactly one ${{ matrix.target }} artifact."
+            exit 1
+          fi
+          manifest_dump="$("$aapt2" dump xmltree "${artifacts[0]}" --file AndroidManifest.xml)"
+          for token in \
+            android.permission.POST_NOTIFICATIONS \
+            android.permission.FOREGROUND_SERVICE_DATA_SYNC \
+            com.dexterous.flutterlocalnotifications.ForegroundService; do
+            if ! grep -q "$token" <<< "$manifest_dump"; then
+              echo "::error::Packaged manifest is missing $token."
+              exit 1
+            fi
+          done
+          echo "Packaged manifest declares the dataSync scan foreground service."
       - if: matrix.target == 'apk'
         name: Verify signed APK
         env:
@@ -271,7 +322,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           path: release-artifacts
-          merge-multiple: true
       - uses: softprops/action-gh-release@v2
         with:
           files: release-artifacts/**

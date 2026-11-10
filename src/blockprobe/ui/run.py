@@ -3,11 +3,15 @@
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
+from dataclasses import replace
 from typing import Any
 
 import flet as ft
 
+from blockprobe.android_foreground import start_scan_foreground, stop_scan_foreground
+from blockprobe.android_network import AndroidNetwork, is_android, read_active_network
 from blockprobe.core.models import RunSummary
 from blockprobe.i18n import t
 from blockprobe.ui import actions
@@ -24,6 +28,8 @@ from blockprobe.ui.components import (
     hero,
     text,
 )
+
+_LOGGER = logging.getLogger("blockprobe.ui.run")
 
 
 class RunScreen:
@@ -55,7 +61,18 @@ class RunScreen:
     ) -> Callable[[Any], Any]:
         raise NotImplementedError
 
+    def run_async(
+        self,
+        action: Callable[[], actions.ActionResult],
+        *,
+        on_result: Callable[[actions.ActionResult], None] | None = None,
+    ) -> None:
+        raise NotImplementedError
+
     def _show_screen(self, index: int) -> None:
+        raise NotImplementedError
+
+    def _manage_websites(self, event: Any = None) -> None:
         raise NotImplementedError
 
     def _setup_run(self) -> None:
@@ -76,6 +93,10 @@ class RunScreen:
         self._run_feedback_visible = False
         self._run_start_failed = False
         self._run_controls_signature: tuple[object, ...] | None = None
+        self._foreground_scan_pending = False
+        self._foreground_scan_started = False
+        self._foreground_scan_run_id: str | None = None
+        self._foreground_scan_notice: str | None = None
         self.summary_text = text(t("No run stored yet."), 13)
         self.start_button = None
         self.pause_button = None
@@ -90,10 +111,10 @@ class RunScreen:
     def _run_view(self) -> ft.Control:
         self._build_source_checkboxes()
         self.start_button = button(
-            t("Start scan"), ft.Icons.PLAY_ARROW, self._wrap(self._start_scan), primary=True
+            t("Start scan"), ft.Icons.PLAY_ARROW, self._start_scan_clicked, primary=True
         )
-        self.pause_button = button(t("Pause"), ft.Icons.PAUSE, self._wrap(actions.pause_scan))
-        self.resume_button = button(t("Resume"), ft.Icons.PLAY_ARROW, self._wrap(actions.resume_scan))
+        self.pause_button = button(t("Pause"), ft.Icons.PAUSE, self._pause_scan_clicked)
+        self.resume_button = button(t("Resume"), ft.Icons.PLAY_ARROW, self._resume_scan_clicked)
         self.cancel_button = button(
             t("Cancel"), ft.Icons.CANCEL_OUTLINED, self._wrap(actions.cancel_scan)
         )
@@ -168,7 +189,7 @@ class RunScreen:
                             button(
                                 t("Manage websites"),
                                 ft.Icons.EDIT_LOCATION_ALT,
-                                lambda _event: self._show_screen(1),
+                                self._manage_websites,
                             ),
                         ],
                         wrap=True,
@@ -179,6 +200,18 @@ class RunScreen:
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
             ),
         )
+        background_note = text(
+            t(
+                "On Android, a foreground notification helps scans continue "
+                "while the app is minimized. Apps targeting Android 15 or "
+                "later have a six-hour limit per 24 hours for data-sync "
+                "foreground services. Force-stop or process termination "
+                "can interrupt a scan."
+            ),
+            12,
+            MUTED,
+        )
+        background_note.visible = is_android()
         run_card = card(
             t("2. Run the check"),
             ft.Column(
@@ -194,6 +227,7 @@ class RunScreen:
                     ),
                     self.progress_bar,
                     self.progress_text,
+                    background_note,
                 ],
                 spacing=12,
                 horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -411,27 +445,184 @@ class RunScreen:
             auto_refresh=bool(self.auto_refresh_switch.value),
         )
 
-    def _start_scan(self) -> actions.ActionResult:
+    def _start_scan_clicked(self, _event: Any = None) -> None:
+        """Show immediate feedback and prepare the scan away from the UI loop."""
+        request = self._request()
         self._run_feedback_visible = True
         self._run_start_failed = False
         self.progress_text.value = t("Preparing scan and updating source lists if needed…")
         self.progress_bar.value = None
-        self.refresh_run_controls()
+        self.progress_bar.visible = True
+        self.progress_text.visible = True
         if self.start_button is not None:
             self.start_button.disabled = True
         try:
             self.page.update()
         except Exception:
             pass
-        request = self._request()
-        result = actions.start_scan(request)
+
+        def start_action(network: AndroidNetwork) -> actions.ActionResult:
+            enriched = replace(
+                request,
+                android_dns_servers=network.dns_servers,
+                android_private_dns_hostname=network.private_dns_hostname,
+                android_private_dns_active=network.has_private_dns,
+            )
+            return actions.start_scan(enriched)
+
+        self._run_scan_action(start_action, on_result=self._finish_start_scan)
+
+    def _resume_scan_clicked(self, _event: Any = None) -> None:
+        if self.resume_button is not None:
+            self.resume_button.disabled = True
+
+        def resume_action(_network: AndroidNetwork) -> actions.ActionResult:
+            return actions.resume_scan()
+
+        self._run_scan_action(
+            resume_action,
+            on_result=self._finish_resume_scan,
+        )
+
+    def _pause_scan_clicked(self, _event: Any = None) -> None:
+        self.run_async(actions.pause_scan, on_result=self._finish_pause_scan)
+
+    def _run_scan_action(
+        self,
+        action: Callable[[AndroidNetwork], actions.ActionResult],
+        *,
+        on_result: Callable[[actions.ActionResult], None],
+    ) -> None:
+        """Raise Android foreground priority before starting/resuming work."""
+        if not is_android():
+            self.run_async(lambda: action(AndroidNetwork()), on_result=on_result)
+            return
+        self._foreground_scan_pending = True
+        self._foreground_scan_notice = None
+        self.page.run_task(self._prepare_android_foreground, action, on_result)
+
+    async def _prepare_android_foreground(
+        self,
+        action: Callable[[AndroidNetwork], actions.ActionResult],
+        on_result: Callable[[actions.ActionResult], None],
+    ) -> None:
+        try:
+            outcome = await start_scan_foreground(
+                self.page,
+                title=t("BlockProbe scan"),
+                body=t("Checking selected websites…"),
+                channel_name=t("Scan notifications"),
+            )
+        except Exception:
+            _LOGGER.exception("could not request Android scan foreground priority")
+            self._foreground_scan_started = False
+            self._foreground_scan_notice = t(
+                "Android foreground priority is unavailable. Keep BlockProbe open; "
+                "Android may stop background work."
+            )
+        else:
+            self._foreground_scan_started = outcome.active
+            if outcome.active and outcome.notifications_enabled is False:
+                self._foreground_scan_notice = t(
+                    "Android notifications are off. The scan can continue while "
+                    "BlockProbe is active, but background work may stop."
+                )
+            elif outcome.active:
+                self._foreground_scan_notice = t(
+                    "Scan is running with Android foreground priority."
+                )
+            else:
+                self._foreground_scan_notice = t(
+                    "Android foreground priority is unavailable. Keep BlockProbe open; "
+                    "Android may stop background work."
+                )
+                _LOGGER.warning(
+                    "Android foreground service did not start",
+                    extra={"reason": outcome.reason},
+                )
+        finally:
+            self._foreground_scan_pending = False
+
+        try:
+            network = await read_active_network(page=self.page)
+        except Exception:
+            _LOGGER.exception("could not read Android DNS context before the scan")
+            network = AndroidNetwork(error="read_failed")
+        self.progress_text.value = self._foreground_scan_notice or t("Preparing scan…")
+        try:
+            self.page.update()
+        except Exception:
+            _LOGGER.exception("could not update scan feedback before startup")
+        self.run_async(lambda: action(network), on_result=on_result)
+
+    def _finish_start_scan(self, result: actions.ActionResult) -> None:
+        """Apply scan-start feedback on the page event loop."""
+        self._run_start_failed = not result.ok
         if result.ok:
-            self.progress_text.value = result.title
+            self.progress_text.value = self._foreground_scan_notice or result.title
             self.progress_bar.value = None
         else:
-            self._run_start_failed = True
             self.progress_text.value = result.detail
             self.progress_bar.value = 0
             if self.start_button is not None:
                 self.start_button.disabled = False
-        return result
+        active_run = actions.runtime().scan.active_run
+        active = active_run is not None
+        if is_android():
+            if result.ok and active_run is not None:
+                self._foreground_scan_run_id = active_run.id
+            else:
+                self._stop_android_foreground_scan()
+        self.refresh_run_controls(active=active)
+
+    def _finish_resume_scan(self, result: actions.ActionResult) -> None:
+        active_run = actions.runtime().scan.active_run
+        if is_android():
+            if result.ok and active_run is not None:
+                self._foreground_scan_run_id = active_run.id
+            else:
+                self._stop_android_foreground_scan()
+        if self.resume_button is not None:
+            self.resume_button.disabled = False
+        if result.ok and self._foreground_scan_notice:
+            self.progress_text.value = self._foreground_scan_notice
+        self.refresh_run_controls(active=active_run is not None)
+
+    def _finish_pause_scan(self, result: actions.ActionResult) -> None:
+        if result.ok and is_android():
+            self._stop_android_foreground_scan()
+
+    def _stop_android_foreground_scan(self) -> None:
+        """Stop the notification service after pause or rejected start/resume."""
+        should_stop = self._foreground_scan_started
+        self._foreground_scan_started = False
+        self._foreground_scan_run_id = None
+        if should_stop and is_android():
+            try:
+                self.page.run_task(stop_scan_foreground, self.page)
+            except Exception:
+                _LOGGER.exception("could not schedule Android scan service shutdown")
+
+    async def _sync_android_foreground_scan(
+        self, active_run: Any, summary: RunSummary | None
+    ) -> bool:
+        """Stop foreground priority after the run pauses or actually finishes."""
+        run_id = self._foreground_scan_run_id
+        if not self._foreground_scan_started or run_id is None:
+            return False
+        run_is_active = active_run is not None and active_run.id == run_id
+        run_is_paused = (
+            summary is not None
+            and summary.run_id == run_id
+            and summary.status.value == "paused"
+        )
+        if run_is_active and not run_is_paused:
+            return False
+        self._foreground_scan_started = False
+        self._foreground_scan_run_id = None
+        await stop_scan_foreground(self.page)
+        return True
+
+    def _start_scan(self) -> actions.ActionResult:
+        """Run the scan-start action without mutating UI controls."""
+        return actions.start_scan(self._request())

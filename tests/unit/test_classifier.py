@@ -7,6 +7,8 @@ covered separately from their bundled package resources.
 
 from __future__ import annotations
 
+import re
+
 from blockprobe.core.enums import Confidence, ReasonCode, SignatureKind, Verdict
 from blockprobe.core.models import (
     Classification,
@@ -17,7 +19,18 @@ from blockprobe.core.models import (
     ProbeObservation,
     SignatureRule,
 )
-from blockprobe.probe.classifier import classify, load_signatures, sniff_key_phrases
+from blockprobe.probe.classifier import (
+    BLOCKER_PAGE_MARKERS,
+    CHALLENGE_MARKERS,
+    DEAD_MARKERS,
+    GAMBLING_BLOCK_MARKERS,
+    POSITIVE_MARKERS,
+    _matched_builtin_patterns,
+    classify,
+    load_signatures,
+    sniff_key_phrases,
+)
+from blockprobe.probe.rust_engine import match_pattern_indices
 
 
 def make_dns(
@@ -83,6 +96,36 @@ def embedded_fetch(body: str, title: str = "", final_url: str = "") -> HttpFetch
         body_bytes=len(body.encode("utf-8")),
         title=title,
     )
+
+
+def test_rust_response_marker_sets_match_python_regex_semantics() -> None:
+    pattern_groups = (
+        POSITIVE_MARKERS,
+        DEAD_MARKERS,
+        CHALLENGE_MARKERS,
+        BLOCKER_PAGE_MARKERS,
+        GAMBLING_BLOCK_MARKERS,
+    )
+    samples = (
+        "ordinary page text with no known markers",
+        "Scommesse\nSPORTIVE, gioco d'azzardo e Casino online",
+        "Just a moment: checking your browser before continuing",
+        "SITO BLOCCATO; access denied by parental controls",
+        "This gambling website has been blocked",
+        "WILLKOMMEN: GLÜCKSSPIEL SEITE BLOCKIERT",
+        "domain is for sale and coming soon",
+    )
+    for patterns in pattern_groups:
+        for sample in samples:
+            expected = tuple(
+                index
+                for index, pattern in enumerate(patterns)
+                if re.search(pattern, sample, re.IGNORECASE | re.DOTALL)
+            )
+            actual = match_pattern_indices(patterns, sample)
+            assert actual is not None, "a bundled marker set must compile in Rust"
+            assert actual == expected
+            assert _matched_builtin_patterns(patterns, sample) == [patterns[index] for index in expected]
 
 
 def test_sinkhole_answer_is_blocked_with_high_confidence() -> None:

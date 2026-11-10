@@ -5,10 +5,13 @@
 //! it only from the existing worker thread. The Python/Flet application owns
 //! evidence assembly, consent, networking policy, and user-facing behavior.
 
-use std::ffi::{CStr, c_char};
+use regex::{RegexSet, RegexSetBuilder};
+use std::ffi::{CStr, c_char, c_void};
 use std::net::{IpAddr, ToSocketAddrs};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::ptr;
+use std::slice;
+use std::str;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Verdict {
@@ -191,7 +194,85 @@ pub struct AggregateInput {
 /// Return the version of the C ABI implemented by this native library.
 #[unsafe(no_mangle)]
 pub extern "C" fn bp_abi_version() -> u32 {
-    1
+    2
+}
+
+/// Opaque compiled regex set shared with the Python response classifier.
+struct PatternSetHandle(RegexSet);
+
+/// Compile Python-owned response marker patterns with matching flags.
+///
+/// The caller retains the returned pointer for the process lifetime. A null
+/// result means Rust could not represent this pattern set and Python should
+/// use its reference matcher instead.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bp_regex_set_new(
+    patterns: *const *const c_char,
+    length: usize,
+) -> *mut c_void {
+    catch_unwind(AssertUnwindSafe(|| {
+        if patterns.is_null() || length == 0 {
+            return ptr::null_mut();
+        }
+        // SAFETY: the C caller supplies `length` pointers to NUL-terminated
+        // UTF-8 pattern strings for the duration of this call.
+        let pattern_ptrs = unsafe { slice::from_raw_parts(patterns, length) };
+        let mut owned = Vec::with_capacity(length);
+        for pattern_ptr in pattern_ptrs {
+            if pattern_ptr.is_null() {
+                return ptr::null_mut();
+            }
+            // SAFETY: each pointer is checked and remains valid for this call.
+            let Ok(pattern) = unsafe { CStr::from_ptr(*pattern_ptr) }.to_str() else {
+                return ptr::null_mut();
+            };
+            owned.push(pattern.to_owned());
+        }
+        let Ok(set) = RegexSetBuilder::new(owned)
+            .case_insensitive(true)
+            .dot_matches_new_line(true)
+            .build()
+        else {
+            return ptr::null_mut();
+        };
+        Box::into_raw(Box::new(PatternSetHandle(set))).cast()
+    }))
+    .unwrap_or(ptr::null_mut())
+}
+
+/// Return every matching regex index in ascending pattern order.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn bp_regex_set_matches(
+    handle: *const c_void,
+    text: *const u8,
+    text_length: usize,
+    output: *mut usize,
+    capacity: usize,
+) -> isize {
+    ffi_guard(|| {
+        if handle.is_null() || text.is_null() || output.is_null() {
+            return -1;
+        }
+        // SAFETY: the caller passes a valid text byte slice and compiled
+        // handle returned from `bp_regex_set_new`.
+        let text_bytes = unsafe { slice::from_raw_parts(text, text_length) };
+        let Ok(text) = str::from_utf8(text_bytes) else {
+            return -1;
+        };
+        // SAFETY: the handle is created and retained by `bp_regex_set_new`.
+        let handle = unsafe { &*handle.cast::<PatternSetHandle>() };
+        let matches = handle.0.matches(text);
+        let count = matches.iter().count();
+        if count > capacity {
+            return -1;
+        }
+        for (slot, pattern_index) in matches.iter().enumerate() {
+            // SAFETY: `count <= capacity` and the caller allocated that many
+            // writable `usize` values.
+            unsafe { *output.add(slot) = pattern_index };
+        }
+        count as isize
+    })
 }
 
 /// C ABI entry point used by Python to select one aggregate result.
@@ -547,6 +628,44 @@ mod tests {
         let selected = unsafe { bp_aggregate(input.as_ptr(), input.len(), &mut conflict) };
         assert_eq!(selected, 0);
         assert_eq!(conflict, 1);
+    }
+
+    #[test]
+    fn c_abi_regex_set_returns_matches_in_pattern_order() {
+        let first = std::ffi::CString::new(r"\bfirst\s+marker\b").unwrap();
+        let second = std::ffi::CString::new(r"other.*line").unwrap();
+        let patterns = [first.as_ptr(), second.as_ptr()];
+        // SAFETY: the pattern C strings stay alive through construction.
+        let handle = unsafe { bp_regex_set_new(patterns.as_ptr(), patterns.len()) };
+        assert!(!handle.is_null());
+
+        let text = "First\nMarker and OTHER\nLINE".as_bytes();
+        let mut indices = [usize::MAX; 2];
+        // SAFETY: `handle` came from the constructor and the text/output
+        // slices remain alive and writable for this call.
+        let count = unsafe {
+            bp_regex_set_matches(
+                handle,
+                text.as_ptr(),
+                text.len(),
+                indices.as_mut_ptr(),
+                indices.len(),
+            )
+        };
+        assert_eq!(count, 2);
+        assert_eq!(indices, [0, 1]);
+
+        // SAFETY: this test owns the handle returned above and drops it once.
+        unsafe { drop(Box::from_raw(handle.cast::<PatternSetHandle>())) };
+    }
+
+    #[test]
+    fn c_abi_regex_set_rejects_python_only_lookaround_for_fallback() {
+        let unsupported = std::ffi::CString::new(r"(?=blocked)").unwrap();
+        let patterns = [unsupported.as_ptr()];
+        // SAFETY: the pattern C string stays alive through construction.
+        let handle = unsafe { bp_regex_set_new(patterns.as_ptr(), patterns.len()) };
+        assert!(handle.is_null());
     }
 
     #[test]

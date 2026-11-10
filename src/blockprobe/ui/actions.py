@@ -66,6 +66,9 @@ class ScanRequest:
     portal_ids: tuple[str, ...] = ()
     with_custom: bool = False
     auto_refresh: bool = True
+    android_dns_servers: tuple[str, ...] = ()
+    android_private_dns_hostname: str | None = None
+    android_private_dns_active: bool = False
 
     def to_selection(self) -> ScanSelection:
         if self.all_sources:
@@ -463,7 +466,11 @@ def start_scan(request: ScanRequest) -> ActionResult:
         return blocked
     try:
         run, total = runtime().scan.start_run(
-            request.to_selection(), auto_refresh=request.auto_refresh
+            request.to_selection(),
+            auto_refresh=request.auto_refresh,
+            android_dns_servers=request.android_dns_servers,
+            android_private_dns_hostname=request.android_private_dns_hostname,
+            android_private_dns_active=request.android_private_dns_active,
         )
     except BlockProbeError as exc:
         _LOGGER.info("scan request rejected: %s", exc)
@@ -819,7 +826,10 @@ def add_custom_domains(text: str) -> ActionResult:
     if parsed.rejected:
         lines.append("Rejected:")
         lines.extend(f"  {item.value}: {item.reason}" for item in parsed.rejected[:10])
-    return ActionResult(f"Custom websites saved ({len(diff.added)} new)", "\n".join(lines))
+    return ActionResult(
+        t("Custom websites saved ({count} new)", count=len(diff.added)),
+        "\n".join(lines),
+    )
 
 
 def list_custom_domains() -> ActionResult:
@@ -830,7 +840,7 @@ def list_custom_domains() -> ActionResult:
     if not sites:
         return ActionResult(t("No custom websites"), t("Add domains from the Sources screen."))
     lines = [f"{site.domain} ({', '.join(site.hosts)})" for site in sites]
-    return ActionResult(f"Custom websites ({len(sites)})", "\n".join(lines))
+    return ActionResult(t("Custom websites ({count})", count=len(sites)), "\n".join(lines))
 
 
 def remove_custom_domain(domain: str) -> ActionResult:

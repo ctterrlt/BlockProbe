@@ -31,6 +31,8 @@ jobs:
         with:
           toolchain: 1.98.1
           components: rustfmt
+      - name: Fetch Rust dependencies
+        run: cargo fetch --manifest-path Cargo.toml
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}

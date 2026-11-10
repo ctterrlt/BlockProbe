@@ -20,7 +20,7 @@ keep three concerns separate:
 | Engines | `blockprobe.portals`, `blockprobe.probe`, `blockprobe.diagnostics` | Pure or near-pure logic: extraction, normalisation, probing, classification, health scoring. No UI imports. |
 | Services | `blockprobe.services`, `blockprobe.storage`, `blockprobe.cache`, `blockprobe.scheduler` | Use cases, persistence, TTL cache, user-level jobs. |
 | Interfaces | `blockprobe.ui`, `blockprobe.cli` | Presentation only. Every button and command goes through `blockprobe.ui.actions`. |
-| Native engine | Dependency-free Rust library behind a C ABI adapter | Selects aggregate scan verdicts, classifies sinkhole IPs and performs the OS-resolver fallback. It is not a continuous blocker. |
+| Native engine | Dependency-free Rust library behind a C ABI adapter | Selects aggregate scan verdicts, classifies sinkhole IPs, matches fixed built-in response markers, and performs the OS-resolver fallback. It is not a continuous blocker. |
 
 The dependency direction is one-way: interfaces → services → engines → core.
 `blockprobe.ui.actions` is Flet-free so the CLI, the tests and a future web UI
@@ -28,15 +28,16 @@ can reuse the exact same use cases; `blockprobe.ui.app` and the `ui/` screens
 only build widgets and route events.
 
 The scan path calls Rust for deterministic verdict aggregation, sinkhole-IP
-classification, and a fallback through the operating system's resolver.
-Python's dnspython path remains responsible for primary A/AAAA/CNAME queries,
+classification, fixed built-in response-marker matching, and a fallback
+through the operating system's resolver. User-supplied signature patterns stay
+in Python. Python's dnspython path remains responsible for primary A/AAAA/CNAME queries,
 and the consent-enabled Cloudflare DoH fallback remains Python/httpx. These
 lookups are network-wait bound; routing them through a Rust FFI call would not
 make DNS responses faster and would add resolver and platform integration
 risk. Blocking DNS work runs in the scan worker, not on the Flet UI loop.
 
 Rust is loaded lazily through `blockprobe.probe.rust_engine`. The loader checks
-ABI version 1 before binding the remaining symbols. Packaged builds must
+ABI version 2 before binding the remaining symbols. Packaged builds must
 include the matching native library for their OS and architecture; Python
 wheels are tagged `py3-none-<platform>`, and the sdist build hook compiles the
 dependency-free library offline when Cargo is available. A missing or
@@ -46,6 +47,15 @@ This engine is not a DNS/VPN blocker; continuous filtering requires separate
 native platform services and user permission. See
 [`RUST-MIGRATION.md`](RUST-MIGRATION.md) for boundaries, constraints and exit
 criteria.
+
+On Android, `blockprobe.android_network` reads the active network's DNS
+addresses and Private DNS hostname through a bundled Flutter extension. The
+`ACCESS_NETWORK_STATE` permission is granted at installation; Android does not
+show a runtime permission prompt for it. Recognized Private DNS hostnames are
+matched exactly against a bundled local provider catalog to display the
+provider name, known endpoint addresses and documented filtering categories.
+These catalog entries are local hints, not a live blocklist or proof of the
+active filtering policy. This lookup makes no DNS request.
 
 The root `VERSION` is canonical. `src/blockprobe/VERSION` is its synchronized
 runtime/package copy. Hatchling uses `scripts/hatch_version.py` to derive valid
@@ -209,6 +219,12 @@ when the process exits. Values are serialized as JSON, not Python pickle data.
   source of truth across restarts.
 - The scan worker is one thread per run, guarded by a lock so manual and
   scheduled runs cannot overlap.
+- On Android, a user-started scan uses a notification-backed `dataSync`
+  foreground service to support continued work while the app is backgrounded.
+  Android 13+ may request `POST_NOTIFICATIONS` at runtime; denial does not
+  cancel the scan. Android scan scheduling is not implemented, and process
+  death or force-stop survival is not guaranteed. Android 15 limits this
+  service type to six hours per 24-hour period for apps targeting API 35+.
 
 ## Security and hostile input
 

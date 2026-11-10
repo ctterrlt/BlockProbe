@@ -34,7 +34,7 @@ body:
     attributes:
       label: BlockProbe version
       description: Use the version shown in About or in `blockprobe version`.
-      placeholder: 1.4.0-beta
+      placeholder: 1.4.0
     validations:
       required: true
   - type: dropdown

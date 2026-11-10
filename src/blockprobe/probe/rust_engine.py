@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from blockprobe.core.models import Classification
 
-_ABI_VERSION = 1
+_ABI_VERSION = 2
 
 
 class _AggregateInput(ctypes.Structure):
@@ -113,6 +113,19 @@ def _library() -> ctypes.CDLL:
             library.bp_system_resolve.restype = ctypes.c_ssize_t
             library.bp_is_sinkhole_ip.argtypes = [ctypes.c_char_p]
             library.bp_is_sinkhole_ip.restype = ctypes.c_ssize_t
+            library.bp_regex_set_new.argtypes = [
+                ctypes.POINTER(ctypes.c_char_p),
+                ctypes.c_size_t,
+            ]
+            library.bp_regex_set_new.restype = ctypes.c_void_p
+            library.bp_regex_set_matches.argtypes = [
+                ctypes.c_void_p,
+                ctypes.POINTER(ctypes.c_uint8),
+                ctypes.c_size_t,
+                ctypes.POINTER(ctypes.c_size_t),
+                ctypes.c_size_t,
+            ]
+            library.bp_regex_set_matches.restype = ctypes.c_ssize_t
             return library
     attempted = ", ".join(str(path) for path in _library_candidates())
     raise RuntimeError(
@@ -190,3 +203,49 @@ def is_sinkhole_ip(value: str) -> bool:
         return _library().bp_is_sinkhole_ip(value.encode("ascii")) == 1
     except (OSError, UnicodeError):
         return False
+
+
+@lru_cache(maxsize=16)
+def _compile_pattern_set(patterns: tuple[str, ...]) -> int | None:
+    """Compile one fixed marker group once, preserving Python ownership."""
+    if not patterns:
+        return None
+    try:
+        encoded = [pattern.encode("utf-8") for pattern in patterns]
+    except UnicodeError:
+        return None
+    pointers = (ctypes.c_char_p * len(encoded))(*encoded)
+    handle = _library().bp_regex_set_new(pointers, len(encoded))
+    return int(handle) if handle else None
+
+
+def match_pattern_indices(patterns: tuple[str, ...], text: str) -> tuple[int, ...] | None:
+    """Return Rust-matched pattern indices in source order.
+
+    `None` asks the caller to use Python's reference matcher. This is used
+    when a pattern set contains Python syntax unsupported by Rust's regex
+    engine or the input cannot be encoded as UTF-8.
+    """
+    if not patterns or not text:
+        return ()
+    try:
+        payload = text.encode("utf-8")
+    except UnicodeError:
+        return None
+    handle = _compile_pattern_set(patterns)
+    if handle is None:
+        return None
+    text_buffer = ctypes.create_string_buffer(payload)
+    matched_indices = (ctypes.c_size_t * len(patterns))()
+    count = _library().bp_regex_set_matches(
+        handle,
+        ctypes.cast(text_buffer, ctypes.POINTER(ctypes.c_uint8)),
+        len(payload),
+        matched_indices,
+        len(patterns),
+    )
+    if count < 0:
+        return None
+    if count > len(patterns):
+        raise RuntimeError("Rust regex matcher returned an invalid match count")
+    return tuple(matched_indices[index] for index in range(count))

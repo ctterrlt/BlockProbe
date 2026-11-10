@@ -9,13 +9,17 @@ The goal is to move measured, error-sensitive engine work into Rust while
 keeping BlockProbe usable during the migration. The future product direction
 includes a continuously active DNS/VPN-based blocker. That blocker does not
 exist today: the current app checks selected domains on the device's network
-path, and it does not install filters, intercept traffic, or run a background
-network service.
+path, and it does not install filters, intercept traffic, or run a continuous
+network service. On Android, a user-started scan may run in a temporary
+foreground service; that service only keeps the scan alive and is not a
+blocker.
 
 The production scan path uses a dependency-free Rust `cdylib` through a narrow
-C ABI for aggregate verdict selection, sinkhole-IP classification, and the
-OS-resolver fallback. Python still performs primary DNS A/AAAA/CNAME queries
-with dnspython, the opt-in Cloudflare DoH fallback with httpx, and HTTP probes.
+C ABI for aggregate verdict selection, sinkhole-IP classification, fixed
+built-in response-marker matching, and the OS-resolver fallback. User-defined
+signature patterns remain in Python. Python still performs primary DNS
+A/AAAA/CNAME queries with dnspython, the opt-in Cloudflare DoH fallback with
+httpx, and HTTP probes.
 These operations are network-wait bound; moving the requests to Rust would not
 reduce upstream response latency. Blocking DNS work runs in a worker thread,
 and the UI remains Python/Flet.
@@ -35,8 +39,9 @@ user's tie rule. Primary DNS A/AAAA/CNAME queries and HTTP remain Python.
   installed-wheel CLI self-check.
 - The Rust library compiled for Linux and Android `arm64-v8a`, `armeabi-v7a`
   and `x86_64`. No APK/AAB or other app package was built for this validation.
-- The host C ABI reports version 1; Python rejects an unexpected ABI version.
-  Rust and Python tests compare aggregate selection and sinkhole classification.
+- The host C ABI reports version 2; Python rejects an unexpected ABI version.
+  Rust and Python tests compare aggregate selection, sinkhole classification
+  and fixed built-in response-marker matching.
 - Windows and macOS wheel build/load checks are configured in Release CI, but
   have not run in this workspace. iOS simulator and Pyodide/Web dynamic loading
   are also unverified. The F-Droid recipe has not been executed.
@@ -115,7 +120,13 @@ boundary and must not silently fall back to different verdict semantics.
   Native wheels must match the supported OS/CPU matrix. They are tagged
   `py3-none-<platform>` because the C ABI does not use CPython's ABI. Building
   from an sdist requires the pinned Rust/Cargo toolchain.
-- **Android:** continuous filtering requires Android's `VpnService` or another
+- **Android:** the app reads active-network DNS data with the install-time
+  `ACCESS_NETWORK_STATE` permission; Android does not provide a runtime prompt
+  for this permission. User-started scans use a `dataSync` foreground service.
+  Android 13+ requests `POST_NOTIFICATIONS`; denial does not cancel the scan.
+  Android scan scheduling is not implemented, and this foreground service does
+  not promise survival after process death or force-stop. Continuous filtering
+  requires Android's `VpnService` or another
   permitted native integration, a visible user-approved VPN session, lifecycle
   and battery handling, and per-ABI packaging. A Rust library alone cannot
   register or own that service. Flet packaging and Android permissions must be

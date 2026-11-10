@@ -21,6 +21,10 @@
 **/eggs/**/*
 **/.eggs/**/*
 **/lib/**/*
+# Flet Flutter extensions keep their Dart sources in lib/; the rule above is a
+# Python-venv rule and must not hide bundled plugin sources from review/packaging.
+!src/blockprobe/flutter/*/lib/
+!src/blockprobe/flutter/*/lib/**/*
 **/lib64/**/*
 **/parts/**/*
 **/sdist/**/*

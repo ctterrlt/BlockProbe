@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import importlib.util
 import subprocess
 import sys
 import tarfile
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 from scripts.build import build_linux_archive
@@ -123,3 +125,66 @@ def test_linux_installer_rejects_incomplete_bundle(
 
     assert result.returncode != 0
     assert error_fragment in result.stderr
+
+
+def _load_install_deps() -> ModuleType:
+    path = ROOT / "scripts" / "install-linux-build-deps.py"
+    spec = importlib.util.spec_from_file_location("install_linux_build_deps", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+@linux_only
+def test_linux_build_dependency_helper_prints_and_checks(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    module = _load_install_deps()
+    packages = ["libgtk-3-dev", "pkg-config"]
+    monkeypatch.setattr(module, "flet_linux_dependencies", lambda: packages)
+    monkeypatch.setattr(
+        module.shutil,
+        "which",
+        lambda name: "/usr/bin/apt-get" if name == "apt-get" else None,
+    )
+
+    assert module.main(["--print-packages"]) == 0
+    assert capsys.readouterr().out.strip() == "libgtk-3-dev pkg-config"
+
+    monkeypatch.setattr(module, "missing_packages", lambda _packages: [])
+    assert module.main(["--check"]) == 0
+
+    monkeypatch.setattr(module, "missing_packages", lambda _packages: ["pkg-config"])
+    assert module.main(["--check"]) == 1
+    assert "pkg-config" in capsys.readouterr().err
+
+
+@linux_only
+def test_linux_build_dependency_helper_skips_or_installs_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module = _load_install_deps()
+    monkeypatch.setattr(module, "flet_linux_dependencies", lambda: ["libgtk-3-dev"])
+    monkeypatch.setattr(
+        module.shutil,
+        "which",
+        lambda name: "/usr/bin/apt-get" if name == "apt-get" else None,
+    )
+    calls: list[tuple[list[str], bool]] = []
+    monkeypatch.setattr(
+        module,
+        "install",
+        lambda packages, *, update=True: calls.append((packages, update)),
+    )
+
+    monkeypatch.setattr(module, "missing_packages", lambda _packages: [])
+    assert module.main([]) == 0
+    assert calls == []
+
+    monkeypatch.setattr(module, "missing_packages", lambda _packages: ["pkg-config"])
+    assert module.main([]) == 0
+    assert calls == [(["pkg-config"], True)]
+
+    assert module.main(["--no-update"]) == 0
+    assert calls[-1] == (["pkg-config"], False)
