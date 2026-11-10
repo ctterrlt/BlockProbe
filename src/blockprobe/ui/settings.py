@@ -173,10 +173,12 @@ class SettingsScreen:
                     "This platform needs a manual cron entry; BlockProbe writes "
                     "the file and shows the command to review."
                 )
+        # Keep both actions tappable on Android: the handler returns an
+        # explicit localized explanation instead of silently ignoring taps.
         for name in ("schedule_install_button", "schedule_remove_button"):
             control = getattr(self, name, None)
             if control is not None:
-                control.disabled = unavailable
+                control.disabled = False
 
     def _settings_view(self) -> ft.Control:
         self.settings_header = hero(
@@ -477,12 +479,25 @@ class SettingsScreen:
         return result
 
     def _remove_schedule(self) -> actions.ActionResult:
+        if self._schedule_platform == "android":
+            self._refresh_schedule_status()
+            return actions.ActionResult(
+                t("Scheduled scans unavailable"),
+                t("Scheduled scans are not available on Android. Run scans manually."),
+                ok=False,
+            )
         result = actions.remove_schedule()
         self._refresh_schedule_status()
         return result
 
     def _schedule_state_action(self) -> actions.ActionResult:
         self._refresh_schedule_status()
+        if self._schedule_platform == "android":
+            return actions.ActionResult(
+                t("Scheduled scans unavailable"),
+                t("Scheduled scans are not available on Android. Run scans manually."),
+                ok=False,
+            )
         return actions.schedule_status()
 
     def _confirm_reset(self) -> actions.ActionResult:

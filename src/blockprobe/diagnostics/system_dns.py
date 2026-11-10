@@ -1,13 +1,16 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Read-only system DNS, hosts-file and IPv6 diagnostics.
 
-Everything here runs with ordinary user rights. Android Private DNS and browser
-Secure DNS (DoH) cannot be read reliably without elevated rights, so the app
-reports what it cannot see instead of guessing.
+Everything here runs with ordinary user rights. The Android profile supplements
+this Python-only snapshot through the bundled native network adapter, which
+reads ``ConnectivityManager``/``LinkProperties`` under the normal install-time
+``ACCESS_NETWORK_STATE`` permission. This module itself does not guess Android
+Private DNS or browser Secure DNS (DoH) settings.
 """
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import os
 import socket
@@ -56,6 +59,11 @@ def ipv6_available() -> bool:
 
 
 def private_dns_hint() -> str:
+    """Return the Python collector's best-effort hint for Private DNS.
+
+    The Android profile replaces this text with local ``LinkProperties`` data
+    when its native adapter is available.
+    """
     if os.environ.get("ANDROID_ROOT") or sys.platform.startswith("android"):
         return (
             "Android Private DNS cannot be read without elevated rights; check "
@@ -64,6 +72,36 @@ def private_dns_hint() -> str:
     return (
         "Not inspectable on this platform; Android Private DNS is checked only on Android."
     )
+
+
+def open_android_network_settings() -> bool:
+    """Ask Android to open its Settings app so users can inspect network DNS.
+
+    Android does not expose an app-level runtime permission that reveals the
+    Private DNS setting. Opening the system Settings screen is a user-guided
+    fallback; the caller refreshes its local profile when the app resumes.
+    """
+    if not (os.environ.get("ANDROID_ROOT") or sys.platform.startswith("android")):
+        return False
+    try:
+        result = subprocess.run(
+            ["/system/bin/am", "start", "-a", "android.settings.SETTINGS"],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        _LOGGER.exception("could not open Android network settings")
+        return False
+    if result.returncode != 0 or "Permission Denial" in result.stderr:
+        _LOGGER.warning(
+            "Android Settings launch failed (exit %s): %s",
+            result.returncode,
+            result.stderr.strip() or result.stdout.strip(),
+        )
+        return False
+    return True
 
 
 def browser_doh_hint() -> str:
@@ -133,6 +171,73 @@ def collect_network_context() -> NetworkContext:
         browser_doh=browser_doh_hint(),
         notes=notes,
     )
+
+
+def merge_android_network_context(
+    context: NetworkContext,
+    dns_servers: tuple[str, ...] | list[str],
+    *,
+    private_dns_hostname: str | None = None,
+    private_dns_active: bool = False,
+) -> NetworkContext:
+    """Merge Android's active-network snapshot into a scan's local context.
+
+    The Kotlin bridge reads ``LinkProperties`` using the normal install-time
+    network-state permission. The result enriches reports and DNS-filter
+    evidence; it performs no lookup and does not change how probes resolve.
+    """
+    from blockprobe.diagnostics.vpn_proxy_detect import (
+        dns_filter_evidence,
+        dns_provider_for_hostname,
+        dns_provider_profile,
+        resolver_provider,
+    )
+
+    normalized: list[str] = []
+    for value in dns_servers:
+        raw = value.strip().split("%", 1)[0]
+        try:
+            server = ipaddress.ip_address(raw).compressed
+        except ValueError:
+            continue
+        if server not in normalized:
+            normalized.append(server)
+
+    if normalized:
+        context.resolvers = list(dict.fromkeys([*normalized, *context.resolvers]))
+        providers = {
+            server: provider
+            for provider in dns_provider_profile(context.resolvers)
+            for server in provider.servers
+        }
+        labels: list[str] = []
+        for server in context.resolvers:
+            provider = providers.get(server)
+            if provider is not None:
+                labels.append(f"{provider.hostname} — {provider.name} — {server}")
+            else:
+                labels.append(f"{server} ({resolver_provider(server)})")
+        context.resolver_labels = labels
+        context.dns_filters = dns_filter_evidence(context.resolvers)
+
+    provider = dns_provider_for_hostname(private_dns_hostname)
+    if provider is not None:
+        known_endpoints = ", ".join(provider.servers)
+        endpoint_label = (
+            f"{provider.hostname} — {provider.name} — {known_endpoints}"
+        )
+        if endpoint_label not in context.resolver_labels:
+            context.resolver_labels.append(endpoint_label)
+        if provider.filtering and not any(
+            provider.name in item for item in context.dns_filters
+        ):
+            context.dns_filters.append(f"{provider.hostname} ({provider.name})")
+
+    if private_dns_hostname:
+        context.private_dns = private_dns_hostname
+    elif private_dns_active:
+        context.private_dns = "enabled"
+    return context
 
 
 def getprop(name: str, timeout: float = 2.0) -> str | None:

@@ -204,6 +204,9 @@ class ScanService:
         selection: ScanSelection,
         *,
         auto_refresh: bool = True,
+        android_dns_servers: tuple[str, ...] = (),
+        android_private_dns_hostname: str | None = None,
+        android_private_dns_active: bool = False,
     ) -> tuple[RunRecord, list[Site]]:
         if self.consent_required():
             raise ConsentRequired(
@@ -218,6 +221,15 @@ class ScanService:
                 "website, then start the scan again."
             )
         network_context = collect_network_context()
+        if android_dns_servers or android_private_dns_hostname or android_private_dns_active:
+            from blockprobe.diagnostics.system_dns import merge_android_network_context
+
+            merge_android_network_context(
+                network_context,
+                android_dns_servers,
+                private_dns_hostname=android_private_dns_hostname,
+                private_dns_active=android_private_dns_active,
+            )
         run = self.storage.create_run(
             selection=selection,
             total=len(sites),
@@ -243,13 +255,22 @@ class ScanService:
         selection: ScanSelection,
         *,
         auto_refresh: bool = True,
+        android_dns_servers: tuple[str, ...] = (),
+        android_private_dns_hostname: str | None = None,
+        android_private_dns_active: bool = False,
     ) -> tuple[RunRecord, int]:
         with self._lock:
             if self._active_run is not None and self._thread is not None and self._thread.is_alive():
                 raise ProbeError(
                     "A scan is already running. Pause, cancel or wait for it to finish."
                 )
-            run, sites = self.prepare_run(selection, auto_refresh=auto_refresh)
+            run, sites = self.prepare_run(
+                selection,
+                auto_refresh=auto_refresh,
+                android_dns_servers=android_dns_servers,
+                android_private_dns_hostname=android_private_dns_hostname,
+                android_private_dns_active=android_private_dns_active,
+            )
             self._start_background(run, sites)
             return run, len(sites)
 

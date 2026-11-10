@@ -16,6 +16,10 @@ import re
 import socket
 import subprocess
 import sys
+import tomllib
+from dataclasses import dataclass
+from functools import lru_cache
+from importlib.resources import files
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -51,50 +55,74 @@ _VPN_PROVIDERS = (
     ("zt", "ZeroTier"),
 )
 
+@dataclass(frozen=True)
+class DnsProvider:
+    """One locally known resolver profile; a hint, not a live blocklist."""
+
+    id: str
+    name: str
+    hostname: str
+    servers: tuple[str, ...]
+    filtering: bool
+    categories: tuple[str, ...]
+    notes: str
+
+    def matches(self, server: str) -> bool:
+        """Return True when a detected resolver belongs to this profile."""
+        return _clean_server(server) in self.servers
+
+
+@lru_cache(maxsize=1)
+def _load_dns_providers() -> tuple[DnsProvider, ...]:
+    """Load the bundled provider catalog without any network access."""
+    resource = files("blockprobe").joinpath("data", "dns_providers.toml")
+    with resource.open("rb") as handle:
+        payload = tomllib.load(handle)
+    providers: list[DnsProvider] = []
+    for item in payload.get("providers", []):
+        servers = tuple(str(server) for server in item.get("servers", []))
+        if not servers:
+            continue
+        providers.append(
+            DnsProvider(
+                id=str(item.get("id", "")),
+                name=str(item.get("name", "")),
+                hostname=str(item.get("hostname", "")),
+                servers=servers,
+                filtering=bool(item.get("filtering", False)),
+                categories=tuple(str(category) for category in item.get("categories", [])),
+                notes=str(item.get("notes", "")),
+            )
+        )
+    return tuple(providers)
+
+
+_DNS_PROVIDERS = _load_dns_providers()
+_DNS_PROVIDER_BY_SERVER = {
+    server: provider for provider in _DNS_PROVIDERS for server in provider.servers
+}
+
+# Local resolver aliases are not provider entries.
+_DNS_LOCAL_LABELS = {
+    "127.0.0.53": "systemd-resolved stub",
+    "127.0.0.1": "local resolver",
+    "::1": "local resolver",
+}
+
+_DNS_LABELS = {
+    **_DNS_LOCAL_LABELS,
+    **{server: provider.name for provider in _DNS_PROVIDERS for server in provider.servers},
+}
+
 # DNS services whose default/family profiles are explicitly designed to filter
 # adult, malware or gambling content. A custom profile can be hosted on any IP;
 # this list is evidence, not proof. Ordinary Quad9 and OpenDNS Home are not
 # included because their malware filtering is not a gambling blocker.
 _DNS_FILTERS = {
-    "208.67.222.123": "OpenDNS FamilyShield",
-    "208.67.220.123": "OpenDNS FamilyShield",
-    "185.228.168.168": "CleanBrowsing Family",
-    "185.228.169.168": "CleanBrowsing Family",
-    "185.228.168.10": "CleanBrowsing Adult",
-    "185.228.169.11": "CleanBrowsing Adult",
-    "1.1.1.3": "Cloudflare for Families (malware)",
-    "1.0.0.3": "Cloudflare for Families (malware)",
-    "1.1.1.2": "Cloudflare for Families (adult content)",
-    "1.0.0.2": "Cloudflare for Families (adult content)",
-    "94.140.14.15": "AdGuard Family",
-    "94.140.15.16": "AdGuard Family",
-}
-
-_DNS_LABELS = {
-    "127.0.0.53": "systemd-resolved stub",
-    "127.0.0.1": "local resolver",
-    "::1": "local resolver",
-    "100.100.100.100": "Tailscale MagicDNS",
-    "1.1.1.1": "Cloudflare",
-    "1.0.0.1": "Cloudflare",
-    "8.8.8.8": "Google",
-    "8.8.4.4": "Google",
-    "9.9.9.9": "Quad9 (malware filtering, not gambling-specific)",
-    "149.112.112.112": "Quad9 (malware filtering, not gambling-specific)",
-    "208.67.222.222": "OpenDNS Home",
-    "208.67.220.220": "OpenDNS Home",
-    "208.67.222.123": "OpenDNS FamilyShield",
-    "208.67.220.123": "OpenDNS FamilyShield",
-    "185.228.168.168": "CleanBrowsing Family",
-    "185.228.169.168": "CleanBrowsing Family",
-    "185.228.168.10": "CleanBrowsing Adult",
-    "185.228.169.11": "CleanBrowsing Adult",
-    "1.1.1.3": "Cloudflare for Families (malware)",
-    "1.0.0.3": "Cloudflare for Families (malware)",
-    "1.1.1.2": "Cloudflare for Families (adult content)",
-    "1.0.0.2": "Cloudflare for Families (adult content)",
-    "94.140.14.15": "AdGuard Family",
-    "94.140.15.16": "AdGuard Family",
+    server: provider.name
+    for provider in _DNS_PROVIDERS
+    if provider.filtering
+    for server in provider.servers
 }
 
 _DNS_LINE = re.compile(
@@ -255,6 +283,73 @@ def dns_filter_evidence(servers: list[str] | None = None) -> list[str]:
         if provider:
             evidence.append(f"{cleaned} ({provider})")
     return list(dict.fromkeys(evidence))
+
+
+def dns_provider_profile(servers: list[str] | None = None) -> list[DnsProvider]:
+    """Return known provider profiles for the configured resolvers.
+
+    Only locally bundled knowledge is used. A custom profile hosted on a known
+    IP is still reported as that provider's default profile, so callers must
+    present the result as a hint, not as proof of the live policy.
+    """
+    values = servers if servers is not None else system_dns_servers()
+    profiles: list[DnsProvider] = []
+    seen: set[str] = set()
+    for server in values:
+        provider = _DNS_PROVIDER_BY_SERVER.get(_clean_server(server))
+        if provider is not None and provider.id not in seen:
+            profiles.append(provider)
+            seen.add(provider.id)
+    return profiles
+
+
+def dns_provider_for_hostname(hostname: str | None) -> DnsProvider | None:
+    """Match an exact Private DNS hostname against the local provider catalog."""
+    normalized = (hostname or "").strip().rstrip(".").casefold()
+    if not normalized:
+        return None
+    return next(
+        (
+            provider
+            for provider in _DNS_PROVIDERS
+            if provider.hostname.casefold() == normalized
+        ),
+        None,
+    )
+
+
+def dns_filter_categories(servers: list[str] | None = None) -> list[str]:
+    """Return documented categories for every known resolver profile.
+
+    This includes providers such as Quad9 whose malware filtering is real but
+    is not counted by :func:`dns_filter_evidence` as a family/content filter.
+    """
+    return list(
+        dict.fromkeys(
+            category
+            for provider in dns_provider_profile(servers)
+            for category in provider.categories
+        )
+    )
+
+
+def dns_provider_notes(servers: list[str] | None = None) -> list[str]:
+    """Return conservative, local-only policy notes for known resolvers.
+
+    Notes are English-only diagnostic text. The UI should translate the
+    provider name, categories and caveat instead of displaying these verbatim.
+    """
+    notes: list[str] = []
+    for provider in dns_provider_profile(servers):
+        if provider.filtering:
+            categories = ", ".join(provider.categories) or "unspecified"
+            notes.append(
+                f"{provider.name} is a filtering resolver (categories: {categories}). "
+                f"{provider.notes}"
+            )
+        else:
+            notes.append(f"{provider.name}: {provider.notes}")
+    return notes
 
 
 def vpn_interfaces() -> list[str]:

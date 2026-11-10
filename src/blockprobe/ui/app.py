@@ -147,6 +147,7 @@ class BlockProbeUi(
         )
         self._last_results_poll = 0.0
         self.page.on_resize = self._on_resize
+        self.page.on_app_lifecycle_state_change = self._on_app_lifecycle_state_change
 
         self._setup_run()
         self._setup_sources()
@@ -222,7 +223,12 @@ class BlockProbeUi(
         except Exception:
             _LOGGER.exception("could not update page after action feedback")
 
-    def run_async(self, action: Callable[[], actions.ActionResult]) -> None:
+    def run_async(
+        self,
+        action: Callable[[], actions.ActionResult],
+        *,
+        on_result: Callable[[actions.ActionResult], None] | None = None,
+    ) -> None:
         self._action_sequence += 1
         sequence = self._action_sequence
 
@@ -240,20 +246,27 @@ class BlockProbeUi(
             # Flet control mutations must happen on the page event loop. Doing
             # them from this worker raced the scan poller and theme updates.
             try:
-                self.page.run_task(self._finish_async_action, result, sequence)
+                self.page.run_task(
+                    self._finish_async_action, result, sequence, on_result
+                )
             except Exception:
                 _LOGGER.exception("could not schedule the completed action for the UI")
 
         self.page.run_thread(work)
 
     async def _finish_async_action(
-        self, result: actions.ActionResult, sequence: int
+        self,
+        result: actions.ActionResult,
+        sequence: int,
+        on_result: Callable[[actions.ActionResult], None] | None = None,
     ) -> None:
         """Apply a worker result on Flet's page event loop."""
         if result.consent_cleared:
             self._show_consent()
             return
         try:
+            if on_result is not None:
+                on_result(result)
             self.refresh_run_controls()
             self.apply(result, sequence)
         except Exception:
@@ -535,6 +548,30 @@ class BlockProbeUi(
     def _on_mobile_nav(self, _event: Any) -> None:
         index = int(self.mobile_nav.selected_index or 0)
         self._show_screen(7 if index == 4 else index)
+
+    def _manage_websites(self, _event: Any = None) -> None:
+        """Open Sources and take the user directly to their custom websites."""
+        self.custom_input.key = "blockprobe-custom-sites"
+        self._show_screen(1)
+        self.page.run_task(self._scroll_to_custom_sites)
+
+    async def _scroll_to_custom_sites(self) -> None:
+        await asyncio.sleep(0)
+        try:
+            await self.page.scroll_to(
+                scroll_key="blockprobe-custom-sites",
+                duration=350,
+            )
+        except Exception:
+            # The Sources screen is still open if a platform has no scroll API.
+            _LOGGER.debug("could not scroll directly to the custom websites field")
+
+    def _on_app_lifecycle_state_change(self, event: Any) -> None:
+        if getattr(event, "state", None) != ft.AppLifecycleState.RESUME:
+            return
+        if self._profile_refresh_on_resume and self.current_screen == 6:
+            self._profile_refresh_on_resume = False
+            self._refresh_profile()
 
     def _show_screen(self, index: int) -> None:
         self.current_screen = index
@@ -912,8 +949,16 @@ class BlockProbeUi(
                         self._apply_live_theme()
                     summary = actions.latest_run_summary()
                     active_run = actions.runtime().scan.active_run
+                    foreground_changed = await self._sync_android_foreground_scan(
+                        active_run,
+                        summary,
+                    )
                     active = active_run.id if active_run is not None else None
-                    changed = self._render_summary(summary) or layout_changed
+                    changed = (
+                        self._render_summary(summary)
+                        or layout_changed
+                        or foreground_changed
+                    )
                     changed = self.refresh_run_controls(
                         summary,
                         active=active_run is not None,

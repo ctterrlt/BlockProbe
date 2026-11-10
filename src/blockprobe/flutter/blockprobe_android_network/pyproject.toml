@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Packaging for the bundled Flet Android extension.
+#
+# Flet only picks up extensions installed as Python packages: `flet build`
+# pip-installs the app requirements into build/site-packages and copies
+# `<site-packages>/flutter` into the generated Flutter project. This dist
+# installs the Dart/Kotlin package here at `flutter/blockprobe_android_network`.
+# The app references it through `[tool.flet.android.dependencies]` plus
+# `dev_packages` in the root pyproject.toml.
+
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "blockprobe-android-network"
+version = "0.1.0"
+description = "BlockProbe Android active-network DNS and Private DNS reader for Flet."
+readme = "README.md"
+requires-python = ">=3.14"
+license = "AGPL-3.0-or-later"
+authors = [{ name = "Christian", email = "tursi.christian9@gmail.com" }]
+dependencies = []
+classifiers = [
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+]
+
+[project.urls]
+Repository = "https://github.com/ctterrlt/BlockProbe"
+
+[tool.hatch.build.targets.wheel]
+# No Python import package: only the Flutter/Dart/Kotlin plugin payload.
+force-include = { "pubspec.yaml" = "flutter/blockprobe_android_network/pubspec.yaml", "lib" = "flutter/blockprobe_android_network/lib", "android" = "flutter/blockprobe_android_network/android" }

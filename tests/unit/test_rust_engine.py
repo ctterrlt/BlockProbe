@@ -19,6 +19,7 @@ from blockprobe.probe.rust_engine import (
     _library,
     aggregate_indices,
     is_sinkhole_ip,
+    match_pattern_indices,
     system_resolve,
 )
 
@@ -154,12 +155,18 @@ def test_platform_dns_fallback_uses_rust_resolver() -> None:
 
 
 def test_rust_library_reports_the_expected_abi_version() -> None:
-    assert _library().bp_abi_version() == 1
+    assert _library().bp_abi_version() == 2
 
 
 def test_rust_loader_rejects_an_unsupported_abi_version() -> None:
-    with pytest.raises(RuntimeError, match="unsupported ABI version 2"):
-        _check_abi_version(2)
+    with pytest.raises(RuntimeError, match="unsupported ABI version 3"):
+        _check_abi_version(3)
+
+
+def test_rust_regex_set_preserves_all_match_indices_and_python_fallback() -> None:
+    patterns = (r"\bfirst\s+marker\b", r"other.*line", r"never present")
+    assert match_pattern_indices(patterns, "First\nMarker and OTHER\nLINE") == (0, 1)
+    assert match_pattern_indices((r"(?=python-only)",), "python-only") is None
 
 
 def test_dns_work_stays_off_the_asyncio_ui_loop(monkeypatch) -> None:  # type: ignore[no-untyped-def]

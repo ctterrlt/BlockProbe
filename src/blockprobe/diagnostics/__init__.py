@@ -12,7 +12,12 @@ from blockprobe.diagnostics.system_dns import (
     private_dns_hint,
 )
 from blockprobe.diagnostics.vpn_proxy_detect import (
+    DnsProvider,
+    dns_filter_categories,
     dns_filter_evidence,
+    dns_provider_for_hostname,
+    dns_provider_notes,
+    dns_provider_profile,
     hosts_block_entries,
     proxy_environment,
     resolver_details,
@@ -24,11 +29,16 @@ from blockprobe.diagnostics.vpn_proxy_detect import (
 )
 
 __all__ = [
+    "DnsProvider",
     "browser_doh_hint",
     "collect_network_context",
     "compare",
     "control_resolve",
+    "dns_filter_categories",
     "dns_filter_evidence",
+    "dns_provider_for_hostname",
+    "dns_provider_notes",
+    "dns_provider_profile",
     "hosts_block_entries",
     "hosts_entries",
     "ipv6_available",

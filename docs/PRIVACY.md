@@ -57,11 +57,14 @@ directory, overridable with `BLOCKPROBE_DATA_DIR`; config with
 
 The Profile screen reads system configuration (resolvers, resolver labels,
 `/etc/hosts` entries and sinkhole count, proxy environment variables, VPN
-interfaces and provider hints, IPv6 availability). It does not upload it: it is
-shown locally and included in reports you export. Profile refresh is on demand,
-read-only, and makes no DNS lookup or network request. Resolver and VPN names
-are inferred only from local configuration; some Android and desktop VPN or
-Private DNS details can be hidden by the operating system.
+interfaces and provider hints, IPv6 availability). Android also supplies its
+active resolver addresses and Private DNS hostname through the native network
+API. A recognized hostname is matched against the bundled local provider
+catalog to show the provider name, known endpoints and documented filter
+categories; endpoint addresses are catalog hints, not a claim that Android
+validated those exact addresses. The screen does not perform a DNS lookup or
+other network request. This information stays local unless included in a report
+you export. Some operating systems may hide VPN or Private DNS details.
 
 HTTPS connections use the platform trust store and verify certificate hostnames.
 An invalid or intercepted certificate is recorded as a TLS failure; BlockProbe
@@ -163,10 +166,15 @@ BlockProbe needs outbound network access only. It does not request root or
 administrator rights, does not scan ports, and does not install filters or
 modify system DNS. The local web UI binds to `127.0.0.1`; do not expose it to a
 network. Scheduled scans run as user-level jobs (systemd user timer, launchd
-agent, Task Scheduler) and are off by default. Android supports user-started
-scans only; Android background scheduling is not implemented. Android Private
-DNS settings are not reliably readable by the app, so diagnostics cannot
-confirm that setting on every device.
+agent, Task Scheduler) and are off by default. Android scan scheduling is not
+implemented. A user-started Android scan starts a `dataSync` foreground
+service; `POST_NOTIFICATIONS` is requested at runtime on Android 13+, and
+denial does not cancel the scan. Android 15 limits a `dataSync` service to six
+hours in a 24-hour period for apps targeting API 35+, and the OS may stop the
+app process. The service does not promise survival after process death or
+force-stop. `ACCESS_NETWORK_STATE` is granted at installation, so Android has
+no runtime prompt for it. See [Android's foreground-service timeout
+rules](https://developer.android.com/develop/background-work/services/fgs/timeout).
 
 ## Responsible use and harm reduction
 

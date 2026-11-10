@@ -135,6 +135,7 @@ dependencies = [
     { name = "dnspython" },
     { name = "fastapi" },
     { name = "flet" },
+    { name = "flet-notifications" },
     { name = "httpx" },
     { name = "platformdirs" },
     { name = "starlette" },
@@ -171,6 +172,7 @@ requires-dist = [
     { name = "flet", specifier = ">=1.0,<2" },
     { name = "flet", extras = ["all"], marker = "extra == 'desktop'", specifier = ">=1.0,<2" },
     { name = "flet", extras = ["all"], marker = "extra == 'packaging'", specifier = ">=1.0,<2" },
+    { name = "flet-notifications", specifier = "==0.1.4" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "hypothesis", marker = "extra == 'dev'", specifier = ">=6.100" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.10" },
@@ -568,6 +570,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/27/44/6fded56b18fcb4a7e7e2dccfc04f49824d19ac783dba8a2f442814790f97/flet_desktop-1.0.5.tar.gz", hash = "sha256:b5fa9b14be3a832df5dd0385d2df1a7bd679b831d443c7be8b682f1758a7c6aa", size = 13190, upload-time = "2026-10-21T20:43:28.742Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/8d/67/baded04ee9fcb43bc35de366e08a4b6032e495186f211d54a98c347a50c2/flet_desktop-1.0.5-py3-none-any.whl", hash = "sha256:e2cab601314f66e57b5c6302b979e557e9b3f559a18b8e2702ed7d1833a38d6a", size = 13520, upload-time = "2026-10-21T20:43:27.699Z" },
+]
+
+[[package]]
+name = "flet-notifications"
+version = "0.1.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "flet" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/87/35ed7831e9598ca1bf1eeae59cd601db1231d58cf7ce47bdc4a59a5b9c38/flet_notifications-0.1.4.tar.gz", hash = "sha256:627b7920e0ab16da2de4f8846051810175638e493db57caa31ff5add1372e0a1", size = 52343, upload-time = "2026-10-11T18:44:40.36Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f0/d7/f65c0a1abf0c413a0d99339ee099540ee8272ca17a0fb65ee887c1a3b128/flet_notifications-0.1.4-py3-none-any.whl", hash = "sha256:2166ccbfdb05859eebbc3f2c988cae5cf552fd120e877b7ce28e5877aeebae22", size = 43920, upload-time = "2026-10-11T18:44:39.144Z" },
 ]
 
 [[package]]

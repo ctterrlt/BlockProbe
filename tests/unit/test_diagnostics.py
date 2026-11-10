@@ -29,6 +29,14 @@ def test_filtering_dns_is_separated_from_ordinary_resolvers() -> None:
     assert vpn.resolver_provider("100.100.100.100") == "Tailscale MagicDNS"
 
 
+def test_private_dns_hostname_uses_exact_local_provider_catalog_match() -> None:
+    provider = vpn.dns_provider_for_hostname("DNS.ADGuard-DNS.COM.")
+    assert provider is not None
+    assert provider.name == "AdGuard DNS"
+    assert "94.140.14.14" in provider.servers
+    assert vpn.dns_provider_for_hostname("custom.example") is None
+
+
 def test_vpn_provider_names_are_hints_not_verdicts() -> None:
     names = vpn.vpn_provider_names(["tailscale0", "nordlynx", "tun0"])
     assert any("Tailscale" in name for name in names)
@@ -117,3 +125,130 @@ async def test_control_resolver_uses_the_shared_chrome_user_agent() -> None:
         "example.com", "https://resolver.example/dns-query"
     )
     assert route.calls[0].request.headers["user-agent"] == CHROME_USER_AGENT
+
+
+def test_known_dns_providers_expose_conservative_filter_hints() -> None:
+    profiles = vpn.dns_provider_profile(
+        ["94.140.14.15", "1.1.1.1", "9.9.9.9", "192.0.2.53"]
+    )
+    assert [profile.name for profile in profiles] == [
+        "AdGuard DNS Family",
+        "Cloudflare",
+        "Quad9 (malware and phishing filtering)",
+    ]
+    assert vpn.dns_filter_categories(["94.140.14.15"]) == [
+        "ads",
+        "trackers",
+        "phishing",
+        "adult",
+    ]
+
+    notes = vpn.dns_provider_notes(["94.140.14.15"])
+    assert len(notes) == 1
+    assert "AdGuard DNS Family is a filtering resolver" in notes[0]
+    assert "ad and tracker filtering" in notes[0]
+    assert vpn.dns_provider_notes(["192.0.2.53"]) == []
+
+
+def test_known_dns_provider_labels_cover_ipv6_and_keep_evidence_format() -> None:
+    assert (
+        vpn.resolver_provider("2606:4700:4700::1112")
+        == "Cloudflare for Families (malware)"
+    )
+    assert (
+        vpn.resolver_provider("2606:4700:4700::1113")
+        == "Cloudflare for Families (malware and adult content)"
+    )
+    assert vpn.dns_filter_evidence(["1.1.1.2"]) == [
+        "1.1.1.2 (Cloudflare for Families (malware))"
+    ]
+    assert vpn.dns_filter_evidence(["9.9.9.9"]) == []
+
+
+def test_known_dns_provider_categories_cover_quad9_and_ipv6_endpoints() -> None:
+    assert vpn.dns_filter_categories(["9.9.9.9"]) == ["malware", "phishing"]
+    assert vpn.dns_filter_evidence(["9.9.9.9"]) == []
+
+    assert vpn.resolver_provider("2a0d:2a00:1::") == "CleanBrowsing Family"
+    family = vpn.dns_provider_profile(["185.228.168.168"])[0]
+    assert family.categories == ("adult", "malware", "phishing")
+    assert vpn.dns_filter_categories(["185.228.168.168"]) == [
+        "adult",
+        "malware",
+        "phishing",
+    ]
+    assert vpn.resolver_provider("2a10:50c0::bad1:ff") == "AdGuard DNS Family"
+    assert vpn.dns_filter_evidence(["2a0d:2a00:1::"]) == [
+        "2a0d:2a00:1:: (CleanBrowsing Family)"
+    ]
+    assert vpn.dns_filter_evidence(["2a10:50c0::bad1:ff"]) == [
+        "2a10:50c0::bad1:ff (AdGuard DNS Family)"
+    ]
+
+
+def test_known_dns_providers_expose_documented_hostnames() -> None:
+    adguard = vpn.dns_provider_profile(["94.140.14.14"])[0]
+    assert adguard.hostname == "dns.adguard-dns.com"
+    assert adguard.name == "AdGuard DNS"
+    assert adguard.matches("94.140.14.14")
+    assert adguard.matches("2a10:50c0::ad1:ff")
+    assert not adguard.matches("192.0.2.53")
+
+    family = vpn.dns_provider_profile(["94.140.14.15"])[0]
+    assert family.hostname == "family.adguard-dns.com"
+    assert family.categories == ("ads", "trackers", "phishing", "adult")
+
+    cloudflare = vpn.dns_provider_profile(["1.1.1.2"])[0]
+    assert cloudflare.hostname == "security.cloudflare-dns.com"
+    assert cloudflare.categories == ("malware", "phishing")
+
+    quad9 = {
+        profile.id: profile
+        for profile in vpn.dns_provider_profile(
+            ["9.9.9.9", "9.9.9.10", "9.9.9.11"]
+        )
+    }
+    assert quad9["quad9"].hostname == "dns.quad9.net"
+    assert quad9["quad9-unfiltered"].hostname == "dns10.quad9.net"
+    assert quad9["quad9-unfiltered"].categories == ()
+    assert quad9["quad9-ecs"].hostname == "dns11.quad9.net"
+
+    tailscale = vpn.dns_provider_profile(["100.100.100.100"])[0]
+    assert tailscale.hostname == ""
+
+
+def test_android_network_snapshot_enriches_scan_dns_context() -> None:
+    context = NetworkContext(resolvers=["10.0.2.3"])
+
+    merged = system_dns.merge_android_network_context(
+        context,
+        ("94.140.14.14", "not-an-ip", "94.140.14.14"),
+        private_dns_hostname="dns.adguard-dns.com",
+        private_dns_active=True,
+    )
+
+    assert merged is context
+    assert context.resolvers == ["94.140.14.14", "10.0.2.3"]
+    assert context.resolver_labels[0] == (
+        "dns.adguard-dns.com — AdGuard DNS — 94.140.14.14"
+    )
+    assert context.dns_filters == ["94.140.14.14 (AdGuard DNS)"]
+    assert context.private_dns == "dns.adguard-dns.com"
+
+
+def test_private_dns_hostname_adds_local_endpoint_and_filter_hints() -> None:
+    context = NetworkContext(resolvers=["10.0.2.3"])
+
+    system_dns.merge_android_network_context(
+        context,
+        (),
+        private_dns_hostname="dns.adguard-dns.com",
+        private_dns_active=True,
+    )
+
+    assert context.resolvers == ["10.0.2.3"]
+    assert any(
+        label.startswith("dns.adguard-dns.com — AdGuard DNS — 94.140.14.14")
+        for label in context.resolver_labels
+    )
+    assert context.dns_filters == ["dns.adguard-dns.com (AdGuard DNS)"]

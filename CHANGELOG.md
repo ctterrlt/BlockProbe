@@ -7,7 +7,42 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] — 2026-11-10
+
+### Added
+
+- Read Android's active DNS and Private DNS hostname through the native network
+  extension. Match recognized hostnames against the bundled DNS catalog and
+  show provider names, known endpoint IPs and documented filtering categories
+  as local hints; no DNS-provider blocklists are downloaded.
+- Start an Android `dataSync` foreground service for user-started scans, with a
+  visible progress notification when allowed. Denying notification permission
+  does not cancel the scan; scheduled Android scans and process-death survival
+  are not promised.
+
+### Changed
+
+- Cache Linux build dependencies in Release CI and install only packages
+  missing from the restored APT cache. The prior hosted build spent 20m03s
+  downloading build packages and 3m35s in the native build; the cache path has
+  not yet been exercised on GitHub Actions.
+- Move fixed built-in response-marker matching into the Rust engine after
+  measuring it; custom signature patterns and their invalid-regex fallback
+  remain in Python. DNS and HTTP response latency remain outside that Rust
+  change. The native C ABI version is now 2, and Python rejects any other
+  version.
+
+### Fixed
+
+- Give schedule update/removal and website-management actions visible feedback
+  and navigation, keep action messages in the selected language, and preserve
+  the active theme when rebuilding or filtering results.
+- Keep scan startup off the UI event loop so the app can switch sections while
+  the scan worker starts.
+- Explain Android's install-time network-state permission in Profile rather
+  than showing a runtime permission request the platform does not provide.
+
+## [1.4.0-beta] — 2026-11-10
 
 ### Fixed
 

@@ -18,6 +18,28 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist" / "packages"
+FLET_BUILD_DIR = ROOT / "build" / "flutter"
+ANDROID_FOREGROUND_SERVICE_TYPE = "dataSync"
+"""Android foreground-service type used by the scan notification; keep in sync
+with ``blockprobe.android_foreground.FOREGROUND_SERVICE_TYPES``."""
+ANDROID_MANIFEST = Path("android/app/src/main/AndroidManifest.xml")
+ANDROID_APP_GRADLE = Path("android/app/build.gradle.kts")
+ANDROID_REQUIRED_MANIFEST_TOKENS = (
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+    "com.dexterous.flutterlocalnotifications.ForegroundService",
+    'android:foregroundServiceType="dataSync"',
+)
+ANDROID_EXTENSION_NAME = "blockprobe_android_network"
+ANDROID_PACKAGED_MANIFEST_TOKENS = (
+    "android.permission.ACCESS_NETWORK_STATE",
+    "android.permission.POST_NOTIFICATIONS",
+    "android.permission.FOREGROUND_SERVICE",
+    "android.permission.FOREGROUND_SERVICE_DATA_SYNC",
+    "com.dexterous.flutterlocalnotifications.ForegroundService",
+)
 TARGETS = (
     "python",
     "windows",
@@ -135,6 +157,139 @@ def build_python() -> list[Path]:
     return sorted(output.iterdir())
 
 
+def patch_android_project(flutter_dir: Path) -> list[str]:
+    """Patch the generated Android project for notifications and the scan service.
+
+    ``flet build`` writes the manifest and Gradle files from its template, and
+    ``flet-notifications`` needs entries that the Flet project options cannot
+    express (the ``ForegroundService`` declaration and core-library desugaring).
+    The patch is idempotent, so a rebuild that keeps the generated project only
+    applies it once. Re-running the same Flet command afterwards is what makes
+    Gradle assemble with the patched manifest.
+    """
+    manifest = flutter_dir / ANDROID_MANIFEST
+    if not manifest.is_file():
+        raise SystemExit(
+            f"Cannot patch Android packaging: generated manifest missing at {manifest}."
+        )
+    try:
+        from flet_notifications.patcher import (
+            patch_foreground_service,
+            patch_gradle,
+            patch_manifest,
+        )
+    except ImportError as exc:  # pragma: no cover - environment failure
+        raise SystemExit(
+            "flet-notifications is required to package the scan foreground "
+            f"service: {exc}. Install the project dependencies first."
+        ) from exc
+
+    changes = patch_manifest(manifest)
+    gradle = flutter_dir / ANDROID_APP_GRADLE
+    if gradle.is_file():
+        changes += patch_gradle(gradle)
+    changes += patch_foreground_service(manifest, ANDROID_FOREGROUND_SERVICE_TYPE)
+    return changes
+
+
+def verify_android_project(flutter_dir: Path) -> list[str]:
+    """Fail the build when the Android plugin wiring is not in the project.
+
+    A missing extension or foreground service would otherwise ship silently:
+    the app imports fine, but the scan loses background priority and the
+    profile cannot read the active DNS state.
+    """
+    manifest = flutter_dir / ANDROID_MANIFEST
+    manifest_text = manifest.read_text(encoding="utf-8") if manifest.is_file() else ""
+    missing = [token for token in ANDROID_REQUIRED_MANIFEST_TOKENS if token not in manifest_text]
+    if missing:
+        raise SystemExit(
+            "Android manifest is missing required entries: "
+            + ", ".join(missing)
+            + f". Inspect {manifest}."
+        )
+
+    generated = flutter_dir / "lib" / "flet_generated.dart"
+    generated_text = generated.read_text(encoding="utf-8") if generated.is_file() else ""
+    if ANDROID_EXTENSION_NAME not in generated_text:
+        raise SystemExit(
+            f"{ANDROID_EXTENSION_NAME} is not registered in {generated}. "
+            "The bundled Flutter extension was not discovered from the installed package."
+        )
+
+    pubspec = flutter_dir / "pubspec.yaml"
+    pubspec_text = pubspec.read_text(encoding="utf-8") if pubspec.is_file() else ""
+    if ANDROID_EXTENSION_NAME not in pubspec_text:
+        raise SystemExit(
+            f"{ANDROID_EXTENSION_NAME} is missing from {pubspec}; Flet did not add the "
+            "local Flutter extension dependency."
+        )
+
+    return [
+        "manifest: POST_NOTIFICATIONS + FOREGROUND_SERVICE_DATA_SYNC + ForegroundService(dataSync)",
+        f"flet_generated.dart: {ANDROID_EXTENSION_NAME} extension registered",
+        f"pubspec.yaml: {ANDROID_EXTENSION_NAME} path dependency present",
+    ]
+
+
+def _aapt2() -> Path | None:
+    """Locate ``aapt2`` from the Android SDK without requiring it."""
+    sdk_roots = [
+        os.environ.get("ANDROID_HOME"),
+        os.environ.get("ANDROID_SDK_ROOT"),
+        str(Path.home() / "Android" / "sdk"),
+        str(Path.home() / "Android" / "Sdk"),
+    ]
+    for root in sdk_roots:
+        if not root:
+            continue
+        build_tools = Path(root) / "build-tools"
+        if not build_tools.is_dir():
+            continue
+        versions = sorted(
+            (item for item in build_tools.iterdir() if (item / "aapt2").is_file()),
+            key=lambda item: item.name,
+            reverse=True,
+        )
+        if versions:
+            return versions[0] / "aapt2"
+    return None
+
+
+def verify_android_artifacts(artifacts: list[Path]) -> list[str]:
+    """Check the built APK/AAB manifest when the Android SDK is available."""
+    aapt2 = _aapt2()
+    if aapt2 is None:
+        print(
+            "Skipping packaged Android manifest inspection: aapt2 not found. "
+            "Verified the generated project only."
+        )
+        return []
+    verified: list[str] = []
+    for artifact in artifacts:
+        if artifact.suffix not in {".apk", ".aab"}:
+            continue
+        result = subprocess.run(
+            [str(aapt2), "dump", "xmltree", str(artifact), "--file", "AndroidManifest.xml"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise SystemExit(
+                f"aapt2 could not read {artifact.name}: {result.stderr.strip()}"
+            )
+        missing = [
+            token for token in ANDROID_PACKAGED_MANIFEST_TOKENS if token not in result.stdout
+        ]
+        if missing:
+            raise SystemExit(
+                f"{artifact.name} manifest is missing: {', '.join(missing)}."
+            )
+        verified.append(f"{artifact.name}: packaged manifest declares the dataSync scan service")
+    return verified
+
+
 def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path]:
     host = platform.system().lower()
     required_host = {"windows": "windows", "macos": "darwin", "linux": "linux"}
@@ -173,7 +328,36 @@ def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path
         ]
     if verbose:
         command.append("-v")
-    run(command)
+    if target in {"apk", "aab"}:
+        try:
+            run(command)
+        except subprocess.CalledProcessError:
+            # Flet creates the native project before its first Gradle assemble.
+            # flet-notifications needs desugaring and the foreground-service
+            # manifest entry before that assemble can succeed, so patch the
+            # generated project after a failed first pass and retry once.
+            if not (FLET_BUILD_DIR / ANDROID_MANIFEST).is_file():
+                raise
+            changes = patch_android_project(FLET_BUILD_DIR)
+            if not changes:
+                raise
+            print("Patched generated Android project after initial assemble failure:", flush=True)
+            for change in changes:
+                print(f"  + {change}", flush=True)
+            run(command)
+        else:
+            changes = patch_android_project(FLET_BUILD_DIR)
+            if changes:
+                print("Patched generated Android project:", flush=True)
+                for change in changes:
+                    print(f"  + {change}", flush=True)
+                # Flet reuses the generated project while its inputs are unchanged,
+                # so this pass keeps the patched manifest and reassembles the app.
+                run(command)
+        for line in verify_android_project(FLET_BUILD_DIR):
+            print(f"Verified Android wiring: {line}", flush=True)
+    else:
+        run(command)
     if not output.exists():
         raise SystemExit(f"Flet reported success but did not create {output}")
 
@@ -184,6 +368,8 @@ def build_flet(target: str, installer: bool, verbose: bool = False) -> list[Path
             dest = artifact_dir / built.name
             shutil.copy2(built, dest)
             artifacts.append(dest)
+        for line in verify_android_artifacts(artifacts):
+            print(f"Verified Android artifact: {line}", flush=True)
     elif target == "windows":
         archive = artifact_dir / "BlockProbe-windows-portable.zip"
         with zipfile.ZipFile(archive, "w", zipfile.ZIP_DEFLATED) as bundle:

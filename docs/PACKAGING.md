@@ -66,7 +66,7 @@ Both include the bundled BetBlocker fallback signatures.
 
 ## Build artifacts
 
-The current development version is `1.4.0-beta`. Mobile startup colors follow the
+The current version is `1.4.0`. Mobile startup colors follow the
 system appearance, and the splash screen uses the BlockProbe app icon. Android
 and iOS use a three-site scan concurrency default; other platforms use eight.
 Users can change scan concurrency in Settings, and the value is saved with the
@@ -214,6 +214,11 @@ itself. Linux build dependencies are installed on Debian/Ubuntu with
 `python scripts/install-linux-build-deps.py`; other distributions need the
 equivalent GTK, GStreamer, clang/LLVM, linker and Ninja development packages.
 The build helper discovers the build-tool package list from the installed Flet version.
+Release CI resolves that list first, restores the packages from an APT cache and
+only runs a full install when a package is still missing; this avoids repeating
+the multi-minute dependency download on every Linux build. The cache path is
+configured but has not yet been exercised on GitHub Actions, so the timing
+improvement is not measured there.
 The current Linux bundle was launched under Xvfb on the build host and remained
 running until the smoke-test timeout. Run the app normally on a graphical Linux
 desktop to use it; the smoke test did not exercise the full UI or network scan.
@@ -229,6 +234,15 @@ Production distribution requires the protected release key and Release
 workflow validation.
 For local UI verification, install only on the configured AVD and pin ADB
 commands to `emulator-5554`. A debug APK is a smoke-test artifact, not a release.
+
+The APK's manifest requests `ACCESS_NETWORK_STATE` for read-only active-network
+and DNS details; Android grants it at installation and shows no runtime prompt.
+User-started scans run in a `dataSync` foreground service, and Android 13+
+requests `POST_NOTIFICATIONS` at runtime. Denying notification permission does
+not cancel the scan. Android scan scheduling is not implemented, and the
+foreground service does not promise survival after process death or force-stop.
+Inspect the built APK's manifest for these entries before treating a build as
+verified.
 
 ## Optional container
 

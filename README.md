@@ -21,15 +21,16 @@ DNS/VPN blocker and has not been shown to make full scans faster.
 
 ## Status
 
-The current development build is **1.4.0-beta**. All previous GitHub release
-downloads were withdrawn. This beta includes the current regulator sources.
+The current source version is **1.4.0**, pending final emulator and package
+checks. All previous GitHub release downloads were withdrawn. This release
+includes the current regulator sources.
 
 The app version is maintained in the root [`VERSION`](VERSION) file and drives
 package metadata and native installer builds. Its packaged copy at
 [`src/blockprobe/VERSION`](src/blockprobe/VERSION) drives runtime display.
-Python package metadata uses its PEP 440 equivalent (`1.4.0b0`). An installed
+Python package metadata uses its PEP 440 equivalent (`1.4.0`). An installed
 APK can report an older version and does not change the repository version.
-The current Android version code is `100400020`; it is for
+The current Android version code is `100400099`; it is for
 emulator verification and is not a signed release.
 
 A previously distributed Android build was found to show a blank gray screen
@@ -86,11 +87,11 @@ silently doing nothing.
 - **Neutral controls and interference signal.** Requests Google, Wikipedia and Cloudflare before and between probes, reports the first control failure and the domains to recheck, and reports a transparent heuristic VPN/DNS interference signal. A locally detected content-filtering resolver is shown as context, but it does not by itself raise that signal.
 - **Privacy and legal scope.** Every report states that BlockProbe asks for no age verification, sets or stores no cookies, uploads nothing, accepts no website terms, saves no image or website files, and claims no GDPR/US privacy-law compliance. Response bodies are capped and only HTML is inspected.
 - **Local storage.** SQLite only, in one local database file. Probe verdicts are never cached; cached portal lists and views are invalidated through a database generation counter. Dynamic BetBlocker patterns live in an append-only table.
-- **Profile and diagnostics.** The Profile screen shows best-effort local DNS, VPN, proxy, hosts-file, IPv6, Android Private DNS and browser Secure DNS hints. After consent, a scan also asks Cloudflare DNS over HTTPS for a hostname only if the device resolver fails; Cloudflare receives that hostname, and this fallback can be disabled in Settings. Accepting consent itself sends no DNS request.
+- **Profile and diagnostics.** The Profile screen shows best-effort local DNS, VPN, proxy, hosts-file, IPv6, Android Private DNS and browser Secure DNS hints. On Android it reads the active resolver and Private DNS hostname using the install-time `ACCESS_NETWORK_STATE` permission; there is no runtime popup for that permission. Recognized provider hostnames are matched against a bundled local catalog, which can show the provider name, known IP endpoints and documented categories. These are hints, not a live blocklist or proof of which sites are blocked. After consent, a scan also asks Cloudflare DNS over HTTPS for a hostname only if the device resolver fails; Cloudflare receives that hostname, and this fallback can be disabled in Settings. Accepting consent itself sends no DNS request.
 - **Cross-platform interfaces.** A Flet desktop and mobile UI, a Typer-based CLI, and a local web UI bound to `127.0.0.1`.
 - **Five languages, adaptive appearance.** The interface ships in English (default), Italian, French, Spanish and Portuguese. Choose a language on the first-run consent screen or later in Settings. Appearance follows the operating system by default, with saved Light and Dark overrides. Layouts adapt to narrow windows and phone widths, with scrolling content and compact navigation labels. Translated consent wording is a draft for human legal review; the English text prevails and is not legal advice.
 - **Explicit export destinations.** Report and log exports open the platform save dialog so you can choose a path. If that dialog fails, BlockProbe keeps a uniquely named copy in the local reports folder and shows its path; cancelling the dialog does not create a second copy.
-- **Scheduled scans.** Off by default; enabling one from Settings writes and activates a user-level job (systemd user timer, launchd agent or Task Scheduler XML). Cron platforms show a command for manual setup. Android background scheduling is unavailable; Android scans must be started in the app.
+- **Scheduled scans.** Off by default; enabling one from Settings writes and activates a user-level job (systemd user timer, launchd agent or Task Scheduler XML). Cron platforms show a command for manual setup. Android does not schedule scans. A scan started in the foreground requests notification permission and uses a `dataSync` foreground service so it can continue while the app is backgrounded in the common case. Android may stop the process, and API 35+ limits `dataSync` service time; force-stop and process-death survival are not promised.
 - **Privacy by design.** No accounts, telemetry, analytics, or crash reporting. Network traffic is limited to selected portals, probe targets, neutral controls, the BetBlocker block page, an optional curl check after block evidence, and the disclosed Cloudflare DNS fallback when device DNS fails.
 
 ## Requirements
@@ -98,7 +99,7 @@ silently doing nothing.
 - Python 3.14 or newer for source installs (CLI, library, and local web UI).
 - Windows 10 or newer, macOS, Linux (x86_64/arm64), or FreeBSD through the CLI and local web UI. The locally built Linux desktop bundle targets x86_64; build on arm64 for a native arm64 bundle.
 - Android APK/AAB builds are configured through Flet; iOS is limited to simulator builds until signing and device packaging are completed.
-- Android supports manual scans; background scheduled scans are not implemented on Android yet.
+- Android supports user-started scans with a foreground service; background scheduled scans are not implemented on Android.
 - Outbound network access. No root or administrator privileges are required.
 - No external services: SQLite and the embedded TTL cache run in-process; there is nothing to install or configure.
 
@@ -126,7 +127,7 @@ limitations in [docs/PACKAGING.md](docs/PACKAGING.md).
 
 - **From this repository (supported).** A Python 3.14+ environment with the `desktop` extra installs the declared dependencies and runs the full app and CLI.
 - **Python package.** A wheel provides the CLI, library and local web UI for the build host's OS/CPU. Building from the sdist requires Rust/Cargo. FreeBSD builds are possible from source but are not currently covered by CI.
-- **Packaged applications (M6 in progress).** Linux, Windows, macOS, Android, web and iOS simulator build paths are documented. Current Android UI verification uses the configured emulator; it does not use a physical phone. Production signing, Linux arm64, AppImage/Flatpak, iOS device packaging and store submission remain open. Android scans are user-started; background scheduling is not implemented. See [docs/PACKAGING.md](docs/PACKAGING.md).
+- **Packaged applications (M6 in progress).** Linux, Windows, macOS, Android, web and iOS simulator build paths are documented. Current Android UI verification uses the configured emulator; it does not use a physical phone. Production signing, Linux arm64, AppImage/Flatpak, iOS device packaging and store submission remain open. Android scans are user-started; the `dataSync` service is subject to OS limits and does not promise survival after process death or force-stop. See [docs/PACKAGING.md](docs/PACKAGING.md).
 - **Container image (optional).** `packaging/Dockerfile` builds a headless web UI image. Docker is not a prerequisite for normal installation; the container's network route may differ from the device's VPN/DNS route.
 
 The application identity is `BlockProbe`, with the package and CLI name

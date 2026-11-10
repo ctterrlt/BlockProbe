@@ -33,6 +33,7 @@ from blockprobe.core.models import (
 )
 from blockprobe.portals.generic_extractor import strip_tags
 from blockprobe.probe.interception import first_known_blocker
+from blockprobe.probe.rust_engine import match_pattern_indices
 
 _LOGGER = logging.getLogger("blockprobe.probe.classifier")
 
@@ -229,6 +230,22 @@ def _match_patterns(patterns: list[str], text: str) -> str | None:
     return None
 
 
+def _matched_builtin_patterns(patterns: tuple[str, ...], text: str) -> list[str]:
+    """Match fixed response markers in Rust, preserving Python pattern order."""
+    if not patterns or not text:
+        return []
+    indices = match_pattern_indices(patterns, text)
+    if indices is not None:
+        return [patterns[index] for index in indices]
+    return [pattern for pattern in patterns if re.search(pattern, text, re.IGNORECASE | re.DOTALL)]
+
+
+def _first_builtin_pattern(patterns: tuple[str, ...], text: str) -> str | None:
+    """Return the first fixed marker match in its established priority order."""
+    matches = _matched_builtin_patterns(patterns, text)
+    return matches[0] if matches else None
+
+
 def _header_text(fetch: HttpFetchResult) -> str:
     return "\n".join(f"{key}: {value}" for key, value in fetch.headers.items())
 
@@ -316,7 +333,7 @@ def _embedded_block_evidence(
             evidence=evidence,
         )
     visible = strip_tags(embedded.body)
-    marker = _match_patterns(list(BLOCKER_PAGE_MARKERS), f"{embedded.title}\n{visible}")
+    marker = _first_builtin_pattern(BLOCKER_PAGE_MARKERS, f"{embedded.title}\n{visible}")
     if marker:
         evidence["embedded_blocker_marker"] = marker
         return Classification(
@@ -607,7 +624,7 @@ def classify(
     searchable = f"{title}\n{visible}"
 
     # 5. Generic content markers when no rule matched.
-    challenge = _match_patterns(list(CHALLENGE_MARKERS), searchable)
+    challenge = _first_builtin_pattern(CHALLENGE_MARKERS, searchable)
     if challenge and status is not None and 200 <= status < 300:
         evidence["challenge_marker"] = challenge
         return Classification(
@@ -618,7 +635,7 @@ def classify(
             title=title,
             evidence=evidence,
         )
-    gambling_block = _match_patterns(list(GAMBLING_BLOCK_MARKERS), searchable)
+    gambling_block = _first_builtin_pattern(GAMBLING_BLOCK_MARKERS, searchable)
     if gambling_block:
         evidence["gambling_block_marker"] = gambling_block
         return Classification(
@@ -630,18 +647,14 @@ def classify(
             title=title,
             evidence=evidence,
         )
-    matched_markers = [
-        marker
-        for marker in POSITIVE_MARKERS
-        if re.search(marker, searchable, re.IGNORECASE | re.DOTALL)
-    ]
+    matched_markers = _matched_builtin_patterns(POSITIVE_MARKERS, searchable)
     marker_score = len(matched_markers)
     evidence["positive_markers"] = matched_markers
     # A generic denial page is useful evidence only when the page does not also
     # contain normal gambling content. It is reported as needs-review because
     # the wording is not a verified brand fingerprint.
     if marker_score == 0:
-        blocker_marker = _match_patterns(list(BLOCKER_PAGE_MARKERS), searchable)
+        blocker_marker = _first_builtin_pattern(BLOCKER_PAGE_MARKERS, searchable)
         if blocker_marker:
             evidence["blocker_marker"] = blocker_marker
             return Classification(
@@ -681,7 +694,7 @@ def classify(
                 title=title,
                 evidence=evidence,
             )
-        dead = _match_patterns(list(DEAD_MARKERS), searchable)
+        dead = _first_builtin_pattern(DEAD_MARKERS, searchable)
         if dead:
             evidence["dead_marker"] = dead
             return Classification(

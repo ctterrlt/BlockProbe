@@ -14,7 +14,7 @@ Root `VERSION` is the canonical version source for package metadata, Flet
 build version/build code, Windows installer and Arch package artifact.
 `src/blockprobe/VERSION` is the synchronized runtime/package copy.
 Hatchling converts SemVer-style prerelease labels to PEP 440 package metadata
-(`1.4.0-beta` becomes `1.4.0b0`).
+(for example `1.4.0-beta` becomes `1.4.0b0`; stable `1.4.0` stays `1.4.0`).
 Android build codes reserve ordered slots for alpha, beta, gamma, release
 candidates and stable versions, so a later prerelease can update an earlier
 one without changing the package identity or signing key.
@@ -24,7 +24,7 @@ manifest against this source version and the build-code mapping. A previous
 APK left installed on an emulator may report an older version; it does not
 change the repository's canonical version.
 
-The current source version is `1.4.0-beta`; its Android code is `100400020`.
+The current source version is `1.4.0`; its Android code is `100400099`.
 The UI fix was checked before the beta version bump on the Android 35 Pixel 7
 emulator at 411x914dp,
 360x800dp and 600x800dp. First-run consent, the post-consent screen, navigation
@@ -67,7 +67,10 @@ The Release workflow builds and smoke-tests separate Windows, macOS and Linux
 Python wheels, uploads one sdist, and builds Windows, macOS, Linux, APK, AAB,
 web and iOS simulator targets. The Linux wheel was built and its installed
 Rust library was loaded locally; Windows/macOS wheel checks are configured in
-CI and remain unverified until that workflow runs.
+CI and remain unverified until that workflow runs. Release CI restores Flet's
+Linux build packages from an APT cache before the Linux build and falls back to
+a full install only when a package is missing. That cache path is configured
+but has not yet been exercised on GitHub Actions.
 AppImage/Flatpak, Linux arm64,
 physical-device iOS IPA, store submission and production signing remain
 unimplemented. Android background scheduling is not implemented. See

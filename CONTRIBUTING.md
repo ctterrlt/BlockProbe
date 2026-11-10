@@ -26,6 +26,12 @@ verdict is worse than a "needs review".
 - Android UI verification must use the configured AVD and an explicit
   `emulator-5554` ADB selector. Never use a physical-device serial for project
   verification.
+- Android's `ACCESS_NETWORK_STATE` permission is granted at installation and
+  has no runtime prompt. User-started scans use a `dataSync` foreground
+  service; Android 13+ requests `POST_NOTIFICATIONS`, and denial must not
+  cancel the scan. Android scan scheduling is not implemented, and process
+  death or force-stop survival must not be claimed. Keep emulator checks and
+  documentation aligned with these limits.
 - A `curl` cross-check runs only after HTTPX reports block evidence. A
   successful curl response must keep the result marked for review and show
   “Warning: curl opened the website successfully.” Unreachable results do not

@@ -299,6 +299,14 @@ class ResultsScreen:
         self.results_table.rows = (
             [self._desktop_result_row(row) for row in rows] if not compact else []
         )
+        # Filtering creates fresh mobile cards with light defaults. Apply the
+        # saved palette before Flet paints them so dark and light stay stable.
+        apply_page_theme(
+            self.page,
+            actions.runtime().settings.config.app.theme_mode,
+            update=False,
+            brightness=getattr(self, "_platform_brightness", None),
+        )
         if signature != self._results_meta_signature:
             self._latest_result_health = (
                 actions.latest_run_health(summary.run_id) if summary is not None else None

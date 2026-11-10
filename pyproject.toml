@@ -46,6 +46,9 @@ dependencies = [
     # version containing the 2026 fixes reported by pip-audit.
     "fastapi>=0.133,<1",
     "flet>=1.0,<2",
+    # Android foreground scan notification. 0.1.x targets Flet 1.0; 1.1.x
+    # requires flet==1.1.2, which would move the whole app off its pinned Flet.
+    "flet-notifications==0.1.4",
     "httpx>=0.27",
     "platformdirs>=4.2",
     "starlette>=1.3.1,<2",
@@ -143,9 +146,22 @@ dark_color = "#111816"
 [tool.flet.android]
 split_per_abi = false
 extract_packages = ["blockprobe"]
+# Flet bundles Flutter extensions only when they are installable packages in the
+# app requirements: `flet build` pip-installs them into build/site-packages and
+# copies `<site-packages>/flutter` into the generated project. The extension is
+# a separate dist under src/blockprobe/flutter so it can ship that layout.
+dependencies = ["blockprobe-android-network"]
+dev_packages = { blockprobe-android-network = "src/blockprobe/flutter/blockprobe_android_network" }
 
 [tool.flet.android.permission]
 "android.permission.INTERNET" = true
+# Read the active network's DNS servers and Private DNS state (install-time).
+"android.permission.ACCESS_NETWORK_STATE" = true
+# Ongoing scan notification (runtime permission on Android 13+).
+"android.permission.POST_NOTIFICATIONS" = true
+# dataSync foreground service that keeps the active scan alive while minimized.
+"android.permission.FOREGROUND_SERVICE" = true
+"android.permission.FOREGROUND_SERVICE_DATA_SYNC" = true
 
 [tool.flet.android.manifest_application]
 allowBackup = false

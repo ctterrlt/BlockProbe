@@ -7,14 +7,9 @@
 - ``amazon-slots.it`` may not be on the ADM licensed list at all: an unlicensed
   or mirror domain must be reported honestly (opened and needs-review when the
   page is unclassified), never silently marked blocked.
-
-The exact verdict for a saved live capture is added only when a real response
-has been recorded and reviewed: those tests are skipped until then.
 """
 
 from __future__ import annotations
-
-import pytest
 
 from blockprobe.core.enums import ReasonCode, Verdict
 from blockprobe.core.models import DnsResult, HttpFetchResult, Portal, ProbeObservation
@@ -53,13 +48,3 @@ def test_an_unclassified_page_is_never_silently_blocked() -> None:
     assert result.verdict is Verdict.OPENED
     assert result.reason_code == ReasonCode.UNCLASSIFIED.value
     assert result.needs_review is True
-
-
-@pytest.mark.skip(reason="no verified capture of bwin.it in the repository yet")
-def test_bwin_it_opens_when_reachable() -> None:
-    """Add the saved page under tests/fixtures/ and assert the real verdict."""
-
-
-@pytest.mark.skip(reason="no verified capture of amazon-slots.it in the repository yet")
-def test_amazon_slots_it_live_verdict() -> None:
-    """Add the saved page under tests/fixtures/ and assert the real verdict."""

@@ -14,7 +14,7 @@ from scripts.smoke_wheel import validate_wheel
 
 
 def _wheel(path: Path, *, platform_tag: str, purelib: bool = False) -> Path:
-    path = path / f"blockprobe-1.4.0b0-py3-none-{platform_tag}.whl"
+    path = path / f"blockprobe-1.4.0-py3-none-{platform_tag}.whl"
     if os.name == "nt":
         native_library = "blockprobe/_native/blockprobe_core.dll"
     elif sys.platform == "darwin":
@@ -23,7 +23,7 @@ def _wheel(path: Path, *, platform_tag: str, purelib: bool = False) -> Path:
         native_library = "blockprobe/_native/libblockprobe_core.so"
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr(
-            "blockprobe-1.4.0b0.dist-info/WHEEL",
+            "blockprobe-1.4.0.dist-info/WHEEL",
             f"Wheel-Version: 1.0\nRoot-Is-Purelib: {str(purelib).lower()}\n",
         )
         archive.writestr(native_library, b"native")
