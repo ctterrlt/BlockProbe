@@ -153,6 +153,28 @@ def build_ios_simulator() -> list[Path]:
     return outputs
 
 
+def stage_pyodide_side_module(build_dir: Path) -> Path:
+    """Stage Cargo's Emscripten side module under Pyodide's ``.so`` name."""
+    candidates = (
+        build_dir / "libblockprobe_core.wasm",
+        build_dir / "libblockprobe_core.so",
+    )
+    source = next((candidate for candidate in candidates if candidate.is_file()), None)
+    destination = (
+        PACKAGE
+        / "_native"
+        / "emscripten"
+        / "pyemscripten-2026.0-wasm32"
+        / "libblockprobe_core.so"
+    )
+    if source is None:
+        expected = " or ".join(str(path) for path in candidates)
+        raise SystemExit(f"Cargo did not produce the Pyodide Rust side module: {expected}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, destination)
+    return destination
+
+
 def build_pyodide() -> Path:
     """Build the Rust C-ABI side module for Flet's Python 3.14 web runtime."""
     target = "wasm32-unknown-emscripten"
@@ -178,19 +200,7 @@ def build_pyodide() -> Path:
         env=env,
         check=True,
     )
-    source = ROOT / "target" / target / "release" / "libblockprobe_core.so"
-    destination = (
-        PACKAGE
-        / "_native"
-        / "emscripten"
-        / "pyemscripten-2026.0-wasm32"
-        / source.name
-    )
-    if not source.is_file():
-        raise SystemExit(f"Cargo did not produce the Pyodide Rust side module: {source}")
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(source, destination)
-    return destination
+    return stage_pyodide_side_module(ROOT / "target" / target / "release")
 
 
 def main() -> int:

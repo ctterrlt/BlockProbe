@@ -60,6 +60,9 @@ cargo fmt --all -- --check
 cargo test --workspace --offline
 ```
 
+The Python suite also parses every tracked `.yaml` and `.yml` file to catch
+configuration syntax errors.
+
 For UI and file-picker changes, include a current-source emulator build in the
 verification record. Confirm the embedded version from the APK manifest; the
 installed app version can lag behind the repository's root `VERSION`.

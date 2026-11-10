@@ -7,6 +7,15 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Stage the Emscripten Rust side module under Pyodide's `.so` loader name even
+  when Cargo emits the WebAssembly artifact with a `.wasm` suffix.
+- Replace the empty bug, portal and signature issue-form YAML files with usable
+  forms, and remove unused empty AppImage and Flatpak manifest placeholders.
+
 ## [1.4.0-alpha] — 2026-11-09
 
 ### Added

@@ -9,6 +9,7 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from scripts import build_rust_engine
 from scripts.smoke_wheel import validate_wheel
 
 
@@ -49,3 +50,25 @@ def test_native_wheel_validator_rejects_pure_python_metadata(tmp_path: Path) -> 
 
     with pytest.raises(SystemExit, match="pure Python"):
         validate_wheel(wheel)
+
+
+def test_pyodide_side_module_wasm_is_staged_with_loader_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    build_dir = tmp_path / "target"
+    build_dir.mkdir()
+    source = build_dir / "libblockprobe_core.wasm"
+    source.write_bytes(b"wasm-side-module")
+    monkeypatch.setattr(build_rust_engine, "PACKAGE", tmp_path / "package")
+
+    destination = build_rust_engine.stage_pyodide_side_module(build_dir)
+
+    assert destination.name == "libblockprobe_core.so"
+    assert destination.read_bytes() == source.read_bytes()
+    assert destination.parent.name == "pyemscripten-2026.0-wasm32"
+    assert destination.parent.parent.name == "emscripten"
+
+
+def test_pyodide_side_module_reports_missing_artifact(tmp_path: Path) -> None:
+    with pytest.raises(SystemExit, match=r"libblockprobe_core\.wasm.*libblockprobe_core\.so"):
+        build_rust_engine.stage_pyodide_side_module(tmp_path)

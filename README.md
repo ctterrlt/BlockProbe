@@ -43,6 +43,9 @@ banner replacement. Export buttons ask for a platform path and retain a
 uniquely named copy in the reports directory if saving or readback fails.
 Windows and macOS native bundles require their respective CI hosts. See
 [docs/PACKAGING.md](docs/PACKAGING.md) for artifact coverage and limits.
+The latest Release CI run exposed a Web-side Rust library suffix mismatch; the
+staging code and regression test are updated, but the Web artifact still needs
+a successful Emscripten CI rebuild before it is verified.
 
 Official F-Droid metadata is kept in
 [`fdroid/io.github.ctterrlt.blockprobe.yaml`](fdroid/io.github.ctterrlt.blockprobe.yaml).

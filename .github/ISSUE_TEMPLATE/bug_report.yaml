@@ -1,2 +1,61 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Purpose: Bug report issue template.
+name: Bug report
+description: Report a reproducible problem with BlockProbe.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. Do not include credentials, personal data,
+        full website response bodies, or logs containing someone else's network activity.
+        Report security vulnerabilities through SECURITY.md instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Describe the result you saw and what you expected.
+      placeholder: Include the exact error message when possible.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: List the steps and settings needed to reproduce the problem.
+      placeholder: |
+        1. Open...
+        2. Select...
+        3. Run...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: BlockProbe version
+      description: Use the version shown in About or in `blockprobe version`.
+      placeholder: 1.4.0-alpha
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Android
+        - iOS simulator
+        - Web
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant sanitized logs
+      description: Remove credentials, personal data, and unrelated domains before posting.
+      render: shell
+    validations:
+      required: false

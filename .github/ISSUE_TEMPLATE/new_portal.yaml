@@ -1,2 +1,46 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Purpose: New portal request issue template.
+name: Suggest a public portal
+description: Suggest a public website that publishes a relevant domain list.
+title: "[Portal]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Suggest a public page that publishes a list relevant to website filtering.
+        Do not submit private account pages, personal data, or copied full page contents.
+  - type: input
+    id: portal-name
+    attributes:
+      label: Portal or publisher name
+      placeholder: Public regulator or organization
+    validations:
+      required: true
+  - type: input
+    id: source-url
+    attributes:
+      label: Public list URL
+      description: Link directly to the page or feed containing the list.
+      placeholder: https://example.org/public-list
+    validations:
+      required: true
+  - type: input
+    id: jurisdiction
+    attributes:
+      label: Country or jurisdiction
+    validations:
+      required: true
+  - type: textarea
+    id: list-description
+    attributes:
+      label: What does the list contain?
+      description: Describe the publisher, domain categories, and update frequency if known.
+    validations:
+      required: true
+  - type: checkboxes
+    id: public-source
+    attributes:
+      label: Source confirmation
+      options:
+        - label: This is a publicly accessible source, and I have not included private data.
+          required: true

@@ -48,9 +48,11 @@ target-specific previous artifacts first.
 `packaging/windows/installer.iss` and `packaging/macos/build_dmg.sh` wrap the
 Flet outputs. They do not sign or notarize. Local Linux desktop and Android
 emulator checks use unsigned/debug artifacts. The Android 35 emulator was
-checked at both 411dp and 360dp. The built web bundle was served at narrow and
-wide browser sizes, but headless Chromium remained on the Flet startup screen,
-so the web runtime still needs an interactive-browser check. The project owner
+checked at both 411dp and 360dp. An earlier web bundle was served at narrow and
+wide browser sizes, but headless Chromium remained on the Flet startup screen.
+The latest Release Web build failed at Rust side-module staging; the suffix
+correction has not yet been revalidated on an Emscripten runner. Web packaging
+and runtime loading therefore remain unverified. The project owner
 also exercises the app on Android. This is not a production-signed release.
 The Release workflow builds and smoke-tests separate Windows, macOS and Linux
 Python wheels, uploads one sdist, and builds Windows, macOS, Linux, APK, AAB,

@@ -1,2 +1,47 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 # Purpose: Block signature contribution issue template.
+name: Suggest a block-page signature
+description: Propose a signature backed by a public, reproducible observation.
+title: "[Signature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Signatures must come from a public, reproducible block page. Do not invent
+        markers or include credentials, personal data, or a full copyrighted page.
+        Maintainers verify every proposal before it can affect classifications.
+  - type: input
+    id: source-url
+    attributes:
+      label: Public source URL
+      description: Provide the page where the marker was observed, not a private session URL.
+    validations:
+      required: true
+  - type: input
+    id: observed-date
+    attributes:
+      label: Date observed
+      placeholder: YYYY-MM-DD
+    validations:
+      required: true
+  - type: textarea
+    id: marker
+    attributes:
+      label: Short exact marker
+      description: Include only the smallest public text fragment or header needed to identify it.
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: Observation context
+      description: Explain how the block page was reached and why this marker indicates filtering.
+    validations:
+      required: true
+  - type: checkboxes
+    id: evidence
+    attributes:
+      label: Evidence confirmation
+      options:
+        - label: The marker was observed on the cited public page and is not an invented rule.
+          required: true
