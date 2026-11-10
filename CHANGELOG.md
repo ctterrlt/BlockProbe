@@ -11,9 +11,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
-- Find the Emscripten Rust side module throughout Cargo's release output tree,
-  including hashed artifacts under `deps`, then stage it under Pyodide's `.so`
-  loader name.
+- Find Cargo's unprefixed `blockprobe_core.wasm` Emscripten output throughout
+  the release tree, then stage it under Pyodide's `.so` loader name.
 - Replace the empty bug, portal and signature issue-form YAML files with usable
   forms, and remove unused empty AppImage and Flatpak manifest placeholders.
 

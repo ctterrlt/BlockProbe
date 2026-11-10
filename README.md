@@ -21,9 +21,8 @@ DNS/VPN blocker and has not been shown to make full scans faster.
 
 ## Status
 
-The current development build is **1.4.0-alpha**. The earlier 1.2.0 and 1.1.1
-GitHub release downloads were withdrawn. This alpha includes the current
-regulator sources.
+The current development build is **1.4.0-alpha**. All previous GitHub release
+downloads were withdrawn. This alpha includes the current regulator sources.
 
 The app version is maintained in the root [`VERSION`](VERSION) file and drives
 package metadata and native installer builds. Its packaged copy at
@@ -43,10 +42,10 @@ banner replacement. Export buttons ask for a platform path and retain a
 uniquely named copy in the reports directory if saving or readback fails.
 Windows and macOS native bundles require their respective CI hosts. See
 [docs/PACKAGING.md](docs/PACKAGING.md) for artifact coverage and limits.
-The latest Release CI run still failed to find the Emscripten side module at
-the Cargo release-directory root. The builder now searches the full release
-tree for the `.wasm` or `.so` library output, including Cargo's `deps`
-directory; a successful Emscripten CI rebuild is still needed to verify it.
+The latest Release CI log showed Cargo emits `blockprobe_core.wasm` without a
+`lib` prefix, both at the release root and under `deps`. The builder now
+accepts the unprefixed name and the optional `lib` prefix; a successful
+Emscripten CI rebuild is still needed to verify staging and Web packaging.
 
 Official F-Droid metadata is kept in
 [`fdroid/io.github.ctterrlt.blockprobe.yaml`](fdroid/io.github.ctterrlt.blockprobe.yaml).

@@ -155,11 +155,18 @@ def build_ios_simulator() -> list[Path]:
 
 def stage_pyodide_side_module(build_dir: Path) -> Path:
     """Stage Cargo's Emscripten side module under Pyodide's ``.so`` name."""
+
+    def is_side_module(path: Path) -> bool:
+        if not path.is_file() or path.suffix not in {".wasm", ".so"}:
+            return False
+        module_stem = path.stem.removeprefix("lib")
+        return module_stem == "blockprobe_core" or module_stem.startswith(
+            "blockprobe_core-"
+        )
+
     candidates = sorted(
         (
-            path
-            for path in build_dir.rglob("libblockprobe_core*")
-            if path.is_file() and path.suffix in {".wasm", ".so"}
+            path for path in build_dir.rglob("*") if is_side_module(path)
         ),
         key=lambda path: (
             len(path.relative_to(build_dir).parts),

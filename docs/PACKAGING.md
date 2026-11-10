@@ -16,13 +16,13 @@ keystore and fail if its secrets are missing. M6
 remains open until a signed release has been built and verified with the
 owner's long-term key.
 
-The latest Release CI Web job still failed because the side-module search only
-checked the root of Cargo's release directory, and Cargo's actual artifact path
-was not captured in the log. The builder now searches that release tree
-recursively for the crate's `.wasm` or `.so` output, including hashed files
-under `deps`, and reports nearby artifacts if none is found. Tests cover both
-nested output forms. This workspace does not have `emcc`, so a successful
-Emscripten rebuild and Web runtime load still need confirmation from CI.
+The latest Release CI Web job showed Cargo producing `blockprobe_core.wasm`
+both at the release root and under `deps`; Emscripten omits the `lib` prefix
+used by native library outputs. The builder now searches for that unprefixed
+name as well as the optional `lib`-prefixed form and stages it under Pyodide's
+`.so` loader name. Tests cover root and nested outputs. This workspace does not
+have `emcc`, so a successful Emscripten rebuild and Web runtime load still need
+confirmation from CI.
 
 ## Install from source or Python package
 

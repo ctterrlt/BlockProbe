@@ -50,11 +50,11 @@ Flet outputs. They do not sign or notarize. Local Linux desktop and Android
 emulator checks use unsigned/debug artifacts. The Android 35 emulator was
 checked at both 411dp and 360dp. An earlier web bundle was served at narrow and
 wide browser sizes, but headless Chromium remained on the Flet startup screen.
-The latest Release Web build failed because the script did not find the Rust
-side module at Cargo's release-directory root. The builder now searches nested
-Cargo output for the `.wasm` or `.so` module, but this change still needs an
-Emscripten runner to verify. Web packaging and runtime loading therefore
-remain unverified. The project owner
+The latest Release Web build showed Cargo emits `blockprobe_core.wasm` without
+the `lib` prefix, at the release root and under `deps`. The builder now accepts
+the unprefixed module name and the optional `lib` prefix, but this change still
+needs an Emscripten runner to verify. Web packaging and runtime loading remain
+unverified. The project owner
 also exercises the app on Android. This is not a production-signed release.
 The Release workflow builds and smoke-tests separate Windows, macOS and Linux
 Python wheels, uploads one sdist, and builds Windows, macOS, Linux, APK, AAB,

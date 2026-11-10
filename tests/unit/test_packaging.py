@@ -55,9 +55,11 @@ def test_native_wheel_validator_rejects_pure_python_metadata(tmp_path: Path) -> 
 @pytest.mark.parametrize(
     "relative_source",
     (
-        "libblockprobe_core.wasm",
-        "deps/libblockprobe_core-abc123.wasm",
+        "blockprobe_core.wasm",
+        "deps/blockprobe_core.wasm",
+        "deps/blockprobe_core-abc123.wasm",
         "deps/libblockprobe_core-def456.so",
+        "libblockprobe_core.wasm",
     ),
 )
 def test_pyodide_side_module_is_found_recursively_and_staged_with_loader_name(
