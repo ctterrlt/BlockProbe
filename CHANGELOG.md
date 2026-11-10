@@ -11,8 +11,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
-- Stage the Emscripten Rust side module under Pyodide's `.so` loader name even
-  when Cargo emits the WebAssembly artifact with a `.wasm` suffix.
+- Find the Emscripten Rust side module throughout Cargo's release output tree,
+  including hashed artifacts under `deps`, then stage it under Pyodide's `.so`
+  loader name.
 - Replace the empty bug, portal and signature issue-form YAML files with usable
   forms, and remove unused empty AppImage and Flatpak manifest placeholders.
 

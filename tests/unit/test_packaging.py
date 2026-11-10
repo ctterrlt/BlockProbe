@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Regression checks for platform-specific native Python wheels."""
+"""Regression checks for native wheels and platform library staging."""
 
 from __future__ import annotations
 
@@ -52,12 +52,22 @@ def test_native_wheel_validator_rejects_pure_python_metadata(tmp_path: Path) -> 
         validate_wheel(wheel)
 
 
-def test_pyodide_side_module_wasm_is_staged_with_loader_name(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize(
+    "relative_source",
+    (
+        "libblockprobe_core.wasm",
+        "deps/libblockprobe_core-abc123.wasm",
+        "deps/libblockprobe_core-def456.so",
+    ),
+)
+def test_pyodide_side_module_is_found_recursively_and_staged_with_loader_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    relative_source: str,
 ) -> None:
-    build_dir = tmp_path / "target"
-    build_dir.mkdir()
-    source = build_dir / "libblockprobe_core.wasm"
+    build_dir = tmp_path / "release"
+    source = build_dir / relative_source
+    source.parent.mkdir(parents=True)
     source.write_bytes(b"wasm-side-module")
     monkeypatch.setattr(build_rust_engine, "PACKAGE", tmp_path / "package")
 
@@ -69,6 +79,10 @@ def test_pyodide_side_module_wasm_is_staged_with_loader_name(
     assert destination.parent.parent.name == "emscripten"
 
 
-def test_pyodide_side_module_reports_missing_artifact(tmp_path: Path) -> None:
-    with pytest.raises(SystemExit, match=r"libblockprobe_core\.wasm.*libblockprobe_core\.so"):
-        build_rust_engine.stage_pyodide_side_module(tmp_path)
+def test_pyodide_side_module_reports_discovered_artifacts(tmp_path: Path) -> None:
+    release_dir = tmp_path / "release"
+    release_dir.mkdir()
+    (release_dir / "libblockprobe_core.rlib").touch()
+
+    with pytest.raises(SystemExit, match=r"discovered: libblockprobe_core\.rlib"):
+        build_rust_engine.stage_pyodide_side_module(release_dir)

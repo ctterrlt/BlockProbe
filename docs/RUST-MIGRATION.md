@@ -40,12 +40,13 @@ user's tie rule. Primary DNS A/AAAA/CNAME queries and HTTP remain Python.
 - Windows and macOS wheel build/load checks are configured in Release CI, but
   have not run in this workspace. iOS simulator and Pyodide/Web dynamic loading
   are also unverified. The F-Droid recipe has not been executed.
-- The 2026-11-10 Release Web job compiled the Rust side module but failed
-  because the build script expected `.so`; the Emscripten side-module output
-  may use `.wasm`. Staging now accepts either suffix and copies the artifact to
-  the `.so` path used by the Pyodide loader. A unit regression test covers this
-  rename, but this workspace has no `emcc`, so the actual Web build and runtime
-  load remain pending a successful CI run.
+- The 2026-11-10 Release Web job failed because neither expected side-module
+  name was present at the root of Cargo's release directory. The builder now
+  searches the full release tree for the crate's `.wasm` or `.so` output,
+  including hashed files under `deps`, before staging it at the `.so` path used
+  by the Pyodide loader. Regression tests cover nested outputs. This workspace
+  has no `emcc`, so the actual Web build and runtime load remain pending a
+  successful CI run.
 - The Rust toolchain is pinned to 1.98.1. The crate has no external Cargo
   dependencies and native builds use Cargo offline. F-Droid still downloads
   the pinned Android Rust target components during metadata prebuild; its

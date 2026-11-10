@@ -155,11 +155,19 @@ def build_ios_simulator() -> list[Path]:
 
 def stage_pyodide_side_module(build_dir: Path) -> Path:
     """Stage Cargo's Emscripten side module under Pyodide's ``.so`` name."""
-    candidates = (
-        build_dir / "libblockprobe_core.wasm",
-        build_dir / "libblockprobe_core.so",
+    candidates = sorted(
+        (
+            path
+            for path in build_dir.rglob("libblockprobe_core*")
+            if path.is_file() and path.suffix in {".wasm", ".so"}
+        ),
+        key=lambda path: (
+            len(path.relative_to(build_dir).parts),
+            path.suffix != ".wasm",
+            str(path),
+        ),
     )
-    source = next((candidate for candidate in candidates if candidate.is_file()), None)
+    source = candidates[0] if candidates else None
     destination = (
         PACKAGE
         / "_native"
@@ -168,8 +176,20 @@ def stage_pyodide_side_module(build_dir: Path) -> Path:
         / "libblockprobe_core.so"
     )
     if source is None:
-        expected = " or ".join(str(path) for path in candidates)
-        raise SystemExit(f"Cargo did not produce the Pyodide Rust side module: {expected}")
+        observed = sorted(
+            path.relative_to(build_dir).as_posix()
+            for path in build_dir.rglob("*")
+            if path.is_file()
+            and (
+                "blockprobe_core" in path.name
+                or path.suffix in {".wasm", ".so", ".a"}
+            )
+        )
+        details = ", ".join(observed[:30]) if observed else "no candidate artifacts found"
+        raise SystemExit(
+            "Cargo did not produce a Pyodide Rust side module under "
+            f"{build_dir}; discovered: {details}"
+        )
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, destination)
     return destination

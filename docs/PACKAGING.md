@@ -16,12 +16,13 @@ keystore and fail if its secrets are missing. M6
 remains open until a signed release has been built and verified with the
 owner's long-term key.
 
-The latest Release CI Web job failed after Cargo linked the Rust side module
-because the build script looked only for `.so`, while Emscripten can emit the
-WebAssembly module as `.wasm`. The build now stages either output under
-Pyodide's `.so` loader name and has a unit regression test. This workspace does
-not have `emcc`, so the Emscripten rebuild and Web runtime load still need
-confirmation from CI.
+The latest Release CI Web job still failed because the side-module search only
+checked the root of Cargo's release directory, and Cargo's actual artifact path
+was not captured in the log. The builder now searches that release tree
+recursively for the crate's `.wasm` or `.so` output, including hashed files
+under `deps`, and reports nearby artifacts if none is found. Tests cover both
+nested output forms. This workspace does not have `emcc`, so a successful
+Emscripten rebuild and Web runtime load still need confirmation from CI.
 
 ## Install from source or Python package
 
