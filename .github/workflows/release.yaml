@@ -125,7 +125,7 @@ jobs:
         name: Install Rust iOS simulator targets
         run: rustup target add aarch64-apple-ios-sim x86_64-apple-ios
       - if: matrix.target == 'web'
-        uses: emscripten-core/setup-emsdk@v15
+        uses: emscripten-core/setup-emsdk@v16
         with:
           version: 5.0.3
       - if: matrix.target == 'web'
