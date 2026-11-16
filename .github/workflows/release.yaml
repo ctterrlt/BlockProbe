@@ -104,7 +104,7 @@ jobs:
           version: 0.13.7
           enable-cache: true
       - if: matrix.target == 'apk' || matrix.target == 'aab'
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
